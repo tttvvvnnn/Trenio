@@ -1,0 +1,19 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: var(--tg-theme-text-color, #111);
+  background: var(--tg-theme-bg-color, #fff);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+}
+
+.screen {
+  padding: 24px 16px;
+}
+
+.hint {
+  color: var(--tg-theme-hint-color, #777);
+}
