@@ -1,5 +1,14 @@
 name: trenio
 
+# Общие настройки backend-образа. Якорь &backend позволяет не повторять их в двух сервисах
+x-backend: &backend
+  build: ./backend
+  image: trenio-backend:local
+  env_file: .env
+  environment:
+    # Внутри compose база доступна по имени сервиса db, а не по localhost
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
 services:
   db:
     image: postgres:16-alpine
@@ -17,6 +26,34 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    mem_limit: 256m
+
+  migrate:
+    <<: *backend
+    command: ["python", "-m", "trenio", "migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    command: ["python", "-m", "trenio", "all"]
+    restart: unless-stopped
+    mem_limit: 300m
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build: ./frontend
+    image: trenio-web:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    mem_limit: 64m
+    depends_on:
+      - backend
 
 volumes:
   pgdata:
