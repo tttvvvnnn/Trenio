@@ -4,14 +4,16 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Ручной запуск из вкладки Actions: собрать образы любой ветки
+  workflow_dispatch:
 
-# Только чтение репозитория: CI ничего не публикует
 permissions:
   contents: read
 
-# Новый пуш в ту же ветку отменяет старый прогон
+# В PR новый пуш отменяет старый прогон.
+# Прогоны main не отменяются: каждый из них публикует и выкатывает свою версию
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -30,15 +32,15 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U trenio"
+          --health-cmd "pg_isready -U trenio -d trenio_test"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql+asyncpg://trenio:trenio@localhost:5432/trenio_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -55,8 +57,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -66,17 +68,44 @@ jobs:
       - run: npm run build
 
   docker:
+    # Имя как раньше: на "docker (backend)" и "docker (frontend)" завязаны обязательные проверки
+    name: docker (${{ matrix.component }})
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
-        component: [backend, frontend]
+        include:
+          - component: backend
+            image: trenio-backend
+          - component: frontend
+            image: trenio-web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
+      - name: Вход в ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Теги образа
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/tttvvvnnn/${{ matrix.image }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=main,enable={{is_default_branch}}
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.component }}
-          push: false
+          # В PR только проверяем, что образ собирается. Публикуем из main и ручных запусков
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}

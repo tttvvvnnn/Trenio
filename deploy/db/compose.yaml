@@ -1,0 +1,30 @@
+# Общий PostgreSQL для dev и prod: у каждого окружения своя база и свой пользователь.
+# На сервере: /opt/trenio/db/compose.yaml, пароль суперпользователя в .env рядом.
+name: trenio-db
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: trenio-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
+    # Скромные настройки под маленький сервер
+    command: ["postgres", "-c", "max_connections=50", "-c", "shared_buffers=64MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - trenio-db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    mem_limit: 256m
+
+networks:
+  trenio-db:
+    name: trenio-db
+
+volumes:
+  pgdata:
