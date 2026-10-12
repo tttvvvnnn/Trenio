@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, loginWithTelegram, type Me } from './api'
+import { fetchMe, loginWithTelegram, type Me, type Trainer } from './api'
 import { setupTelegram } from './telegram'
+import ProfileForm from './trainer/ProfileForm'
+import TrainerHome from './trainer/TrainerHome'
 
 type State =
   | { kind: 'loading' }
@@ -24,10 +26,16 @@ export default function App() {
       .catch((error: unknown) => setState({ kind: 'error', message: String(error) }))
   }, [])
 
-  return <main className="screen">{render(state)}</main>
+  function setTrainer(trainer: Trainer) {
+    setState((current) =>
+      current.kind === 'ready' ? { kind: 'ready', me: { ...current.me, trainer } } : current,
+    )
+  }
+
+  return <main className="screen">{render(state, setTrainer)}</main>
 }
 
-function render(state: State) {
+function render(state: State, setTrainer: (trainer: Trainer) => void) {
   switch (state.kind) {
     case 'loading':
       return <p className="hint">Загрузка…</p>
@@ -35,16 +43,28 @@ function render(state: State) {
       return <p className="hint">Откройте Trenio из Telegram через кнопку в боте.</p>
     case 'error':
       return <p className="hint">Не удалось войти: {state.message}</p>
-    case 'ready':
-      return (
-        <>
-          <h1>Привет, {state.me.first_name}!</h1>
-          <p className="hint">
-            {state.me.is_trainer
-              ? 'Вы тренер. Скоро здесь появятся расписание и клиенты.'
-              : 'Скоро здесь можно будет записаться к тренеру.'}
-          </p>
-        </>
-      )
+    case 'ready': {
+      const { me } = state
+      if (me.trainer === null) {
+        return (
+          <>
+            <h1>Привет, {me.first_name}!</h1>
+            <p className="hint">Скоро здесь можно будет записаться к тренеру.</p>
+          </>
+        )
+      }
+      if (me.trainer.onboarded_at === null) {
+        return (
+          <>
+            <h1>Добро пожаловать в Trenio!</h1>
+            <p className="hint">
+              Пара вопросов, чтобы настроить профиль. Всё можно поменять позже во вкладке «Профиль».
+            </p>
+            <ProfileForm trainer={me.trainer} onboarding onSaved={setTrainer} />
+          </>
+        )
+      }
+      return <TrainerHome trainer={me.trainer} onTrainerChange={setTrainer} />
+    }
   }
 }
