@@ -109,3 +109,27 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+  deploy-dev:
+    needs: docker
+    # Выкатываем то, что опубликовали: push в main или ручной запуск
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: https://trenio.dev.tvpngate.cc
+    # Деплои dev идут по одному. Если в очереди два, выкатится более новый
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - name: Деплой по SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -o BatchMode=yes deploy@"$HOST" "sha-$GITHUB_SHA"
