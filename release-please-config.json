@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "trenio",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Новое" },
+        { "type": "fix", "section": "Исправления" },
+        { "type": "perf", "section": "Ускорение" },
+        { "type": "refactor", "section": "Рефакторинг", "hidden": true },
+        { "type": "docs", "section": "Документация", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "chore", "section": "Прочее", "hidden": true }
+      ],
+      "extra-files": [
+        { "type": "toml", "path": "backend/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "json", "path": "frontend/package.json", "jsonpath": "$.version" }
+      ]
+    }
+  }
+}
