@@ -1,12 +1,25 @@
 // В проде Mini App и API живут на одном домене, поэтому по умолчанию адрес пустой
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
+export type Trainer = {
+  id: number
+  display_name: string
+  timezone: string
+  address: string | null
+  auto_confirm: boolean
+  cancel_hours: number
+  // null: тренер ещё не прошёл первую настройку
+  onboarded_at: string | null
+}
+
 export type Me = {
   id: number
   first_name: string
   last_name: string | null
   username: string | null
   is_trainer: boolean
+  is_admin: boolean
+  trainer: Trainer | null
 }
 
 let accessToken: string | null = null

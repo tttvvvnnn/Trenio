@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from trenio.api.deps import SessionDep, SettingsDep
 from trenio.auth.telegram import InitDataError, validate_init_data
 from trenio.auth.tokens import create_access_token
+from trenio.services.trainers import ensure_admin_is_trainer
 from trenio.services.users import upsert_telegram_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -32,6 +33,7 @@ async def login_telegram(
     except InitDataError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверные данные Telegram") from None
     user = await upsert_telegram_user(session, tg_user)
+    await ensure_admin_is_trainer(session, user, settings.admin_telegram_ids)
     token = create_access_token(
         user.id, settings.jwt_secret.get_secret_value(), settings.jwt_ttl_minutes
     )

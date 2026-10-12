@@ -16,6 +16,8 @@ dependencies = [
     "pydantic-settings>=2.4",
     "pyjwt>=2.9",
     "sqlalchemy[asyncio]>=2.0.30",
+    # База часовых поясов для zoneinfo: в slim-образе системной может не быть
+    "tzdata>=2024.1",
     "uvicorn[standard]>=0.30",
 ]
 

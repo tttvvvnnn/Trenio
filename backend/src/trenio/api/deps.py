@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.auth.tokens import TokenError, decode_access_token
 from trenio.config import Settings, get_settings
-from trenio.db.models import User
+from trenio.db.models import Trainer, User
 from trenio.db.session import get_session
+from trenio.services.trainers import get_active_trainer
 from trenio.services.users import get_user
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -37,3 +38,13 @@ async def current_user(
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
+
+
+async def current_trainer(user: CurrentUser, session: SessionDep) -> Trainer:
+    trainer = await get_active_trainer(session, user.id)
+    if trainer is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Нет доступа тренера")
+    return trainer
+
+
+CurrentTrainer = Annotated[Trainer, Depends(current_trainer)]

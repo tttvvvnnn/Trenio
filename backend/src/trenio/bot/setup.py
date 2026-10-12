@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from aiogram import Bot, Dispatcher
 
-from trenio.bot.handlers import router
+from trenio.bot import admin, handlers
 from trenio.config import get_settings
 
 WEBHOOK_PATH = "/bot/webhook"
@@ -16,7 +16,8 @@ def get_bot() -> Bot:
 @lru_cache
 def get_dispatcher() -> Dispatcher:
     dispatcher = Dispatcher()
-    dispatcher.include_router(router)
+    dispatcher.include_router(admin.router)
+    dispatcher.include_router(handlers.router)
     return dispatcher
 
 
