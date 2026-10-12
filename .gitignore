@@ -1,0 +1,20 @@
+# секреты
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# редакторы и ОС
+.idea/
+.vscode/
+.DS_Store
