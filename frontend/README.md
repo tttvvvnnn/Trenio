@@ -1,3 +1,13 @@
 # Trenio Mini App
 
-Здесь будет Mini App на React + TypeScript + Vite. Каркас создаётся на этапе 2.
+React + TypeScript + Vite. Открывается из Telegram кнопкой в боте.
+
+```bash
+npm ci
+npm run dev     # http://localhost:5173, запросы /api уходят на backend :8000
+npm run lint
+npm run build   # статика в dist/, её раздаёт nginx
+```
+
+Вне Telegram приложение покажет подсказку «Откройте Trenio из Telegram»:
+войти можно только с подписанной initData.

@@ -7,10 +7,26 @@ name = "trenio"
 version = "0.1.0"
 description = "Backend Trenio: API, бот и планировщик"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "aiogram>=3.13,<4",
+    "alembic>=1.13",
+    "apscheduler>=3.10,<4",
+    "asyncpg>=0.29",
+    "fastapi>=0.115",
+    "pydantic-settings>=2.4",
+    "pyjwt>=2.9",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "uvicorn[standard]>=0.30",
+]
 
 [project.optional-dependencies]
-dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8"]
+dev = [
+    "httpx>=0.27",
+    "mypy>=1.11",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trenio"]
@@ -25,6 +41,14 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
