@@ -14,7 +14,7 @@ from enum import StrEnum
 
 from fastapi import APIRouter, FastAPI
 
-from trenio.api.routes import auth, bot_webhook, health, me
+from trenio.api.routes import auth, bot_webhook, health, me, trainer
 from trenio.bot.setup import configure_webhook, get_bot, get_dispatcher
 from trenio.config import BotMode, get_settings
 from trenio.scheduler.setup import create_scheduler
@@ -72,6 +72,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
         api = APIRouter(prefix="/api")
         api.include_router(auth.router)
         api.include_router(me.router)
+        api.include_router(trainer.router)
         app.include_router(api)
     if Component.BOT in components and settings.bot_mode is BotMode.WEBHOOK:
         app.include_router(bot_webhook.router)

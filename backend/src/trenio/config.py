@@ -8,7 +8,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -41,9 +41,16 @@ class Settings(BaseSettings):
     # Сколько секунд initData считается свежей
     init_data_max_age: int = 60 * 60 * 24
 
-    beta_trainer_ids: Annotated[frozenset[int], NoDecode] = Field(default_factory=frozenset)
+    # Telegram ID админов: выдают тренерам доступ командами в боте и сами являются тренерами.
+    # BETA_TRAINER_IDS — старое имя переменной с этапов 2–3, читается, пока его не переименуют
+    admin_telegram_ids: Annotated[frozenset[int], NoDecode] = Field(
+        default_factory=frozenset,
+        validation_alias=AliasChoices("ADMIN_TELEGRAM_IDS", "BETA_TRAINER_IDS"),
+    )
+    # Сколько дней действует одноразовая ссылка-приглашение для тренера
+    trainer_invite_ttl_days: int = 7
 
-    @field_validator("beta_trainer_ids", mode="before")
+    @field_validator("admin_telegram_ids", mode="before")
     @classmethod
     def _parse_ids(cls, value: object) -> object:
         # В .env это строка "123,456"; пустая строка даёт пустой список

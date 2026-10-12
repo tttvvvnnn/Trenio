@@ -10,11 +10,12 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.factories import BOT_TOKEN
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
-TRAINER_TELEGRAM_ID = 1001
+ADMIN_TELEGRAM_ID = 1001
 
 
 def _reset_caches() -> None:
@@ -33,7 +34,7 @@ def test_env() -> Iterator[None]:
         "BOT_TOKEN": BOT_TOKEN,
         "BOT_MODE": "polling",
         "JWT_SECRET": "test-secret-with-enough-length-for-hs256",
-        "BETA_TRAINER_IDS": str(TRAINER_TELEGRAM_ID),
+        "ADMIN_TELEGRAM_IDS": str(ADMIN_TELEGRAM_ID),
         "DATABASE_URL": TEST_DATABASE_URL or "postgresql+asyncpg://invalid/invalid",
     }
     previous = {key: os.environ.get(key) for key in env}
@@ -59,12 +60,26 @@ def migrated_db(test_env: None) -> None:
 
 
 @pytest.fixture
-async def client(migrated_db: None) -> AsyncIterator[AsyncClient]:
-    from trenio.api.app import Component, create_app
+async def clean_db(migrated_db: None) -> None:
     from trenio.db.session import get_engine
 
+    # CASCADE чистит и всё, что ссылается на users: тренеров, приглашения
     async with get_engine().begin() as conn:
         await conn.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture
+async def session(clean_db: None) -> AsyncIterator[AsyncSession]:
+    from trenio.db.session import get_sessionmaker
+
+    async with get_sessionmaker()() as db:
+        yield db
+
+
+@pytest.fixture
+async def client(clean_db: None) -> AsyncIterator[AsyncClient]:
+    from trenio.api.app import Component, create_app
+
     # Бот и планировщик в тестах не нужны: они ходят в Telegram
     app = create_app(frozenset({Component.API}))
     transport = ASGITransport(app=app)
