@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0](https://github.com/tttvvvnnn/Trenio/compare/v0.2.0...v0.3.0) (2026-10-12)
+
+
+### Новое
+
+* доступ тренеров в базе и приглашения от админа ([#8](https://github.com/tttvvvnnn/Trenio/issues/8)) ([a21ec78](https://github.com/tttvvvnnn/Trenio/commit/a21ec7884e544d39e622a8a99561df4379f73e97))
+* услуги, недельный шаблон, исключения и окошки тренера ([#10](https://github.com/tttvvvnnn/Trenio/issues/10)) ([28dfac0](https://github.com/tttvvvnnn/Trenio/commit/28dfac0140d80841df3259dc5baac24f0ba95223))
+* экраны тренера в Mini App ([#11](https://github.com/tttvvvnnn/Trenio/issues/11)) ([d90233e](https://github.com/tttvvvnnn/Trenio/commit/d90233e9009a0a4156b9f515416a4c7e470fd429))
+
 ## [0.2.0](https://github.com/tttvvvnnn/Trenio/compare/v0.1.0...v0.2.0) (2026-10-12)
 
 
