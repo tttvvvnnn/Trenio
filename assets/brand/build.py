@@ -23,7 +23,7 @@ from fontTools.varLib.instancer import instantiateVariableFont
 CORAL = '#FF5A36'
 GRAPHITE = '#15171C'
 WHITE = '#FFFFFF'
-MIST = '#A2A5AC'
+CONCRETE = '#EDEDEA'
 
 OUT = Path(__file__).parent
 PUBLIC = OUT.parent.parent / 'frontend' / 'public'
@@ -105,20 +105,6 @@ def word_paths(font_path: str):
     return ' '.join(parts) + ' ' + body, sector, x + width, max(top, r * 2.5)
 
 
-def text_paths(font_path: str, text: str, wght: int, size: float):
-    font = instantiateVariableFont(TTFont(font_path), {'wght': wght})
-    glyphs, cmap = font.getGlyphSet(), font.getBestCmap()
-    s = size / font['head'].unitsPerEm
-    x, parts = 0.0, []
-    for ch in text:
-        g = glyphs[cmap[ord(ch)]]
-        pen = SVGPathPen(glyphs)
-        g.draw(TransformPen(pen, (s, 0, 0, -s, x, 0)))
-        parts.append(pen.getCommands())
-        x += g.width * s
-    return ' '.join(parts), x
-
-
 def mono(color: str, body: str, sector: str, extra: str = '') -> str:
     """Одноцветная версия: сектор вырезан из корпуса маской, фон просвечивает."""
     return (
@@ -165,12 +151,12 @@ def main(font_path: str) -> None:
     for name, ink in [('mono-dark', GRAPHITE), ('mono-light', WHITE)]:
         write(OUT / f'trenio-wordmark-{name}.svg', svg(word_vb, mono(ink, word, word_sector)))
 
-    # Аватарка бота: коралловый фон, Telegram обрежет её в круг
+    # Аватарка бота: цветной знак на светлом фоне, Telegram обрежет её в круг
     place = 'translate(320 316) scale(4.1) translate(-50 -50)'
     write(OUT / 'bot-avatar.svg', svg('0 0 640 640',
-          f'<rect width="640" height="640" fill="{CORAL}"/>'
+          f'<rect width="640" height="640" fill="{CONCRETE}"/>'
           f'<g transform="{place}"><path fill="{GRAPHITE}" d="{body}"/>'
-          f'<path fill="{WHITE}" d="{sector}"/><path fill="{GRAPHITE}" d="{dot}"/></g>'))
+          f'<path fill="{CORAL}" d="{sector}"/><path fill="{GRAPHITE}" d="{dot}"/></g>'))
 
     # Иконка приложения: графитовый квадрат, белый секундомер
     place = 'translate(512 506) scale(6.4) translate(-50 -50)'
@@ -179,14 +165,12 @@ def main(font_path: str) -> None:
           f'<g transform="{place}"><path fill="{WHITE}" d="{body}"/>'
           f'<path fill="{CORAL}" d="{sector}"/><path fill="{WHITE}" d="{dot}"/></g>'))
 
-    # Картинка в описании бота, 640×360
-    scale = 300 / width
-    tagline, tag_w = text_paths(font_path, 'Расписание и запись к тренеру', 500, 24)
+    # Картинка в описании бота, 640×360: цветное слово на светлом фоне
+    scale = 400 / width
     write(OUT / 'bot-description.svg', svg('0 0 640 360',
-          f'<rect width="640" height="360" fill="{GRAPHITE}"/>'
-          f'<g transform="translate({f(320 - width * scale / 2)} 196) scale({f(scale)})">'
-          f'<path fill="{WHITE}" d="{word}"/><path fill="{CORAL}" d="{word_sector}"/></g>'
-          f'<path fill="{MIST}" transform="translate({f(320 - tag_w / 2)} 254)" d="{tagline}"/>'))
+          f'<rect width="640" height="360" fill="{CONCRETE}"/>'
+          f'<g transform="translate({f(320 - width * scale / 2)} {f(180 + top * scale / 2)}) scale({f(scale)})">'
+          f'<path fill="{GRAPHITE}" d="{word}"/><path fill="{CORAL}" d="{word_sector}"/></g>'))
 
     # Фавиконка Mini App: в тёмной теме браузера корпус становится белым
     write(PUBLIC / 'favicon.svg', svg(mark_vb,

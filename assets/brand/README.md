@@ -10,8 +10,8 @@
 | `trenio-wordmark.svg` | Слово trenio, секундомер вместо o | Светлый фон |
 | `trenio-wordmark-white.svg` | Слово, белое | Тёмный фон |
 | `trenio-wordmark-mono-dark.svg`, `trenio-wordmark-mono-light.svg` | Одноцветное слово | Когда нельзя цвет |
-| `bot-avatar.svg`, `bot-avatar.png` | 640×640, коралловый фон | Аватарка бота в @BotFather |
-| `bot-description.svg`, `bot-description.png` | 640×360 | Картинка в описании бота (@BotFather) |
+| `bot-avatar.svg`, `bot-avatar.png` | 640×640, цветной знак на светлом фоне | Аватарка бота в @BotFather |
+| `bot-description.svg`, `bot-description.png` | 640×360, цветное слово на светлом фоне | Картинка в описании бота (@BotFather) |
 | `app-icon.svg`, `app-icon.png` | 1024×1024, графитовый фон | Иконка приложения, сторы |
 
 В `frontend/public/` лежат `favicon.svg` (в тёмной теме браузера корпус белый)
