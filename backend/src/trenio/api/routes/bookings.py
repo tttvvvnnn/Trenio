@@ -1,17 +1,19 @@
 """Записи и клиенты со стороны тренера."""
 
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import AwareDatetime, BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import Booking, TrainerClient, User
-from trenio.services import bookings
-from trenio.services.bookings import Actor, BookingError, BookingRejected
+from trenio.services import bookings, packages
+from trenio.services.bookings import Actor, BookingError, BookingRejected, BookingStatus
 from trenio.services.clients import client_invite_link, list_clients
 from trenio.services.users import get_user
 
@@ -67,6 +69,16 @@ class BookingTrainerOut(BaseModel):
     timezone: str
 
 
+class BookingChargeOut(BaseModel):
+    """Из какого блока списано занятие."""
+
+    package_id: int
+    package_name: str
+    # Какое по счёту занятие блока, 1…sessions_count
+    number: int
+    sessions_count: int
+
+
 class BookingOut(BaseModel):
     id: int
     status: str
@@ -83,9 +95,22 @@ class BookingOut(BaseModel):
     can_cancel: bool
     # До какого момента клиент отменяет сам
     cancel_deadline: datetime
+    # Отметка тренера после занятия: attended, missed_charged, missed_free или null
+    attendance: str | None
+    # Может ли тренер отметить посещение: занятие уже началось и не отклонено
+    can_mark: bool
+    # Разовая: списать не из чего, оплачивается отдельно. Для неотмеченных — прогноз
+    one_off: bool = False
+    charge: BookingChargeOut | None = None
 
     @classmethod
-    def of(cls, booking: Booking, can_cancel: bool) -> "BookingOut":
+    def of(
+        cls,
+        booking: Booking,
+        can_cancel: bool,
+        now: datetime,
+        billing: packages.Billing | None = None,
+    ) -> "BookingOut":
         service = booking.service
         trainer = booking.trainer
         return cls(
@@ -108,11 +133,40 @@ class BookingOut(BaseModel):
             address=service.address or trainer.address,
             can_cancel=can_cancel,
             cancel_deadline=bookings.client_cancel_deadline(booking),
+            attendance=booking.attendance,
+            can_mark=booking.starts_at <= now and booking.status != BookingStatus.DECLINED,
+            one_off=billing is not None and booking.id in billing.one_off,
+            charge=_charge_out(billing.charges.get(booking.id)) if billing else None,
         )
 
 
-def trainer_view(booking: Booking, now: datetime) -> BookingOut:
-    return BookingOut.of(booking, bookings.is_active(booking) and booking.starts_at > now)
+def _charge_out(charge: packages.Charge | None) -> BookingChargeOut | None:
+    if charge is None:
+        return None
+    return BookingChargeOut(
+        package_id=charge.package.id,
+        package_name=charge.package.name,
+        number=charge.number,
+        sessions_count=charge.package.sessions_count,
+    )
+
+
+async def trainer_views(
+    session: AsyncSession, found: Sequence[Booking], now: datetime
+) -> list[BookingOut]:
+    """Записи глазами тренера: с отметками, разовыми и списаниями из блоков."""
+    billing = await packages.billing(session, found)
+    return [
+        BookingOut.of(booking, trainer_can_cancel(booking, now), now, billing) for booking in found
+    ]
+
+
+def trainer_can_cancel(booking: Booking, now: datetime) -> bool:
+    return bookings.is_active(booking) and booking.starts_at > now
+
+
+async def trainer_view(session: AsyncSession, booking: Booking, now: datetime) -> BookingOut:
+    return (await trainer_views(session, [booking], now))[0]
 
 
 # --- Записи ---
@@ -136,7 +190,7 @@ async def list_bookings(
         datetime.combine(start, time(), tz),
         datetime.combine(start + timedelta(days=days), time(), tz),
     )
-    return [trainer_view(booking, now) for booking in found]
+    return await trainer_views(session, found, now)
 
 
 @router.get("/bookings/pending")
@@ -144,7 +198,7 @@ async def list_pending(trainer: CurrentTrainer, session: SessionDep) -> list[Boo
     """Предстоящие записи, которые ждут подтверждения."""
     now = datetime.now(UTC)
     found = await bookings.list_pending(session, trainer, now)
-    return [trainer_view(booking, now) for booking in found]
+    return await trainer_views(session, found, now)
 
 
 class TrainerBookingIn(BaseModel):
@@ -174,10 +228,10 @@ async def create_booking(
         )
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
-    return trainer_view(booking, now)
+    return await trainer_view(session, booking, now)
 
 
-async def _own_booking(session: SessionDep, trainer: CurrentTrainer, booking_id: int) -> Booking:
+async def own_booking(session: SessionDep, trainer: CurrentTrainer, booking_id: int) -> Booking:
     try:
         return await bookings.get_trainer_booking(session, trainer, booking_id)
     except LookupError:
@@ -188,38 +242,38 @@ async def _own_booking(session: SessionDep, trainer: CurrentTrainer, booking_id:
 async def confirm_booking(
     booking_id: int, trainer: CurrentTrainer, session: SessionDep
 ) -> BookingOut:
-    booking = await _own_booking(session, trainer, booking_id)
+    booking = await own_booking(session, trainer, booking_id)
     try:
         booking = await bookings.confirm_booking(session, booking)
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
-    return trainer_view(booking, datetime.now(UTC))
+    return await trainer_view(session, booking, datetime.now(UTC))
 
 
 @router.post("/bookings/{booking_id}/decline")
 async def decline_booking(
     booking_id: int, trainer: CurrentTrainer, session: SessionDep
 ) -> BookingOut:
-    booking = await _own_booking(session, trainer, booking_id)
+    booking = await own_booking(session, trainer, booking_id)
     now = datetime.now(UTC)
     try:
         booking = await bookings.decline_booking(session, booking, now)
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
-    return trainer_view(booking, now)
+    return await trainer_view(session, booking, now)
 
 
 @router.post("/bookings/{booking_id}/cancel")
 async def cancel_booking(
     booking_id: int, trainer: CurrentTrainer, session: SessionDep
 ) -> BookingOut:
-    booking = await _own_booking(session, trainer, booking_id)
+    booking = await own_booking(session, trainer, booking_id)
     now = datetime.now(UTC)
     try:
         booking = await bookings.cancel_booking(session, booking, Actor.TRAINER, now)
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
-    return trainer_view(booking, now)
+    return await trainer_view(session, booking, now)
 
 
 # --- Клиенты ---
@@ -228,15 +282,33 @@ async def cancel_booking(
 class ClientOut(PersonOut):
     # Когда клиент впервые открыл ссылку тренера
     since: datetime
+    # Сколько занятий осталось в действующих блоках; null — действующих блоков нет
+    sessions_left: int | None = None
+    # Сколько клиент должен доплатить по блокам
+    debt: int = 0
+    # Покупал ли клиент блоки вообще: отличает «блок закончился» от «блоков не было»
+    has_packages: bool = False
 
     @classmethod
-    def of_link(cls, link: TrainerClient) -> "ClientOut":
-        return cls(**PersonOut.of(link.user).model_dump(), since=link.created_at)
+    def of_link(
+        cls, link: TrainerClient, summary: packages.ClientSummary | None = None
+    ) -> "ClientOut":
+        out = cls(**PersonOut.of(link.user).model_dump(), since=link.created_at)
+        if summary is not None:
+            out.sessions_left = summary.sessions_left
+            out.debt = summary.debt
+            out.has_packages = summary.has_packages
+        return out
 
 
 @router.get("/clients")
 async def get_clients(trainer: CurrentTrainer, session: SessionDep) -> list[ClientOut]:
-    return [ClientOut.of_link(link) for link in await list_clients(session, trainer)]
+    today = packages.trainer_today(trainer, datetime.now(UTC))
+    summary = packages.summarize(await packages.list_trainer_packages(session, trainer), today)
+    return [
+        ClientOut.of_link(link, summary.get(link.user_id))
+        for link in await list_clients(session, trainer)
+    ]
 
 
 class InviteLinkOut(BaseModel):

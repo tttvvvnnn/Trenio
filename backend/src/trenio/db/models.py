@@ -15,6 +15,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Table,
+    Text,
     Time,
     UniqueConstraint,
     text,
@@ -181,6 +182,8 @@ class TrainerClient(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     trainer_id: Mapped[int] = mapped_column(ForeignKey("trainers.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Заметки тренера о клиенте; клиент их не видит
+    notes: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped[User] = relationship(lazy="joined")
     trainer: Mapped[Trainer] = relationship(lazy="joined")
@@ -202,6 +205,10 @@ class Booking(TimestampMixin, Base):
         CheckConstraint("created_by IN ('client', 'trainer')", name="created_by"),
         CheckConstraint(
             "cancelled_by IS NULL OR cancelled_by IN ('client', 'trainer')", name="cancelled_by"
+        ),
+        CheckConstraint(
+            "attendance IS NULL OR attendance IN ('attended', 'missed_charged', 'missed_free')",
+            name="attendance",
         ),
         Index("ix_bookings_trainer_starts", "trainer_id", "starts_at"),
         Index("ix_bookings_client_starts", "client_id", "starts_at"),
@@ -233,7 +240,112 @@ class Booking(TimestampMixin, Base):
     created_by: Mapped[str] = mapped_column(String(16))
     cancelled_by: Mapped[str | None] = mapped_column(String(16))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Отметка тренера после занятия: attended — прошла, missed_charged — пропуск со списанием,
+    # missed_free — пропуск без списания. None — ещё не отмечено
+    attendance: Mapped[str | None] = mapped_column(String(16))
+    attendance_marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     client: Mapped[User] = relationship(lazy="joined")
     service: Mapped[Service] = relationship(lazy="joined")
     trainer: Mapped[Trainer] = relationship(lazy="joined")
+
+
+class PackageTemplate(TimestampMixin, Base):
+    """Шаблон блока, чтобы не вводить каждый раз: «10 персональных за 20 000»."""
+
+    __tablename__ = "package_templates"
+    __table_args__ = (
+        CheckConstraint("sessions_count BETWEEN 1 AND 200", name="sessions_count"),
+        CheckConstraint("price >= 0", name="price"),
+        CheckConstraint("valid_days IS NULL OR valid_days >= 1", name="valid_days"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(128))
+    # Пусто — блок подходит к любой услуге тренера
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("services.id"))
+    sessions_count: Mapped[int] = mapped_column(Integer)
+    price: Mapped[int] = mapped_column(Integer)
+    # Сколько дней действует блок с даты покупки; пусто — бессрочно
+    valid_days: Mapped[int | None] = mapped_column(Integer)
+
+    service: Mapped[Service | None] = relationship(lazy="joined")
+
+
+class Package(TimestampMixin, Base):
+    """Купленный клиентом блок. Поля копируются из шаблона, чтобы правка шаблона его не меняла."""
+
+    __tablename__ = "packages"
+    __table_args__ = (
+        CheckConstraint("sessions_count BETWEEN 1 AND 200", name="sessions_count"),
+        CheckConstraint("price >= 0", name="price"),
+        Index("ix_packages_trainer_client", "trainer_id", "client_id"),
+        Index("ix_packages_client", "client_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(ForeignKey("trainers.id", ondelete="CASCADE"))
+    client_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(128))
+    # Пусто — списывается за любую услугу
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("services.id"))
+    sessions_count: Mapped[int] = mapped_column(Integer)
+    # Полная стоимость блока в рублях; оплаты — в payments
+    price: Mapped[int] = mapped_column(Integer)
+    purchased_on: Mapped[date] = mapped_column(Date)
+    # Последний день, когда из блока можно списать занятие; пусто — бессрочно
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    # Тренер закрыл блок досрочно: из него больше не списывается
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    service: Mapped[Service | None] = relationship(lazy="joined")
+    trainer: Mapped[Trainer] = relationship(lazy="joined")
+    sessions: Mapped[list["PackageSession"]] = relationship(
+        lazy="selectin",
+        order_by="(PackageSession.day, PackageSession.id)",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    payments: Mapped[list["Payment"]] = relationship(
+        lazy="selectin",
+        order_by="(Payment.paid_on, Payment.id)",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PackageSession(TimestampMixin, Base):
+    """Списанное из блока занятие. Номер 1…N не храним: он считается по порядку дат."""
+
+    __tablename__ = "package_sessions"
+    __table_args__ = (CheckConstraint("status IN ('attended', 'missed_charged')", name="status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    package_id: Mapped[int] = mapped_column(
+        ForeignKey("packages.id", ondelete="CASCADE"), index=True
+    )
+    # Запись, за которую списано; пусто — тренер отметил занятие в блоке вручную.
+    # Уникальность: одна запись списывается не больше одного раза
+    booking_id: Mapped[int | None] = mapped_column(
+        ForeignKey("bookings.id", ondelete="SET NULL"), unique=True
+    )
+    day: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(16))
+
+
+class Payment(TimestampMixin, Base):
+    """Внесённые за блок деньги. Только учёт: через бот деньги не идут."""
+
+    __tablename__ = "payments"
+    __table_args__ = (CheckConstraint("amount > 0", name="amount"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    package_id: Mapped[int] = mapped_column(
+        ForeignKey("packages.id", ondelete="CASCADE"), index=True
+    )
+    amount: Mapped[int] = mapped_column(Integer)
+    paid_on: Mapped[date] = mapped_column(Date)
+    comment: Mapped[str | None] = mapped_column(String(256))

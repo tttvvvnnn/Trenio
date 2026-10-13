@@ -50,7 +50,7 @@ async def _my_trainer(session: SessionDep, user: User, trainer_id: int) -> Train
 
 
 def client_view(booking: Booking, now: datetime) -> BookingOut:
-    return BookingOut.of(booking, bookings.client_can_cancel(booking, now))
+    return BookingOut.of(booking, bookings.client_can_cancel(booking, now), now)
 
 
 @router.get("/trainers")
