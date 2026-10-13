@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/tttvvvnnn/Trenio/compare/v0.3.0...v0.4.0) (2026-10-13)
+
+
+### Новое
+
+* записи и клиенты у тренера в Mini App ([#17](https://github.com/tttvvvnnn/Trenio/issues/17)) ([307934c](https://github.com/tttvvvnnn/Trenio/commit/307934ccbe092e8dce57880f136add092e6ec0ac))
+* записи клиентов к тренеру в backend ([#15](https://github.com/tttvvvnnn/Trenio/issues/15)) ([b70c32c](https://github.com/tttvvvnnn/Trenio/commit/b70c32c78b0f629aab9bab7138e5c4158657bbc9))
+* запись клиента в Mini App ([#16](https://github.com/tttvvvnnn/Trenio/issues/16)) ([3d5dcdb](https://github.com/tttvvvnnn/Trenio/commit/3d5dcdbe84c085db2db281b0f01747d1b351a30d))
+* редизайн экранов тренера в Mini App ([#13](https://github.com/tttvvvnnn/Trenio/issues/13)) ([92bbc7a](https://github.com/tttvvvnnn/Trenio/commit/92bbc7ab732c32bb69e6a6ed346d701ccbe8e84d))
+* шаг времени начала записи ([#18](https://github.com/tttvvvnnn/Trenio/issues/18)) ([979bf5d](https://github.com/tttvvvnnn/Trenio/commit/979bf5d11fd51aaa4ee65b749b737c228b41d9c8))
+
 ## [0.3.0](https://github.com/tttvvvnnn/Trenio/compare/v0.2.0...v0.3.0) (2026-10-12)
 
 
