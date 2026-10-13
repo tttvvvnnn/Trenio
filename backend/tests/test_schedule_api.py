@@ -117,6 +117,7 @@ async def test_two_weeks_of_slots(client: AsyncClient) -> None:
         "service_id": service_id,
         "starts_at": "2030-01-07T07:00:00Z",
         "ends_at": "2030-01-07T08:00:00Z",
+        "seats_left": 1,
     }
 
 

@@ -1,14 +1,14 @@
 """Расчёт свободных окошек тренера.
 
 Окошки не хранятся в базе: их считаем на лету из недельного шаблона и исключений.
-Так правка шаблона сразу меняет расписание. Вычитание уже занятых записей добавится
-на этапе 5 вместе с бронированием.
+Так правка шаблона сразу меняет расписание. Занятые записи вычитаются тут же: тренер
+не может быть в двух местах сразу, а в групповое занятие можно записаться, пока есть места.
 
 Здесь только чистые функции без базы, чтобы расчёт легко покрыть тестами.
 """
 
 from collections.abc import Collection, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
@@ -28,6 +28,8 @@ class ExceptionKind(StrEnum):
 class ServiceSpec:
     id: int
     duration_min: int
+    # Сколько клиентов помещается в одно занятие
+    capacity: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,10 +51,21 @@ class ExceptionSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class BusySpec:
+    """Активная запись (ждёт подтверждения или подтверждена), время в UTC."""
+
+    service_id: int
+    starts_at: datetime
+    ends_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class Slot:
     service_id: int
     starts_at: datetime  # в UTC
     ends_at: datetime
+    # Свободных мест: у индивидуальной услуги всегда 1, у групповой — вместимость минус записи
+    seats_left: int = 1
 
 
 def _minutes(value: time) -> int:
@@ -112,6 +125,19 @@ def day_windows(
     return {service_id: subtract(found, closed) for service_id, found in windows.items()}
 
 
+def _seats_left(slot: Slot, capacity: int, busy: Iterable[BusySpec]) -> int:
+    """Сколько мест осталось в окошке; 0 — время занято."""
+    taken = 0
+    for booking in busy:
+        if booking.ends_at <= slot.starts_at or booking.starts_at >= slot.ends_at:
+            continue
+        if booking.service_id != slot.service_id or booking.starts_at != slot.starts_at:
+            # Тренер уже занят другим занятием, которое пересекается с этим окошком
+            return 0
+        taken += 1
+    return max(capacity - taken, 0)
+
+
 def free_slots(
     *,
     start_day: date,
@@ -121,15 +147,21 @@ def free_slots(
     rules: Collection[RuleSpec],
     exceptions: Collection[ExceptionSpec],
     now: datetime,
+    busy: Collection[BusySpec] = (),
 ) -> list[Slot]:
     """Окошки на days дней начиная с start_day (даты по часовому поясу тренера).
 
     Окно нарезается шагом, равным длительности услуги, от начала окна:
     10:00–14:00 при 60 минутах даёт 10, 11, 12, 13. Хвост короче услуги отбрасывается.
     Прошедшие окошки не показываем.
+
+    Из окошек вычитаются записи busy. Окошко, которое пересекается с чужим занятием,
+    пропадает целиком. В то же самое занятие (та же услуга и начало) можно записаться,
+    пока не кончились места.
     """
     tz = ZoneInfo(timezone)
     durations = {service.id: service.duration_min for service in services}
+    capacities = {service.id: service.capacity for service in services}
     found: set[Slot] = set()
     for offset in range(days):
         day = start_day + timedelta(days=offset)
@@ -144,4 +176,9 @@ def free_slots(
                         found.add(Slot(service_id, starts_at, ends_at))
                     minute += duration
     # Перекрывающиеся правила дают одинаковые окошки: set убирает дубли
-    return sorted(found, key=lambda slot: (slot.starts_at, slot.service_id))
+    result: list[Slot] = []
+    for slot in sorted(found, key=lambda slot: (slot.starts_at, slot.service_id)):
+        seats = _seats_left(slot, capacities[slot.service_id], busy)
+        if seats > 0:
+            result.append(replace(slot, seats_left=seats))
+    return result

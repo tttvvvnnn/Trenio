@@ -6,13 +6,21 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from trenio.db.models import ScheduleException, ScheduleRule, Service, Trainer
+from trenio.db.models import (
+    ACTIVE_BOOKING_STATUSES,
+    Booking,
+    ScheduleException,
+    ScheduleRule,
+    Service,
+    Trainer,
+)
 from trenio.services.slots import (
+    BusySpec,
     ExceptionKind,
     ExceptionSpec,
     RuleSpec,
@@ -260,6 +268,23 @@ async def delete_exception(session: AsyncSession, trainer: Trainer, exception_id
 # --- Окошки ---
 
 
+async def active_bookings(
+    session: AsyncSession, trainer: Trainer, start: datetime, end: datetime
+) -> Sequence[Booking]:
+    """Записи, которые занимают время тренера и пересекаются с [start, end)."""
+    stmt = (
+        select(Booking)
+        .where(
+            Booking.trainer_id == trainer.id,
+            Booking.status.in_(ACTIVE_BOOKING_STATUSES),
+            Booking.starts_at < end,
+            Booking.ends_at > start,
+        )
+        .order_by(Booking.starts_at, Booking.id)
+    )
+    return (await session.scalars(stmt)).all()
+
+
 async def trainer_slots(
     session: AsyncSession,
     trainer: Trainer,
@@ -275,11 +300,20 @@ async def trainer_slots(
     exceptions = await list_exceptions(
         session, trainer, start_day, start_day + timedelta(days=days - 1)
     )
+    # С запасом в сутки по краям: границы дней в поясе тренера не совпадают с UTC
+    busy = await active_bookings(
+        session,
+        trainer,
+        datetime.combine(start_day - timedelta(days=1), time(), UTC),
+        datetime.combine(start_day + timedelta(days=days + 1), time(), UTC),
+    )
     return free_slots(
         start_day=start_day,
         days=days,
         timezone=trainer.timezone,
-        services=[ServiceSpec(service.id, service.duration_min) for service in services],
+        services=[
+            ServiceSpec(service.id, service.duration_min, service.capacity) for service in services
+        ],
         rules=[
             RuleSpec(
                 weekday=rule.weekday,
@@ -299,4 +333,5 @@ async def trainer_slots(
             for exc in exceptions
         ],
         now=now,
+        busy=[BusySpec(b.service_id, b.starts_at, b.ends_at) for b in busy],
     )

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.db.models import ScheduleException, ScheduleRule
 from trenio.services import schedule
-from trenio.services.slots import ExceptionKind
+from trenio.services.slots import ExceptionKind, Slot
 
 router = APIRouter(prefix="/trainer", tags=["schedule"])
 
@@ -248,6 +248,17 @@ class SlotOut(BaseModel):
     service_id: int
     starts_at: datetime
     ends_at: datetime
+    # Сколько ещё человек можно записать; у индивидуальной услуги всегда 1
+    seats_left: int
+
+    @classmethod
+    def of(cls, slot: Slot) -> "SlotOut":
+        return cls(
+            service_id=slot.service_id,
+            starts_at=slot.starts_at,
+            ends_at=slot.ends_at,
+            seats_left=slot.seats_left,
+        )
 
 
 @router.get("/slots")
@@ -258,12 +269,9 @@ async def list_slots(
     days: Annotated[int, Query(ge=1, le=MAX_SLOT_DAYS)] = 14,
     service_id: int | None = None,
 ) -> list[SlotOut]:
-    """Свободные окошки на days дней. По умолчанию с сегодняшнего дня тренера."""
+    """Свободные окошки на days дней с учётом записей. По умолчанию с сегодняшнего дня тренера."""
     now = datetime.now(UTC)
     if start is None:
         start = now.astimezone(ZoneInfo(trainer.timezone)).date()
     slots = await schedule.trainer_slots(session, trainer, start, days, now, service_id)
-    return [
-        SlotOut(service_id=slot.service_id, starts_at=slot.starts_at, ends_at=slot.ends_at)
-        for slot in slots
-    ]
+    return [SlotOut.of(slot) for slot in slots]

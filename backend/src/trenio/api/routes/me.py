@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
 from trenio.api.routes.trainer import TrainerOut
+from trenio.services.clients import list_my_trainers
 from trenio.services.trainers import get_active_trainer, is_admin
 
 router = APIRouter(tags=["me"])
@@ -15,6 +16,8 @@ class MeOut(BaseModel):
     username: str | None
     is_trainer: bool
     is_admin: bool
+    # Есть хотя бы один тренер, к которому можно записаться
+    is_client: bool
     # Профиль тренера, если есть доступ; onboarded_at=None значит, что нужна первая настройка
     trainer: TrainerOut | None
 
@@ -29,5 +32,6 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         username=user.username,
         is_trainer=trainer is not None,
         is_admin=is_admin(user, settings.admin_telegram_ids),
+        is_client=bool(await list_my_trainers(session, user)),
         trainer=TrainerOut.of(trainer) if trainer is not None else None,
     )

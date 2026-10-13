@@ -13,6 +13,12 @@ def get_bot() -> Bot:
     return Bot(token=get_settings().bot_token.get_secret_value())
 
 
+async def get_bot_username() -> str:
+    """Имя бота для ссылок t.me/<имя>. aiogram кэширует ответ getMe после первого запроса."""
+    me = await get_bot().me()
+    return me.username or ""
+
+
 @lru_cache
 def get_dispatcher() -> Dispatcher:
     dispatcher = Dispatcher()
