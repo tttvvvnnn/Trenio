@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0](https://github.com/tttvvvnnn/Trenio/compare/v0.5.0...v0.6.0) (2026-10-13)
+
+
+### Новое
+
+* выбор профиля при входе и переход клиента в профиль тренера ([#31](https://github.com/tttvvvnnn/Trenio/issues/31)) ([4991707](https://github.com/tttvvvnnn/Trenio/commit/499170729718a8fd3211e440bfa8f72c238917a8))
+* кнопки под уведомлениями и уведомления о блоках ([#29](https://github.com/tttvvvnnn/Trenio/issues/29)) ([2e05e7e](https://github.com/tttvvvnnn/Trenio/commit/2e05e7e62d724bd9ec509a9694f234dd20a9bd91))
+* настройки уведомлений в Mini App ([#30](https://github.com/tttvvvnnn/Trenio/issues/30)) ([a1d20c7](https://github.com/tttvvvnnn/Trenio/commit/a1d20c7b541babf18721bf24c9b8e0aa98511dbf))
+* очередь уведомлений и напоминания о записях ([#27](https://github.com/tttvvvnnn/Trenio/issues/27)) ([dcd2e6d](https://github.com/tttvvvnnn/Trenio/commit/dcd2e6dc79da0cb789544c643c0aeca4bbb77d68))
+
 ## [0.5.0](https://github.com/tttvvvnnn/Trenio/compare/v0.4.0...v0.5.0) (2026-10-13)
 
 
