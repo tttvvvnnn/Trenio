@@ -22,6 +22,9 @@ class TrainerOut(BaseModel):
     cancel_hours: int
     # Шаг времени начала записи в минутах; 0 — равен длительности услуги
     slot_step_min: int
+    # Правила занятий, которые клиенты подтверждают перед записью
+    rules: str | None
+    rules_updated_at: datetime | None
     onboarded_at: datetime | None
 
     @classmethod
@@ -37,6 +40,7 @@ class TrainerProfileIn(BaseModel):
     # Не больше недели: дальше правило отмены теряет смысл
     cancel_hours: int | None = Field(default=None, ge=0, le=168)
     slot_step_min: Literal[0, 5, 10, 15, 20, 30, 60] | None = None
+    rules: str | None = Field(default=None, max_length=4000)
 
 
 @router.get("/me")
@@ -56,6 +60,7 @@ async def patch_profile(
         auto_confirm=body.auto_confirm,
         cancel_hours=body.cancel_hours,
         slot_step_min=body.slot_step_min,
+        rules=body.rules.strip() if body.rules is not None else None,
     )
     try:
         trainer = await update_profile(session, trainer, changes)

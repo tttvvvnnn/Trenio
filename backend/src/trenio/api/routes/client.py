@@ -10,10 +10,10 @@ from pydantic import AwareDatetime, BaseModel
 from trenio.api.deps import CurrentUser, SessionDep
 from trenio.api.routes.bookings import BookingOut, booking_error
 from trenio.api.routes.schedule import MAX_SLOT_DAYS, ServiceOut, SlotOut
-from trenio.db.models import Booking, Trainer, User
+from trenio.db.models import Booking, Trainer, TrainerClient, User
 from trenio.services import bookings, schedule
 from trenio.services.bookings import Actor, BookingRejected
-from trenio.services.clients import get_my_trainer, list_my_trainers
+from trenio.services.clients import accept_rules, get_my_link, get_my_trainer, list_my_links
 
 router = APIRouter(prefix="/client", tags=["client"])
 
@@ -29,9 +29,13 @@ class ClientTrainerOut(BaseModel):
     address: str | None
     auto_confirm: bool
     cancel_hours: int
+    rules: str | None
+    # Правила нужно прочитать и принять, прежде чем записываться
+    rules_pending: bool
 
     @classmethod
-    def of(cls, trainer: Trainer) -> "ClientTrainerOut":
+    def of(cls, link: TrainerClient) -> "ClientTrainerOut":
+        trainer = link.trainer
         return cls(
             id=trainer.id,
             display_name=trainer.display_name,
@@ -39,7 +43,16 @@ class ClientTrainerOut(BaseModel):
             address=trainer.address,
             auto_confirm=trainer.auto_confirm,
             cancel_hours=trainer.cancel_hours,
+            rules=trainer.rules,
+            rules_pending=link.rules_pending,
         )
+
+
+async def _my_link(session: SessionDep, user: User, trainer_id: int) -> TrainerClient:
+    link = await get_my_link(session, user, trainer_id)
+    if link is None:
+        raise TRAINER_NOT_FOUND
+    return link
 
 
 async def _my_trainer(session: SessionDep, user: User, trainer_id: int) -> Trainer:
@@ -55,7 +68,17 @@ def client_view(booking: Booking, now: datetime) -> BookingOut:
 
 @router.get("/trainers")
 async def list_trainers(user: CurrentUser, session: SessionDep) -> list[ClientTrainerOut]:
-    return [ClientTrainerOut.of(trainer) for trainer in await list_my_trainers(session, user)]
+    return [ClientTrainerOut.of(link) for link in await list_my_links(session, user)]
+
+
+@router.post("/trainers/{trainer_id}/rules/accept")
+async def accept_trainer_rules(
+    trainer_id: int, user: CurrentUser, session: SessionDep
+) -> ClientTrainerOut:
+    """Клиент прочитал правила тренера и согласен с ними."""
+    link = await _my_link(session, user, trainer_id)
+    await accept_rules(session, link, datetime.now(UTC))
+    return ClientTrainerOut.of(link)
 
 
 @router.get("/trainers/{trainer_id}/services")
@@ -124,7 +147,10 @@ async def create_booking(
     body: ClientBookingIn, user: CurrentUser, session: SessionDep
 ) -> BookingOut:
     """Запись в окошко. Без автоподтверждения тренера запись ждёт его решения (pending)."""
-    trainer = await _my_trainer(session, user, body.trainer_id)
+    link = await _my_link(session, user, body.trainer_id)
+    if link.rules_pending:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Сначала примите правила тренера")
+    trainer = link.trainer
     now = datetime.now(UTC)
     try:
         booking = await bookings.create_booking(
