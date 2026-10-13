@@ -4,6 +4,7 @@ import { cancelMyBooking, fetchMyBookings, type Booking } from '../api'
 import { dateTime, duration } from '../format'
 import { confirmAction, haptic } from '../telegram'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import ReminderSettings from '../ui/ReminderSettings'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
 
@@ -64,6 +65,7 @@ export default function MyBookings({ onBook, onSwitchToTrainer }: Props) {
           ))}
         </Section>
       )}
+      {bookings !== null && <ReminderSettings role="client" />}
       {onSwitchToTrainer && (
         <Section footer="Ваше расписание и клиенты остаются в режиме тренера.">
           <Row

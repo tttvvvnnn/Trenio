@@ -205,6 +205,31 @@ export function fetchMe(): Promise<Me> {
   return request<Me>('/api/me')
 }
 
+// Напоминания о занятиях: о своих записях (client) и о занятиях, которые проводишь (trainer)
+export type ReminderRole = 'client' | 'trainer'
+
+export type ReminderPrefs = {
+  enabled: boolean
+  // За сколько минут до начала напомнить
+  offsets: number[]
+  // Только у тренера: после занятия бот просит его отметить
+  attendance_prompt: boolean
+}
+
+export type Reminders = {
+  client: ReminderPrefs
+  // null — не тренер
+  trainer: ReminderPrefs | null
+}
+
+export function fetchReminders(): Promise<Reminders> {
+  return request<Reminders>('/api/me/reminders')
+}
+
+export function saveReminders(role: ReminderRole, prefs: ReminderPrefs): Promise<ReminderPrefs> {
+  return send<ReminderPrefs>('PUT', `/api/me/reminders/${role}`, prefs)
+}
+
 export function updateTrainer(changes: TrainerProfileInput): Promise<Trainer> {
   return send<Trainer>('PATCH', '/api/trainer/me', changes)
 }

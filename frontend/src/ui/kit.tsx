@@ -195,6 +195,41 @@ export function Chips<T extends string | number>({
   )
 }
 
+type MultiChipsProps<T extends string | number> = {
+  values: readonly T[]
+  options: readonly (readonly [T, string])[]
+  onToggle: (value: T) => void
+  label: string
+}
+
+// Несколько вариантов сразу, например «за сутки» и «за 2 часа»
+export function MultiChips<T extends string | number>({
+  values,
+  options,
+  onToggle,
+  label,
+}: MultiChipsProps<T>) {
+  return (
+    <div className="chips" role="group" aria-label={label}>
+      {options.map(([option, title]) => (
+        <button
+          key={option}
+          type="button"
+          role="checkbox"
+          className="chip"
+          aria-checked={values.includes(option)}
+          onClick={() => {
+            haptic.select()
+            onToggle(option)
+          }}
+        >
+          {title}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function Segmented<T extends string | number>({
   value,
   options,
