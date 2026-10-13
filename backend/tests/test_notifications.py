@@ -23,6 +23,7 @@ class FakeChannel:
 
     def __init__(self, delay: float = 0, error: DeliveryError | None = None) -> None:
         self.sent: list[tuple[int | None, str]] = []
+        self.messages: list[OutMessage] = []
         self.delay = delay
         self.error = error
 
@@ -31,6 +32,7 @@ class FakeChannel:
         if self.error is not None:
             raise self.error
         self.sent.append((user.telegram_id, message.text))
+        self.messages.append(message)
 
 
 async def dispatch(channel: FakeChannel, now: datetime) -> int:
@@ -63,11 +65,13 @@ async def test_client_books_trainer_is_told(client: AsyncClient, session: AsyncS
     code, _ = await book(client, headers, trainer_id, service_id)
     assert code == 201
 
-    # Тренеру — о записи, клиенту — два напоминания по умолчанию, тренеру напоминаний нет
+    # Тренеру — о записи и просьба отметить занятие после него, клиенту — два напоминания
+    # по умолчанию, тренеру напоминаний нет
     assert await queue(session) == [
         (ADMIN_TELEGRAM_ID, "new_booking", "", "pending"),
         (CLIENT_TG, "reminder", "client", "pending"),
         (CLIENT_TG, "reminder", "client", "pending"),
+        (ADMIN_TELEGRAM_ID, "attendance_prompt", "", "pending"),
     ]
     assert await reminder_times(session) == [START - timedelta(days=1), START - timedelta(hours=2)]
 
@@ -188,7 +192,7 @@ async def test_stale_reminders(client: AsyncClient, session: AsyncSession) -> No
     assert channel.sent == [(CLIENT_TG, "⏰ Напоминание: сегодня в 11:00 тренировка\n"
                                         "Персональная, тренер Иван")]  # fmt: skip
     assert [row[3] for row in await queue(session)] == [
-        "sent", "sent", "skipped", "skipped", "skipped", "sent",
+        "sent", "sent", "skipped", "skipped", "skipped", "sent", "pending", "pending",
     ]  # fmt: skip
 
 

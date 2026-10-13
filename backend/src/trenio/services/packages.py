@@ -29,6 +29,8 @@ from trenio.db.models import (
     Trainer,
     TrainerClient,
 )
+from trenio.delivery.kick import kick
+from trenio.services import notifications
 from trenio.services.bookings import BookingStatus
 from trenio.services.clients import is_client
 
@@ -394,7 +396,9 @@ async def add_manual_session(
         await session.rollback()
         raise PackageRejected(PackageError.NO_SESSIONS_LEFT)
     session.add(PackageSession(package_id=package.id, day=day, status=attendance.value))
+    await notifications.package_left(session, package, left(package) - 1, datetime.now(UTC))
     await session.commit()
+    kick()
     return await get_package(session, trainer, package_id)
 
 
@@ -493,12 +497,14 @@ async def mark_attendance(
                         status=attendance.value,
                     )
                 )
+                await notifications.package_left(session, package, left(package) - 1, now)
     if attendance is not None and booking.status == BookingStatus.PENDING:
         # Тренер не успел подтвердить, но занятие состоялось или учтено
         booking.status = BookingStatus.CONFIRMED
     booking.attendance = attendance.value if attendance is not None else None
     booking.attendance_marked_at = now if attendance is not None else None
     await session.commit()
+    kick()
     return booking
 
 

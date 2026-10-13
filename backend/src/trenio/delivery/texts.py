@@ -11,10 +11,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trenio.bot.callbacks import Action, BookingAction
 from trenio.config import get_settings
-from trenio.db.models import ACTIVE_BOOKING_STATUSES, Booking, Notification, User
+from trenio.db.models import ACTIVE_BOOKING_STATUSES, Booking, Notification, Package, User
 from trenio.delivery.channel import Button, OutMessage
+from trenio.services.bookings import client_can_cancel
 from trenio.services.notifications import Kind, Role, Status
+from trenio.services.packages import due, left
 
 WEEKDAYS = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
 MONTHS = (
@@ -58,6 +61,29 @@ def open_app() -> list[list[Button]]:
     return [[Button("Открыть Trenio", webapp_url=url)]]
 
 
+def action(text: str, act: Action, booking: Booking) -> Button:
+    return Button(text, callback_data=BookingAction(action=act, booking_id=booking.id).pack())
+
+
+def client_cancel(booking: Booking, now: datetime) -> list[list[Button]]:
+    # Кнопку показываем, только пока клиент может отменить сам
+    if not client_can_cancel(booking, now):
+        return []
+    return [[action("Отменить запись", Action.CANCEL, booking)]]
+
+
+def rubles(amount: int) -> str:
+    return f"{amount:,}".replace(",", "\u00a0") + "\u00a0₽"
+
+
+def sessions_word(count: int) -> str:
+    if count % 10 == 1 and count % 100 != 11:
+        return "занятие"
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return "занятия"
+    return "занятий"
+
+
 def _lines(*lines: str | None) -> str:
     return "\n".join(line for line in lines if line)
 
@@ -94,16 +120,64 @@ def _reminder(booking: Booking, role: Role, now: datetime) -> OutMessage | None:
             f"{booking.service.name}, тренер {booking.trainer.display_name}",
             address(booking),
         )
-    else:
-        text = _lines(
-            f"⏰ {soon.capitalize()}: {person(booking.client)}",
-            booking.service.name,
-        )
+        return OutMessage(text, client_cancel(booking, now) + open_app())
+    text = _lines(
+        f"⏰ {soon.capitalize()}: {person(booking.client)}",
+        booking.service.name,
+    )
     return OutMessage(text, open_app())
+
+
+def _attendance_prompt(booking: Booking) -> OutMessage | None:
+    # Отметили в приложении раньше, чем пришла просьба, или запись отменили
+    if booking.attendance is not None or booking.status not in ACTIVE_BOOKING_STATUSES:
+        return None
+    text = _lines(
+        "Как прошло занятие?",
+        f"{person(booking.client)}, {_session_line(booking)}",
+    )
+    buttons = [
+        [action("Прошла", Action.ATTENDED, booking)],
+        [
+            action("Пропуск, списать", Action.MISSED_CHARGED, booking),
+            action("Пропуск, не списывать", Action.MISSED_FREE, booking),
+        ],
+    ]
+    return OutMessage(text, buttons)
+
+
+async def _package_left(session: AsyncSession, row: Notification) -> OutMessage | None:
+    package = await session.get(Package, row.package_id)
+    expected = int(row.payload["left"])
+    # Отметку успели снять или поставить ещё одну: это сообщение уже неверно
+    if package is None or package.closed_at is not None or left(package) != expected:
+        return None
+    client = await session.get(User, package.client_id)
+    assert client is not None
+    name = f"«{package.name}»"
+    debt = due(package)
+    if Role(row.payload["role"]) is Role.CLIENT:
+        if expected == 0:
+            head = f"Блок {name} закончился. Договоритесь с тренером о новом"
+        else:
+            head = f"В блоке {name} осталось {expected} {sessions_word(expected)}"
+        tail = f"Осталось доплатить {rubles(debt)}" if debt else None
+    else:
+        if expected == 0:
+            head = f"У клиента {person(client)} закончился блок {name}"
+        else:
+            head = (
+                f"У клиента {person(client)} в блоке {name} осталось "
+                f"{expected} {sessions_word(expected)}"
+            )
+        tail = f"Долг по блоку: {rubles(debt)}" if debt else None
+    return OutMessage(_lines(f"📦 {head}", tail), open_app())
 
 
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
+    if kind is Kind.PACKAGE_LEFT:
+        return await _package_left(session, row)
     booking = await session.get(Booking, row.booking_id) if row.booking_id is not None else None
     if booking is None:
         return None
@@ -116,6 +190,10 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
             if await _superseded(session, row, now):
                 return None
             return _reminder(booking, Role(row.payload["role"]), now)
+        case Kind.ATTENDANCE_PROMPT:
+            return _attendance_prompt(booking)
+        case Kind.PACKAGE_LEFT:
+            return None
         case Kind.NEW_BOOKING:
             if not active:
                 return None
@@ -125,6 +203,14 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 client,
                 _session_line(booking),
             )
+            if pending and booking.starts_at > now:
+                buttons = [
+                    [
+                        action("Подтвердить", Action.CONFIRM, booking),
+                        action("Отклонить", Action.DECLINE, booking),
+                    ]
+                ]
+                return OutMessage(text, buttons + open_app())
         case Kind.TRAINER_BOOKED:
             if not active:
                 return None
@@ -133,6 +219,7 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _session_line(booking),
                 address(booking),
             )
+            return OutMessage(text, client_cancel(booking, now) + open_app())
         case Kind.BOOKING_CONFIRMED:
             if not active:
                 return None

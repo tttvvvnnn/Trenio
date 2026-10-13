@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from trenio.db.models import Booking, Notification, ReminderSetting, Trainer, User
+from trenio.db.models import Booking, Notification, Package, ReminderSetting, Trainer, User
 
 
 class Kind(StrEnum):
@@ -31,6 +31,16 @@ class Kind(StrEnum):
     TRAINER_CANCELLED = "trainer_cancelled"
     # Напоминание о занятии клиенту или тренеру, payload: role и offset
     REMINDER = "reminder"
+    # Тренеру после занятия: отметьте, прошло ли оно
+    ATTENDANCE_PROMPT = "attendance_prompt"
+    # Клиенту и тренеру: в блоке осталось мало занятий или он закончился, payload: role и left
+    PACKAGE_LEFT = "package_left"
+
+
+# Уведомления о будущем занятии: при отмене записи они больше не нужны
+UPCOMING_KINDS = (Kind.REMINDER, Kind.ATTENDANCE_PROMPT)
+# При скольких оставшихся занятиях предупреждаем; 0 — блок закончился
+PACKAGE_LEFT_ALERTS = frozenset({2, 1, 0})
 
 
 class Role(StrEnum):
@@ -127,7 +137,7 @@ async def booking_confirmed(session: AsyncSession, booking: Booking, now: dateti
 
 async def booking_declined(session: AsyncSession, booking: Booking, now: datetime) -> None:
     await _event(session, Kind.BOOKING_DECLINED, booking, booking.client_id, now)
-    await drop_reminders(session, booking.id)
+    await drop_upcoming(session, booking.id)
 
 
 async def booking_cancelled(
@@ -138,15 +148,15 @@ async def booking_cancelled(
         await _event(session, Kind.CLIENT_CANCELLED, booking, trainer_user_id, now)
     else:
         await _event(session, Kind.TRAINER_CANCELLED, booking, booking.client_id, now)
-    await drop_reminders(session, booking.id)
+    await drop_upcoming(session, booking.id)
 
 
-async def drop_reminders(session: AsyncSession, booking_id: int) -> None:
-    """Убирает неотправленные напоминания об отменённой записи."""
+async def drop_upcoming(session: AsyncSession, booking_id: int) -> None:
+    """Убирает неотправленные напоминания и просьбу отметить занятие у отменённой записи."""
     await session.execute(
         delete(Notification).where(
             Notification.booking_id == booking_id,
-            Notification.kind == Kind.REMINDER,
+            Notification.kind.in_(UPCOMING_KINDS),
             Notification.status == Status.PENDING,
         )
     )
@@ -157,6 +167,8 @@ async def schedule_reminders(
 ) -> None:
     """Ставит напоминания о подтверждённой записи по настройкам клиента и тренера.
 
+    Тренеру заодно — просьбу отметить занятие сразу после его окончания.
+
     Время, которое уже прошло, пропускаем: записались за час — напоминание «за 2 часа» не нужно.
     """
     recipients = {Role.CLIENT: booking.client_id}
@@ -165,6 +177,15 @@ async def schedule_reminders(
     for role in roles:
         user_id = recipients[role]
         prefs = await get_prefs(session, user_id, role)
+        if role is Role.TRAINER and prefs.attendance_prompt:
+            await _enqueue(
+                session,
+                user_id=user_id,
+                kind=Kind.ATTENDANCE_PROMPT,
+                dedup_key=f"{Kind.ATTENDANCE_PROMPT.value}:{booking.id}",
+                send_at=booking.ends_at,
+                booking_id=booking.id,
+            )
         if not prefs.enabled:
             continue
         for offset in prefs.offsets:
@@ -181,6 +202,37 @@ async def schedule_reminders(
                 booking_id=booking.id,
                 payload={"role": role.value, "offset": offset},
             )
+
+
+async def package_left(session: AsyncSession, package: Package, left: int, now: datetime) -> None:
+    """После списания занятия: предупредить клиента и тренера, что блок заканчивается.
+
+    Каждое отправленное предупреждение — один раз на блок: снятая и поставленная заново
+    отметка не пришлёт «осталось 2 занятия» второй раз.
+    """
+    if left not in PACKAGE_LEFT_ALERTS:
+        return
+    trainer_user_id = await session.scalar(
+        select(Trainer.user_id).where(Trainer.id == package.trainer_id)
+    )
+    assert trainer_user_id is not None
+    for role, user_id in ((Role.CLIENT, package.client_id), (Role.TRAINER, trainer_user_id)):
+        dedup_key = f"{Kind.PACKAGE_LEFT.value}:{package.id}:{role.value}:{left}"
+        # Пропущенное как устаревшее (отметку успели снять) не считается: ставим заново
+        await session.execute(
+            delete(Notification).where(
+                Notification.dedup_key == dedup_key, Notification.status == Status.SKIPPED
+            )
+        )
+        await _enqueue(
+            session,
+            user_id=user_id,
+            kind=Kind.PACKAGE_LEFT,
+            dedup_key=dedup_key,
+            send_at=now,
+            package_id=package.id,
+            payload={"role": role.value, "left": left},
+        )
 
 
 # --- Настройки напоминаний ---
@@ -227,6 +279,14 @@ async def set_prefs(
             Notification.payload["role"].astext == role.value,
         )
     )
+    if role is Role.TRAINER:
+        await session.execute(
+            delete(Notification).where(
+                Notification.user_id == user.id,
+                Notification.kind == Kind.ATTENDANCE_PROMPT,
+                Notification.status == Status.PENDING,
+            )
+        )
     if role is Role.CLIENT:
         mine = Booking.client_id == user.id
     else:
