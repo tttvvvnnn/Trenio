@@ -841,6 +841,22 @@ button.time[aria-checked="true"] {
   color: var(--c-hint);
 }
 
+/* Экран загрузки: знак Trenio, сектор циферблата идёт по кругу */
+.splash {
+  color: var(--c-text);
+}
+
+.brand-mark.spinning .brand-mark-sector {
+  transform-origin: 50px 62px;
+  animation: sweep 1.6s linear infinite;
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ===== Профиль ===== */
 
 .hero {
