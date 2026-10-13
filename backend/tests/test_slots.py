@@ -1,8 +1,9 @@
 """Расчёт окошек без базы: шаблон, исключения, часовые пояса."""
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 
 from trenio.services.slots import (
+    BusySpec,
     ExceptionKind,
     ExceptionSpec,
     RuleSpec,
@@ -27,6 +28,7 @@ def slots(
     services: list[ServiceSpec],
     rules: list[RuleSpec],
     exceptions: list[ExceptionSpec] | None = None,
+    busy: list[BusySpec] | None = None,
     start_day: date = MONDAY,
     days: int = 1,
     timezone: str = "Europe/Moscow",
@@ -40,6 +42,7 @@ def slots(
         rules=rules,
         exceptions=exceptions or [],
         now=now,
+        busy=busy or [],
     )
 
 
@@ -137,3 +140,40 @@ def test_subtract_intervals() -> None:
     assert subtract([(0, 100)], [(20, 30), (50, 60)]) == [(0, 20), (30, 50), (60, 100)]
     assert subtract([(0, 100)], [(0, 100)]) == []
     assert subtract([(10, 20)], [(30, 40)]) == [(10, 20)]
+
+
+GROUP = ServiceSpec(id=3, duration_min=60, capacity=2)
+
+
+def booked(service: ServiceSpec, hour: int, minute: int = 0) -> BusySpec:
+    starts_at = utc(MONDAY, hour, minute)
+    return BusySpec(service.id, starts_at, starts_at + timedelta(minutes=service.duration_min))
+
+
+def test_booking_takes_slot_for_every_service() -> None:
+    # 10:00 МСК занято персональной: ни персональной, ни длинной в это время уже нет
+    found = slots(
+        services=[PERSONAL, LONG], rules=[monday_rule(10, 14)], busy=[booked(PERSONAL, 7)]
+    )
+    assert starts(found, 1) == [utc(MONDAY, h) for h in (8, 9, 10)]
+    # Длинная 11:30 не пересекается с 10:00–11:00, а 10:00 пересекается
+    assert starts(found, 2) == [utc(MONDAY, 8, 30)]
+
+
+def test_group_slot_stays_while_seats_left() -> None:
+    rules = [monday_rule(10, 12)]
+    found = slots(services=[GROUP], rules=rules, busy=[booked(GROUP, 7)])
+    assert [(slot.starts_at, slot.seats_left) for slot in found] == [
+        (utc(MONDAY, 7), 1),
+        (utc(MONDAY, 8), 2),
+    ]
+    full = slots(services=[GROUP], rules=rules, busy=[booked(GROUP, 7), booked(GROUP, 7)])
+    assert starts(full, 3) == [utc(MONDAY, 8)]
+
+
+def test_group_slot_is_closed_by_other_service() -> None:
+    # Персональная в 10:00 занимает тренера: в группу на это время уже не записаться
+    found = slots(
+        services=[PERSONAL, GROUP], rules=[monday_rule(10, 11)], busy=[booked(PERSONAL, 7)]
+    )
+    assert found == []

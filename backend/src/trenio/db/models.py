@@ -10,11 +10,13 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
     Table,
     Time,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -50,7 +52,7 @@ class Trainer(TimestampMixin, Base):
     )
     # Адрес зала по умолчанию для услуг
     address: Mapped[str | None] = mapped_column(String(256))
-    # Код персональной ссылки для клиентов (t.me/бот?start=c_<код>), понадобится на этапе 5
+    # Код персональной ссылки для клиентов: t.me/бот?start=c_<код>
     invite_code: Mapped[str] = mapped_column(String(32), unique=True)
     # Записи подтверждаются сразу или после одобрения тренера
     auto_confirm: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
@@ -163,3 +165,70 @@ class ScheduleException(TimestampMixin, Base):
     kind: Mapped[str] = mapped_column(String(16))
     start_time: Mapped[time | None] = mapped_column(Time)
     end_time: Mapped[time | None] = mapped_column(Time)
+
+
+class TrainerClient(TimestampMixin, Base):
+    """Клиент тренера: появляется, когда человек открывает ссылку тренера."""
+
+    __tablename__ = "trainer_clients"
+    __table_args__ = (UniqueConstraint("trainer_id", "user_id", name="uq_trainer_clients_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(ForeignKey("trainers.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+    user: Mapped[User] = relationship(lazy="joined")
+    trainer: Mapped[Trainer] = relationship(lazy="joined")
+
+
+# Записи, которые занимают время тренера. Отменённые и отклонённые остаются для истории
+ACTIVE_BOOKING_STATUSES = ("pending", "confirmed")
+
+
+class Booking(TimestampMixin, Base):
+    """Запись клиента на занятие."""
+
+    __tablename__ = "bookings"
+    __table_args__ = (
+        CheckConstraint("starts_at < ends_at", name="time_order"),
+        CheckConstraint(
+            "status IN ('pending', 'confirmed', 'declined', 'cancelled')", name="status"
+        ),
+        CheckConstraint("created_by IN ('client', 'trainer')", name="created_by"),
+        CheckConstraint(
+            "cancelled_by IS NULL OR cancelled_by IN ('client', 'trainer')", name="cancelled_by"
+        ),
+        Index("ix_bookings_trainer_starts", "trainer_id", "starts_at"),
+        Index("ix_bookings_client_starts", "client_id", "starts_at"),
+        # Последний рубеж от двойной записи одного клиента на одно занятие.
+        # Пересечения и вместимость проверяет сервис под блокировкой строки тренера
+        Index(
+            "uq_bookings_client_session",
+            "client_id",
+            "service_id",
+            "starts_at",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'confirmed')"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(ForeignKey("trainers.id", ondelete="CASCADE"))
+    # Клиент — пользователь; связь с тренером лежит в trainer_clients
+    client_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Услуги не удаляются, только выключаются. NO ACTION, а не RESTRICT: проверка в конце
+    # запроса, поэтому каскадное удаление тренера убирает и записи, и услуги
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # pending — ждёт тренера, confirmed — подтверждена, declined — тренер отклонил,
+    # cancelled — отменена клиентом или тренером
+    status: Mapped[str] = mapped_column(String(16))
+    # Кто записал: клиент сам или тренер за него
+    created_by: Mapped[str] = mapped_column(String(16))
+    cancelled_by: Mapped[str | None] = mapped_column(String(16))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    client: Mapped[User] = relationship(lazy="joined")
+    service: Mapped[Service] = relationship(lazy="joined")
+    trainer: Mapped[Trainer] = relationship(lazy="joined")
