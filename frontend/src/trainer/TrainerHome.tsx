@@ -1,21 +1,21 @@
 import { useState } from 'react'
 
 import type { Trainer } from '../api'
+import { haptic } from '../telegram'
+import Icon, { type IconName } from '../ui/icons'
 import Calendar from './Calendar'
-import Days from './Days'
 import ProfileForm from './ProfileForm'
+import Schedule from './Schedule'
 import Services from './Services'
-import WeekTemplate from './WeekTemplate'
 
-const TABS = [
-  ['calendar', 'Окошки'],
-  ['services', 'Услуги'],
-  ['week', 'Неделя'],
-  ['days', 'Дни'],
-  ['profile', 'Профиль'],
-] as const
+const TABS: readonly (readonly [Tab, string, IconName])[] = [
+  ['calendar', 'Окошки', 'calendar'],
+  ['schedule', 'Расписание', 'clock'],
+  ['services', 'Услуги', 'list'],
+  ['profile', 'Профиль', 'user'],
+]
 
-type Tab = (typeof TABS)[number][0]
+type Tab = 'calendar' | 'schedule' | 'services' | 'profile'
 
 type Props = {
   trainer: Trainer
@@ -25,27 +25,34 @@ type Props = {
 export default function TrainerHome({ trainer, onTrainerChange }: Props) {
   const [tab, setTab] = useState<Tab>('calendar')
 
+  function open(next: Tab) {
+    if (next !== tab) haptic.select()
+    setTab(next)
+    window.scrollTo(0, 0)
+  }
+
   return (
     <>
-      <nav className="tabs">
-        {TABS.map(([value, title]) => (
+      {tab === 'calendar' && (
+        <Calendar timezone={trainer.timezone} onGoToSetup={() => open('schedule')} />
+      )}
+      {tab === 'schedule' && <Schedule timezone={trainer.timezone} />}
+      {tab === 'services' && <Services />}
+      {tab === 'profile' && <ProfileForm trainer={trainer} onSaved={onTrainerChange} />}
+      <nav className="tabbar" aria-label="Разделы">
+        {TABS.map(([value, title, icon]) => (
           <button
             key={value}
             type="button"
-            className={value === tab ? 'tab active' : 'tab'}
-            onClick={() => setTab(value)}
+            className="tab"
+            aria-current={value === tab ? 'page' : undefined}
+            onClick={() => open(value)}
           >
+            <Icon name={icon} />
             {title}
           </button>
         ))}
       </nav>
-      {tab === 'calendar' && (
-        <Calendar timezone={trainer.timezone} onGoToSetup={() => setTab('week')} />
-      )}
-      {tab === 'services' && <Services />}
-      {tab === 'week' && <WeekTemplate />}
-      {tab === 'days' && <Days timezone={trainer.timezone} />}
-      {tab === 'profile' && <ProfileForm trainer={trainer} onSaved={onTrainerChange} />}
     </>
   )
 }

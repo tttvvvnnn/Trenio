@@ -77,3 +77,49 @@ export function duration(minutes: number): string {
 export function rubles(amount: number): string {
   return `${amount.toLocaleString('ru-RU')} ₽`
 }
+
+function utcNoon(day: string): Date {
+  return new Date(`${day}T12:00:00Z`)
+}
+
+// "2030-01-07" -> "пн"
+export function weekdayShort(day: string): string {
+  return new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', weekday: 'short' }).format(
+    utcNoon(day),
+  )
+}
+
+// "2030-01-07" -> 7
+export function dayOfMonth(day: string): number {
+  return utcNoon(day).getUTCDate()
+}
+
+// "2030-01-07" -> "Январь 2030"
+export function monthTitle(day: string): string {
+  const title = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'UTC',
+    month: 'long',
+    year: 'numeric',
+  }).format(utcNoon(day))
+  return (title.charAt(0).toUpperCase() + title.slice(1)).replace(/\s*г\.$/, '')
+}
+
+// "2030-01-07", "2030-01-13" -> "7–13 января"; разные месяцы -> "28 января – 3 февраля"
+export function dateRange(first: string, last: string): string {
+  const format = (day: string) =>
+    new Intl.DateTimeFormat('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'long' }).format(
+      utcNoon(day),
+    )
+  if (first === last) return dayTitle(first)
+  if (first.slice(0, 7) === last.slice(0, 7)) {
+    return `${dayOfMonth(first)}–${format(last)}`
+  }
+  return `${format(first)} – ${format(last)}`
+}
+
+// 1 день, 2 дня, 5 дней
+export function plural(count: number, one: string, few: string, many: string): string {
+  const rule = new Intl.PluralRules('ru-RU').select(count)
+  const word = rule === 'one' ? one : rule === 'few' ? few : many
+  return `${count} ${word}`
+}
