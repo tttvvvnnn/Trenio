@@ -200,9 +200,10 @@ export function bookingNote(booking: Booking, now = new Date()): string {
   else if (booking.status === 'cancelled') parts.push('отменена')
   else if (booking.status === 'declined') parts.push('отклонена')
   else if (new Date(booking.starts_at) <= now) parts.push('не отмечена')
-  if (booking.charge) {
-    parts.push(`занятие ${booking.charge.number} из ${booking.charge.sessions_count}`)
-  } else if (booking.one_off) {
+  const charge = booking.charge ?? booking.planned
+  if (charge) {
+    parts.push(`занятие ${charge.number} из ${charge.sessions_count}`)
+  } else if (booking.one_off && booking.attendance) {
     parts.push('разовая')
   }
   return parts.join(' · ')

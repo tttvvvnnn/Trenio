@@ -11,7 +11,7 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
@@ -398,6 +398,29 @@ async def add_manual_session(
     return await get_package(session, trainer, package_id)
 
 
+async def update_manual_session(
+    session: AsyncSession,
+    trainer: Trainer,
+    package_id: int,
+    session_id: int,
+    day: date,
+    attendance: Attendance,
+) -> Package:
+    """Поменять дату или отметку занятия, списанного вручную."""
+    if attendance.value not in CHARGED:
+        raise PackageRejected(PackageError.WRONG_STATUS)
+    package = await get_package(session, trainer, package_id)
+    found = next((s for s in package.sessions if s.id == session_id), None)
+    if found is None:
+        raise PackageRejected(PackageError.NOT_FOUND)
+    if found.booking_id is not None:
+        raise PackageRejected(PackageError.LINKED_TO_BOOKING)
+    found.day = day
+    found.status = attendance.value
+    await session.commit()
+    return await get_package(session, trainer, package_id)
+
+
 async def delete_manual_session(
     session: AsyncSession, trainer: Trainer, package_id: int, session_id: int
 ) -> Package:
@@ -496,20 +519,114 @@ class Charge:
 class Billing:
     # Записи, которые нужно оплачивать отдельно от блоков
     one_off: set[int]
+    # Отмеченные записи: из какого блока списаны
     charges: dict[int, Charge]
+    # Неотмеченные активные записи: в какой блок лягут, если пройдут
+    planned: dict[int, Charge]
+    # Разовые записи клиентов, которые уже покупали блоки у тренера: блок кончился.
+    # Клиентов, которые блоками не пользуются, этим не выделяем
+    out_of_block: set[int]
+
+
+def simulate(packages: Sequence[Package], bookings: Sequence[Booking]) -> dict[int, Charge | None]:
+    """Раскладывает неотмеченные записи по блокам так, как их потом спишут отметки.
+
+    Записи идут по времени, каждая берёт самый старый подходящий блок, где ещё есть место
+    с учётом уже разложенных. None — блока не хватило, запись будет разовой.
+    """
+    taken = {p.id: used(p) for p in packages}
+    result: dict[int, Charge | None] = {}
+    for booking in sorted(bookings, key=lambda b: (b.starts_at, b.id)):
+        day = booking_day(booking)
+        target = next(
+            (
+                p
+                for p in packages
+                if p.trainer_id == booking.trainer_id
+                and p.client_id == booking.client_id
+                and p.closed_at is None
+                and (p.service_id is None or p.service_id == booking.service_id)
+                and (p.valid_until is None or p.valid_until >= day)
+                and taken[p.id] < p.sessions_count
+            ),
+            None,
+        )
+        if target is None:
+            result[booking.id] = None
+        else:
+            taken[target.id] += 1
+            result[booking.id] = Charge(target, taken[target.id])
+    return result
+
+
+# Неотмеченные записи старше этого в прогноз не попадают
+FORECAST_DAYS = 62
+
+
+@dataclass(frozen=True)
+class Forecast:
+    bookings: Sequence[Booking]
+    plan: dict[int, Charge | None]
+
+    def planned_for(self, package: Package) -> list[tuple[Booking, int]]:
+        """Записи, которые лягут в этот блок, с будущими номерами занятий."""
+        result = []
+        for booking in self.bookings:
+            charge = self.plan.get(booking.id)
+            if charge is not None and charge.package.id == package.id:
+                result.append((booking, charge.number))
+        return result
+
+    def one_off_after(self, client_id: int, now: datetime) -> int:
+        """Сколько будущих записей клиента не покрыто блоками."""
+        return sum(
+            1
+            for b in self.bookings
+            if b.client_id == client_id and b.starts_at > now and self.plan.get(b.id) is None
+        )
+
+
+async def forecast(
+    session: AsyncSession, trainer_ids: Iterable[int], client_ids: Iterable[int] | None = None
+) -> Forecast:
+    """Прогноз списаний по неотмеченным активным записям клиентов у тренеров.
+
+    Давно забытые неотмеченные записи не учитываем, иначе они вечно занимали бы места в блоках.
+    """
+    trainer_ids = set(trainer_ids)
+    package_conditions = [Package.trainer_id.in_(trainer_ids), Package.closed_at.is_(None)]
+    booking_conditions = [
+        Booking.trainer_id.in_(trainer_ids),
+        Booking.attendance.is_(None),
+        Booking.status.in_(ACTIVE_BOOKING_STATUSES),
+        Booking.starts_at >= datetime.now(UTC) - timedelta(days=FORECAST_DAYS),
+    ]
+    if client_ids is not None:
+        client_ids = set(client_ids)
+        package_conditions.append(Package.client_id.in_(client_ids))
+        booking_conditions.append(Booking.client_id.in_(client_ids))
+    packages = await _load_packages(session, *package_conditions)
+    bookings = (
+        await session.scalars(
+            select(Booking).where(*booking_conditions).order_by(Booking.starts_at, Booking.id)
+        )
+    ).all()
+    return Forecast(bookings, simulate(packages, bookings))
 
 
 async def billing(session: AsyncSession, bookings: Iterable[Booking]) -> Billing:
     """Как записи соотносятся с блоками.
 
     Отмеченная со списанием запись разовая, если её не из чего было списать.
-    Ещё не отмеченная активная запись разовая, если сейчас у клиента нет подходящего блока.
+    Неотмеченная активная запись разовая, если по прогнозу ей не хватит блока:
+    более ранние записи клиента займут оставшиеся занятия раньше неё.
     """
     bookings = list(bookings)
     charged = [b for b in bookings if b.attendance in CHARGED]
     unmarked = [b for b in bookings if b.attendance is None and b.status in ACTIVE_BOOKING_STATUSES]
     one_off: set[int] = set()
     charges: dict[int, Charge] = {}
+    planned: dict[int, Charge] = {}
     if charged:
         linked = (
             await session.scalars(
@@ -528,23 +645,37 @@ async def billing(session: AsyncSession, bookings: Iterable[Booking]) -> Billing
             )
         one_off.update(b.id for b in charged if b.id not in charges)
     if unmarked:
-        packages_list = await _load_packages(
-            session,
-            Package.client_id.in_({b.client_id for b in unmarked}),
-            Package.trainer_id.in_({b.trainer_id for b in unmarked}),
-            Package.closed_at.is_(None),
-        )
-        for booking in unmarked:
-            day = booking_day(booking)
-            covered = any(
-                p.trainer_id == booking.trainer_id
-                and p.client_id == booking.client_id
-                and can_charge(p, booking.service_id, day)
-                for p in packages_list
+        plan = (
+            await forecast(
+                session, {b.trainer_id for b in unmarked}, {b.client_id for b in unmarked}
             )
-            if not covered:
+        ).plan
+        for booking in unmarked:
+            if booking.id not in plan:
+                continue
+            charge = plan[booking.id]
+            if charge is None:
                 one_off.add(booking.id)
-    return Billing(one_off, charges)
+            else:
+                planned[booking.id] = charge
+    out_of_block: set[int] = set()
+    if one_off:
+        flagged = [b for b in bookings if b.id in one_off]
+        buyers = {
+            (trainer_id, client_id)
+            for trainer_id, client_id in (
+                await session.execute(
+                    select(Package.trainer_id, Package.client_id)
+                    .where(
+                        Package.trainer_id.in_({b.trainer_id for b in flagged}),
+                        Package.client_id.in_({b.client_id for b in flagged}),
+                    )
+                    .distinct()
+                )
+            ).all()
+        }
+        out_of_block = {b.id for b in flagged if (b.trainer_id, b.client_id) in buyers}
+    return Billing(one_off, charges, planned, out_of_block)
 
 
 async def list_unmarked(
@@ -608,19 +739,36 @@ class ClientSummary:
     # Сколько клиент должен доплатить по всем блокам
     debt: int
     has_packages: bool
+    # Сколько будущих записей не покрыто блоками, если клиент вообще покупал блоки
+    upcoming_one_off: int = 0
 
 
-def summarize(packages: Iterable[Package], today: date) -> dict[int, ClientSummary]:
-    """Сводка по блокам для списка клиентов: client_id → остаток занятий и долг."""
+def summarize(
+    packages: Iterable[Package],
+    today: date,
+    plan: Forecast | None = None,
+    now: datetime | None = None,
+) -> dict[int, ClientSummary]:
+    """Сводка по блокам для списка клиентов: client_id → остаток занятий, долг, записи без блока."""
     by_client: dict[int, list[Package]] = {}
     for package in packages:
         by_client.setdefault(package.client_id, []).append(package)
+    clients = set(by_client)
+    if plan is not None:
+        clients.update(b.client_id for b in plan.bookings)
     result = {}
-    for client_id, own in by_client.items():
+    for client_id in clients:
+        own = by_client.get(client_id, [])
         active = [p for p in own if status(p, today) is PackageStatus.ACTIVE]
         result[client_id] = ClientSummary(
             sessions_left=sum(left(p) for p in active) if active else None,
             debt=sum(due(p) for p in own if p.closed_at is None),
-            has_packages=True,
+            has_packages=bool(own),
+            # Без блоков клиент платит за каждое занятие: это не повод для подсказки
+            upcoming_one_off=(
+                plan.one_off_after(client_id, now)
+                if own and plan is not None and now is not None
+                else 0
+            ),
         )
     return result

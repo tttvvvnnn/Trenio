@@ -8,12 +8,12 @@ import {
   type ClientCard as Card,
   type Package,
 } from '../api'
-import { bookingNote, dateTime, fullName, packageLine, sessionsLeft } from '../format'
+import { bookingNote, dateTime, fullName, packageLine, plural, sessionsLeft } from '../format'
 import { haptic } from '../telegram'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
-import StatusBadge from '../ui/StatusBadge'
+import { BookingBadge } from '../ui/MonthCalendar'
 import BookingDetails from './BookingDetails'
 import PackageDetails from './PackageDetails'
 import SellPackage from './SellPackage'
@@ -75,12 +75,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
   const pkg = card?.packages.find((item) => item.id === openedPackage) ?? null
   const summary = card?.client
 
-  let hint: string | null = null
-  if (summary && summary.sessions_left !== null && summary.sessions_left <= 2) {
-    hint = `У клиента ${sessionsLeft(summary.sessions_left)}. Пора предложить новый блок.`
-  } else if (summary?.has_packages && summary.sessions_left === null) {
-    hint = 'Действующих блоков нет: новые занятия будут разовыми.'
-  }
+  const hint = summary ? clientHint(summary) : null
 
   function bookingRow(item: Booking) {
     return (
@@ -90,7 +85,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
         subtitle={bookingNote(item, now)}
         tone={item.status === 'cancelled' || item.status === 'declined' ? 'muted' : undefined}
         onClick={() => setOpenedBooking(item)}
-        after={item.status === 'pending' ? <StatusBadge status="pending" /> : undefined}
+        after={<BookingBadge booking={item} now={now} />}
       />
     )
   }
@@ -105,7 +100,8 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
       {card === null && !error && <SkeletonList rows={3} />}
       {card !== null && (
         <>
-          <Section title="Блоки" footer={hint}>
+          {hint && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+          <Section title="Блоки">
             {card.packages.map((item: Package) => (
               <Row
                 key={item.id}
@@ -183,4 +179,24 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
       )}
     </Screen>
   )
+}
+
+// Главное о блоках клиента одной строкой: записи без блока, конец блока
+function clientHint(client: Client): { text: string; tone: 'alert' | 'pending' } | null {
+  const left = client.sessions_left
+  if (client.upcoming_one_off > 0) {
+    const bookings = plural(client.upcoming_one_off, 'запись', 'записи', 'записей')
+    const reason = left === null ? 'Блок закончился' : 'Оставшиеся занятия блока уже заняты'
+    return {
+      text: `${reason}, а впереди ещё ${bookings} без блока. Предложите новый блок.`,
+      tone: 'alert',
+    }
+  }
+  if (left !== null && left <= 2) {
+    return { text: `У клиента ${sessionsLeft(left)}. Пора предложить новый блок.`, tone: 'pending' }
+  }
+  if (client.has_packages && left === null) {
+    return { text: 'Блок закончился. Новые записи будут без блока.', tone: 'pending' }
+  }
+  return null
 }

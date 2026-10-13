@@ -6,7 +6,10 @@ import {
   deleteManualSession,
   deletePackage,
   deletePayment,
+  fetchTrainerBooking,
+  updateManualSession,
   updatePackage,
+  type Booking,
   type Package,
   type PackageSession,
   type Payment,
@@ -17,6 +20,7 @@ import { AddRow, Chips, ErrorText, InlineField, Row, Section } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import PackageSummary from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
+import BookingDetails from './BookingDetails'
 
 type Props = {
   pkg: Package
@@ -29,7 +33,8 @@ type Props = {
 
 /** Блок глазами тренера: деньги, занятия и действия с ними. */
 export default function PackageDetails({ pkg, clientName, timezone, onBack, onChanged }: Props) {
-  const [form, setForm] = useState<'payment' | 'session' | null>(null)
+  const [form, setForm] = useState<'payment' | 'session' | PackageSession | null>(null)
+  const [booking, setBooking] = useState<Booking | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,12 +53,19 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
     }
   }
 
-  async function removeSession(session: PackageSession) {
-    const ok = await confirmAction(
-      `Снять занятие ${session.number} от ${shortDate(session.day)}? Оно вернётся в блок.`,
-      'Снять',
-    )
-    if (ok) void run(() => deleteManualSession(pkg.id, session.id))
+  async function openBooking(id: number) {
+    setError(null)
+    try {
+      setBooking(await fetchTrainerBooking(id))
+    } catch (err) {
+      haptic.error()
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  function openSession(session: PackageSession) {
+    if (session.booking_id === null) setForm(session)
+    else void openBooking(session.booking_id)
   }
 
   async function removePayment(payment: Payment) {
@@ -72,7 +84,12 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
   const closed = pkg.status === 'closed'
   return (
     <Screen title={pkg.name} subtitle={clientName} onBack={onBack}>
-      <PackageSummary pkg={pkg} onSession={(session) => void removeSession(session)} />
+      <PackageSummary
+        pkg={pkg}
+        onSession={openSession}
+        onPlanned={(planned) => void openBooking(planned.booking_id)}
+        onFree={pkg.left > 0 && !closed ? () => setForm('session') : undefined}
+      />
       <Section title="Платежи" footer="Это только учёт: деньги через бот не проходят.">
         {pkg.payments.map((payment) => (
           <Row
@@ -85,10 +102,7 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
         ))}
         <AddRow title="Внести платёж" onClick={() => setForm('payment')} />
       </Section>
-      <Section footer="Занятия по записям отмечаются в самой записи. Здесь — те, что прошли без записи в Trenio. Нажмите на такое занятие, чтобы снять его.">
-        {pkg.left > 0 && !closed && (
-          <AddRow title="Отметить занятие без записи" onClick={() => setForm('session')} />
-        )}
+      <Section footer="Нажмите на занятие: по записи откроется сама запись, где ставится отметка. Свободное занятие можно отметить без записи, если оно прошло вне Trenio.">
         <Row
           title={closed ? 'Открыть блок снова' : 'Закрыть блок досрочно'}
           tone="accent"
@@ -118,14 +132,25 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
           }}
         />
       )}
-      {form === 'session' && (
+      {(form === 'session' || (typeof form === 'object' && form !== null)) && (
         <SessionForm
           pkg={pkg}
+          session={form === 'session' ? null : form}
           today={localDate(new Date(), timezone)}
           onBack={() => setForm(null)}
           onSaved={(updated) => {
             setForm(null)
             onChanged(updated)
+          }}
+        />
+      )}
+      {booking && (
+        <BookingDetails
+          booking={booking}
+          onBack={() => setBooking(null)}
+          onChanged={(updated) => {
+            setBooking(updated)
+            onChanged(pkg)
           }}
         />
       )}
@@ -215,18 +240,25 @@ function PaymentForm({ pkg, today, onBack, onSaved }: FormProps) {
   )
 }
 
-function SessionForm({ pkg, today, onBack, onSaved }: FormProps) {
-  const [day, setDay] = useState(today)
-  const [attendance, setAttendance] = useState<'attended' | 'missed_charged'>('attended')
+function SessionForm({
+  pkg,
+  session,
+  today,
+  onBack,
+  onSaved,
+}: FormProps & { session: PackageSession | null }) {
+  const [day, setDay] = useState(session?.day ?? today)
+  const [attendance, setAttendance] = useState<'attended' | 'missed_charged'>(
+    session?.status ?? 'attended',
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function submit() {
-    if (day === '' || saving) return
+  async function save(action: () => Promise<Package>) {
     setSaving(true)
     setError(null)
     try {
-      const updated = await addManualSession(pkg.id, { day, attendance })
+      const updated = await action()
       haptic.success()
       onSaved(updated)
     } catch (err) {
@@ -236,9 +268,37 @@ function SessionForm({ pkg, today, onBack, onSaved }: FormProps) {
     }
   }
 
+  function submit() {
+    if (day === '' || saving) return
+    void save(() =>
+      session === null
+        ? addManualSession(pkg.id, { day, attendance })
+        : updateManualSession(pkg.id, session.id, { day, attendance }),
+    )
+  }
+
+  async function remove() {
+    if (session === null) return
+    const ok = await confirmAction(
+      `Снять занятие ${session.number} от ${shortDate(session.day)}? Оно вернётся в блок.`,
+      'Снять',
+    )
+    if (ok) void save(() => deleteManualSession(pkg.id, session.id))
+  }
+
   return (
-    <Screen title="Занятие без записи" subtitle={pkg.name} onBack={onBack}>
-      <Section footer={`Спишется занятие ${pkg.used + 1} из ${pkg.sessions_count}.`}>
+    <Screen
+      title={session === null ? 'Занятие без записи' : `Занятие ${session.number}`}
+      subtitle={pkg.name}
+      onBack={onBack}
+    >
+      <Section
+        footer={
+          session === null
+            ? `Спишется занятие ${pkg.used + 1} из ${pkg.sessions_count}. Так отмечают занятия, на которые не было записи в Trenio.`
+            : 'Отмечено в блоке вручную, без записи.'
+        }
+      >
         <Chips
           label="Отметка"
           value={attendance}
@@ -260,10 +320,19 @@ function SessionForm({ pkg, today, onBack, onSaved }: FormProps) {
           )}
         </InlineField>
       </Section>
+      {session !== null && (
+        <Section>
+          <Row
+            title="Снять занятие"
+            tone="destructive"
+            onClick={saving ? undefined : () => void remove()}
+          />
+        </Section>
+      )}
       {error && <ErrorText>{error}</ErrorText>}
       <MainButton
-        text="Списать"
-        onClick={() => void submit()}
+        text={session === null ? 'Списать' : 'Сохранить'}
+        onClick={submit}
         disabled={day === ''}
         loading={saving}
       />

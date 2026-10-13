@@ -115,9 +115,19 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           )}
         </Section>
       )}
-      {!booking.can_mark && booking.one_off && (
+      {!booking.can_mark && booking.one_off && !booking.out_of_block && (
+        <p className="section-footer">У клиента нет блоков: занятие разовое.</p>
+      )}
+      {!booking.can_mark && booking.out_of_block && (
+        <p className="section-footer hint-alert">
+          Без блока: подходящего блока нет или его занятия уже заняты более ранними записями.
+          Занятие будет разовым, если не продать клиенту новый блок.
+        </p>
+      )}
+      {!booking.can_mark && booking.planned && (
         <p className="section-footer">
-          У клиента нет подходящего блока: занятие будет разовым, если ничего не изменится.
+          Спишется из блока «{booking.planned.package_name}»: занятие {booking.planned.number} из{' '}
+          {booking.planned.sessions_count}.
         </p>
       )}
       {error && <ErrorText>{error}</ErrorText>}

@@ -14,6 +14,9 @@ function since(iso: string): string {
 
 // Что показать справа в строке клиента: остаток занятий, долг или дату появления
 function clientBadge(client: Client) {
+  if (client.upcoming_one_off > 0) {
+    return <span className="badge alert">без блока: {client.upcoming_one_off}</span>
+  }
   if (client.sessions_left !== null && client.sessions_left <= 2) {
     return <span className="badge warning">осталось {client.sessions_left}</span>
   }

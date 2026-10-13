@@ -11,7 +11,6 @@ import {
   type Slot,
 } from '../api'
 import {
-  addDays,
   bookingNote,
   dateTime,
   dayTitle,
@@ -22,15 +21,13 @@ import {
   plural,
 } from '../format'
 import { haptic } from '../telegram'
-import DateStrip from '../ui/DateStrip'
+import { monthDays } from '../calendar'
+import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
 import Screen from '../ui/Screen'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
-import StatusBadge from '../ui/StatusBadge'
 import BookClient from './BookClient'
 import BookingDetails from './BookingDetails'
 
-// Сколько дней вперёд показываем окошки и записи
-const DAYS = 14
 // Сколько неотмеченных занятий показываем сразу, остальные — по кнопке
 const UNMARKED_PREVIEW = 3
 
@@ -40,9 +37,7 @@ type Props = {
 }
 
 type Data = {
-  slots: Slot[]
   services: Service[]
-  bookings: Booking[]
   pending: Booking[]
   unmarked: Booking[]
 }
@@ -52,9 +47,16 @@ function isActive(booking: Booking): boolean {
 }
 
 export default function Calendar({ timezone, onGoToSetup }: Props) {
+  const today = localDate(new Date(), timezone)
   const [data, setData] = useState<Data | null>(null)
+  const [month, setMonth] = useState(`${today.slice(0, 7)}-01`)
+  // Записи показанного месяца; month — для какого месяца они загружены
+  const [monthBookings, setMonthBookings] = useState<{ month: string; items: Booking[] } | null>(
+    null,
+  )
+  const [slots, setSlots] = useState<{ day: string; items: Slot[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState(today)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [booking, setBooking] = useState<Slot | null>(null)
   const [allUnmarked, setAllUnmarked] = useState(false)
@@ -62,18 +64,25 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
-    Promise.all([
-      fetchSlots(DAYS),
-      fetchServices(),
-      fetchTrainerBookings(DAYS),
-      fetchPendingBookings(),
-      fetchUnmarkedBookings(),
-    ])
-      .then(([slots, services, bookings, pending, unmarked]) =>
-        setData({ slots, services, bookings, pending, unmarked }),
-      )
+    Promise.all([fetchServices(), fetchPendingBookings(), fetchUnmarkedBookings()])
+      .then(([services, pending, unmarked]) => setData({ services, pending, unmarked }))
       .catch((err: unknown) => setError(String(err)))
   }, [reloads])
+
+  useEffect(() => {
+    const days = monthDays(month)
+    fetchTrainerBookings(days.length, days[0])
+      .then((items) => setMonthBookings({ month, items }))
+      .catch((err: unknown) => setError(String(err)))
+  }, [month, reloads])
+
+  useEffect(() => {
+    // В прошлое не записывают: окошки нужны только с сегодняшнего дня
+    if (selected < today) return
+    fetchSlots(1, selected)
+      .then((items) => setSlots({ day: selected, items }))
+      .catch((err: unknown) => setError(String(err)))
+  }, [selected, today, reloads])
 
   function reload() {
     setOpened(null)
@@ -82,9 +91,13 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     setReloads((count) => count + 1)
   }
 
-  const header = (
-    <PageHeader title="Записи" subtitle="Записи клиентов и свободное время на 2 недели." />
-  )
+  function showMonth(next: string) {
+    setMonth(next)
+    // В новом месяце открываем сегодня, если оно там есть, иначе первое число
+    setSelected(next.slice(0, 7) === today.slice(0, 7) ? today : next)
+  }
+
+  const header = <PageHeader title="Записи" />
 
   if (data === null) {
     return (
@@ -95,11 +108,11 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     )
   }
 
-  const { slots, services, bookings, pending, unmarked } = data
-  if (slots.length === 0 && !bookings.some(isActive) && unmarked.length === 0) {
+  const { services, pending, unmarked } = data
+  if (services.length === 0) {
     return (
       <>
-        <PageHeader title="Записи" />
+        {header}
         <EmptyState
           icon="calendar"
           title="Пока нет свободного времени"
@@ -110,26 +123,16 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     )
   }
 
-  const slotsByDay = new Map<string, Slot[]>()
-  for (const slot of slots) {
-    const day = localDate(slot.starts_at, timezone)
-    slotsByDay.set(day, [...(slotsByDay.get(day) ?? []), slot])
-  }
   const bookingsByDay = new Map<string, Booking[]>()
-  // Отклонённые не показываем в дне: они ничего не занимают и есть у клиента
-  for (const item of bookings.filter((booking) => booking.status !== 'declined')) {
+  // Отклонённые не показываем: они ничего не занимают и есть у клиента
+  for (const item of monthBookings?.items.filter((b) => b.status !== 'declined') ?? []) {
     const day = localDate(item.starts_at, timezone)
     bookingsByDay.set(day, [...(bookingsByDay.get(day) ?? []), item])
   }
-  const count = (day: string) =>
-    (slotsByDay.get(day)?.length ?? 0) + (bookingsByDay.get(day)?.filter(isActive).length ?? 0)
-
-  const today = localDate(new Date(), timezone)
-  const days = Array.from({ length: DAYS }, (_, index) => addDays(today, index))
-  // По умолчанию открыт ближайший день, где что-то есть
-  const current = selected ?? days.find((day) => count(day) > 0) ?? today
-  const daySlots = slotsByDay.get(current) ?? []
-  const dayBookings = bookingsByDay.get(current) ?? []
+  const now = new Date()
+  const daySlots = slots?.day === selected && selected >= today ? slots.items : []
+  const dayBookings = bookingsByDay.get(selected) ?? []
+  const loadingMonth = monthBookings?.month !== month
   const unmarkedRow = (item: Booking) => (
     <Row
       key={item.id}
@@ -145,6 +148,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   return (
     <>
       {header}
+      {error && <ErrorText>{error}</ErrorText>}
       {pending.length > 0 && (
         <Section title="Ждут подтверждения">
           {pending.map((item) => (
@@ -175,9 +179,18 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           )}
         </Section>
       )}
-      <DateStrip days={days} current={current} count={count} onSelect={setSelected} />
-      <h2 className="section-title day-title">{dayTitle(current)}</h2>
-      {dayBookings.length === 0 && daySlots.length === 0 && (
+      <MonthCalendar
+        month={month}
+        today={today}
+        selected={selected}
+        timezone={timezone}
+        bookings={bookingsByDay}
+        loading={loadingMonth}
+        onMonth={showMonth}
+        onSelect={setSelected}
+      />
+      <h2 className="section-title day-title">{dayTitle(selected)}</h2>
+      {!loadingMonth && dayBookings.length === 0 && daySlots.length === 0 && (
         <p className="section-footer">В этот день нет записей и свободного времени.</p>
       )}
       {dayBookings.length > 0 && (
@@ -186,10 +199,10 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
             <Row
               key={item.id}
               title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
-              subtitle={bookingNote(item)}
-              tone={isActive(item) ? undefined : 'muted'}
+              subtitle={bookingNote(item, now)}
+              tone={isActive(item) || item.attendance ? undefined : 'muted'}
               onClick={() => setOpened(item)}
-              after={<StatusBadge status={item.status} />}
+              after={<BookingBadge booking={item} now={now} />}
             />
           ))}
         </div>

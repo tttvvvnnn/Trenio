@@ -33,6 +33,7 @@
   --c-success: #31b545;
   --c-warning: #f0932b;
   --c-violet: #7a6ff0;
+  --c-alert: #e5484d;
   --c-tint: #e8f1fa;
   --c-tint: color-mix(in srgb, var(--c-accent) 13%, transparent);
   --c-fill: rgba(120, 120, 128, 0.16);
@@ -898,49 +899,199 @@ button.time[aria-checked='true'] {
   }
 }
 
-/* ===== Посещения блока: пронумерованные клетки 1…N ===== */
+/* ===== Календарь на месяц ===== */
 
-.visits {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-}
-
-.visit {
+.month-head {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 52px;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  font-size: 12px;
-  color: var(--c-hint);
-  background: var(--c-fill);
+  justify-content: space-between;
+  padding: 0 var(--s-2) var(--s-2);
 }
 
-.visit strong {
+.month-head h2 {
+  margin: 0;
   font-size: 17px;
   font-weight: 600;
   color: var(--c-text);
 }
 
-.visit.attended {
-  color: var(--c-success);
-  background: color-mix(in srgb, var(--c-success) 14%, transparent);
+.month-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--c-link);
+  background: transparent;
 }
 
-.visit.missed_charged {
-  color: var(--c-warning);
-  background: color-mix(in srgb, var(--c-warning) 14%, transparent);
+.month-arrow:active {
+  background: var(--c-pressed);
 }
 
-.visit.free strong {
+.month-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: var(--s-1);
+  touch-action: pan-y;
+  transition: opacity 0.15s;
+}
+
+.month-grid.loading {
+  opacity: 0.5;
+}
+
+.month-weekday {
+  padding: var(--s-1) 0;
+  font-size: 11px;
+  text-align: center;
   color: var(--c-hint);
 }
 
-button.visit:active {
-  opacity: 0.7;
+.month-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  text-align: left;
+  color: var(--c-text);
+  background: transparent;
+}
+
+.month-day:active {
+  background: var(--c-pressed);
+}
+
+.month-day.selected {
+  background: var(--c-tint);
+}
+
+.month-day.outside {
+  opacity: 0.4;
+}
+
+.month-number {
+  align-self: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  font-size: 13px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.month-day.today .month-number {
+  font-weight: 600;
+  color: var(--c-on-accent);
+  background: var(--c-accent);
+}
+
+.month-chip {
+  display: block;
+  overflow: hidden;
+  padding: 1px 3px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--c-tone);
+  background: color-mix(in srgb, var(--c-tone) 16%, transparent);
+}
+
+.month-chip b {
+  display: block;
+  font-weight: 600;
+}
+
+.month-more {
+  font-size: 10px;
+  text-align: center;
+  color: var(--c-hint);
+}
+
+.planned {
+  --c-tone: var(--c-accent);
+}
+
+.pending {
+  --c-tone: var(--c-warning);
+}
+
+.alert {
+  --c-tone: var(--c-alert);
+}
+
+.done {
+  --c-tone: var(--c-success);
+}
+
+.missed {
+  --c-tone: var(--c-hint);
+}
+
+.unmarked {
+  --c-tone: var(--c-violet);
+}
+
+.month-chip.pending {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--c-tone);
+}
+
+.month-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-2) var(--s-4) 0;
+  font-size: 12px;
+  color: var(--c-hint);
+}
+
+.month-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.month-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-tone);
+}
+
+.badge.alert {
+  color: var(--c-alert);
+  background: color-mix(in srgb, var(--c-alert) 14%, transparent);
+}
+
+.hint-alert {
+  color: var(--c-alert);
+}
+
+/* ===== Подсказка над разделами: блок кончается, записи без блока ===== */
+
+.card-hint {
+  margin: 0 var(--s-4) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-tone) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--c-tone);
 }
