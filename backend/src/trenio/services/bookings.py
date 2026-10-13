@@ -17,6 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import ACTIVE_BOOKING_STATUSES, Booking, Service, Trainer, User
+from trenio.delivery.kick import kick
+from trenio.services import notifications
 from trenio.services.clients import is_client
 from trenio.services.schedule import trainer_slots
 
@@ -113,6 +115,7 @@ async def create_booking(
         # Сработал уникальный индекс: этот клиент уже записан на это занятие
         await session.rollback()
         raise BookingRejected(BookingError.ALREADY_BOOKED) from None
+    kick()
     booking = await _get(session, Booking.id == booking_id)
     assert booking is not None
     return booking
@@ -174,6 +177,7 @@ async def _create_booking(
     session.add(booking)
     await session.flush()
     booking_id = booking.id
+    await notifications.booking_created(session, booking, now)
     await session.commit()
     return booking_id
 
@@ -191,15 +195,19 @@ async def cancel_booking(
     booking.status = BookingStatus.CANCELLED
     booking.cancelled_by = actor.value
     booking.cancelled_at = now
+    await notifications.booking_cancelled(session, booking, notifications.Role(actor.value), now)
     await session.commit()
+    kick()
     return booking
 
 
-async def confirm_booking(session: AsyncSession, booking: Booking) -> Booking:
+async def confirm_booking(session: AsyncSession, booking: Booking, now: datetime) -> Booking:
     if booking.status != BookingStatus.PENDING:
         raise BookingRejected(BookingError.WRONG_STATUS)
     booking.status = BookingStatus.CONFIRMED
+    await notifications.booking_confirmed(session, booking, now)
     await session.commit()
+    kick()
     return booking
 
 
@@ -209,7 +217,9 @@ async def decline_booking(session: AsyncSession, booking: Booking, now: datetime
     booking.status = BookingStatus.DECLINED
     booking.cancelled_by = Actor.TRAINER.value
     booking.cancelled_at = now
+    await notifications.booking_declined(session, booking, now)
     await session.commit()
+    kick()
     return booking
 
 

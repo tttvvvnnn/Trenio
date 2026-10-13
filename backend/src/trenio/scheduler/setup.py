@@ -1,8 +1,31 @@
+from datetime import UTC, datetime
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from trenio.db.session import get_sessionmaker
+from trenio.delivery.channel import TelegramChannel
+from trenio.delivery.sender import Sender
 
-def create_scheduler() -> AsyncIOScheduler:
-    # Задачи появятся на этапе 7 (напоминания). Они будут забирать записи из таблицы
-    # notifications через SELECT ... FOR UPDATE SKIP LOCKED, поэтому планировщик
-    # можно безопасно вынести в отдельный контейнер или запустить в двух экземплярах.
-    return AsyncIOScheduler(timezone="UTC")
+# Как часто отправщик проверяет очередь уведомлений
+DISPATCH_INTERVAL_SECONDS = 60
+
+
+def create_scheduler() -> tuple[AsyncIOScheduler, Sender]:
+    """Планировщик с отправкой уведомлений раз в минуту.
+
+    Уведомления забираются из таблицы через SELECT ... FOR UPDATE SKIP LOCKED, поэтому
+    планировщик можно вынести в отдельный контейнер или запустить в двух экземплярах.
+    """
+    sender = Sender(get_sessionmaker(), TelegramChannel())
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(
+        sender.run,
+        "interval",
+        seconds=DISPATCH_INTERVAL_SECONDS,
+        id="dispatch_notifications",
+        # Первый проход сразу при старте: забрать то, что накопилось, пока сервис лежал
+        next_run_time=datetime.now(UTC),
+        max_instances=1,
+        coalesce=True,
+    )
+    return scheduler, sender

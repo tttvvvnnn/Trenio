@@ -255,11 +255,12 @@ async def confirm_booking(
     booking_id: int, trainer: CurrentTrainer, session: SessionDep
 ) -> BookingOut:
     booking = await own_booking(session, trainer, booking_id)
+    now = datetime.now(UTC)
     try:
-        booking = await bookings.confirm_booking(session, booking)
+        booking = await bookings.confirm_booking(session, booking, now)
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
-    return await trainer_view(session, booking, datetime.now(UTC))
+    return await trainer_view(session, booking, now)
 
 
 @router.post("/bookings/{booking_id}/decline")

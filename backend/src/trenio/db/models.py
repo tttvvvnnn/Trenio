@@ -19,9 +19,10 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from trenio.db.base import Base, TimestampMixin
@@ -346,3 +347,70 @@ class Payment(TimestampMixin, Base):
     amount: Mapped[int] = mapped_column(Integer)
     paid_on: Mapped[date] = mapped_column(Date)
     comment: Mapped[str | None] = mapped_column(String(256))
+
+
+class ReminderSetting(TimestampMixin, Base):
+    """Настройки напоминаний человека в одной роли. Нет строки — действуют значения по умолчанию.
+
+    Тренер, который сам записан к другому тренеру, настраивает обе роли отдельно.
+    """
+
+    __tablename__ = "reminder_settings"
+    __table_args__ = (
+        UniqueConstraint("user_id", "role", name="uq_reminder_settings_user_role"),
+        CheckConstraint("role IN ('client', 'trainer')", name="role"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    role: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    # За сколько минут до начала напомнить, например [1440, 120]
+    offsets: Mapped[list[int]] = mapped_column(ARRAY(Integer))
+    # Только у тренера: после занятия попросить отметить его
+    attendance_prompt: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true")
+    )
+
+
+class Notification(Base):
+    """Очередь уведомлений. Строка — одно сообщение одному человеку.
+
+    Отправщик забирает строки через SELECT ... FOR UPDATE SKIP LOCKED и ставит sent_at
+    в той же транзакции, поэтому перезапуск или второй экземпляр не отправят её дважды.
+    dedup_key не даёт поставить в очередь одно и то же сообщение второй раз.
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'sent', 'skipped', 'failed')", name="status"),
+        # Отправщик ищет только ожидающие строки, их немного
+        Index(
+            "ix_notifications_due",
+            "send_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("ix_notifications_booking", "booking_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Что за сообщение: new_booking, reminder и т.д.; текст собирается при отправке
+    kind: Mapped[str] = mapped_column(String(32))
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id", ondelete="CASCADE"))
+    package_id: Mapped[int | None] = mapped_column(ForeignKey("packages.id", ondelete="CASCADE"))
+    # Подробности, которых нет в записи: для напоминания — роль и смещение
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
+    dedup_key: Mapped[str] = mapped_column(String(128), unique=True)
+    send_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # pending — ждёт отправки, sent — отправлено, skipped — уже не нужно (запись отменили,
+    # занятие прошло), failed — доставить нельзя (человек заблокировал бота)
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", server_default=text("'pending'")
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

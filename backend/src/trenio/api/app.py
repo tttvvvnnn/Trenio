@@ -47,7 +47,9 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         polling: asyncio.Task[None] | None = None
-        scheduler = create_scheduler() if Component.SCHEDULER in components else None
+        scheduler, sender = (
+            create_scheduler() if Component.SCHEDULER in components else (None, None)
+        )
 
         if Component.BOT in components:
             bot = get_bot()
@@ -59,19 +61,22 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
                 polling = asyncio.create_task(
                     get_dispatcher().start_polling(bot, handle_signals=False)
                 )
-        if scheduler is not None:
+        if scheduler is not None and sender is not None:
+            # События из API этого процесса уходят сразу, не дожидаясь планового прохода
+            sender.register()
             scheduler.start()
         logger.info("Trenio started: %s", ", ".join(sorted(components)))
         try:
             yield
         finally:
-            if scheduler is not None:
+            if scheduler is not None and sender is not None:
+                sender.unregister()
                 scheduler.shutdown(wait=False)
             if polling is not None:
                 await get_dispatcher().stop_polling()
                 with contextlib.suppress(asyncio.CancelledError):
                     await polling
-            if Component.BOT in components:
+            if Component.BOT in components or Component.SCHEDULER in components:
                 await get_bot().session.close()
 
     app = FastAPI(title="Trenio API", version="0.1.0", lifespan=lifespan)
