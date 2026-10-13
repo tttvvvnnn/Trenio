@@ -1092,3 +1092,10 @@ button.time[aria-checked='true'] {
 .month-grid.compact .month-chip {
   text-align: center;
 }
+
+.role-picker-mark {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--s-6);
+  color: var(--c-text);
+}

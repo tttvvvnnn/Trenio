@@ -10,15 +10,13 @@ import StatusBadge from '../ui/StatusBadge'
 
 type Props = {
   onBook: () => void
-  // Есть, когда человек ещё и тренер: возврат к своему расписанию
-  onSwitchToTrainer?: () => void
 }
 
 function isActive(booking: Booking): boolean {
   return booking.status === 'pending' || booking.status === 'confirmed'
 }
 
-export default function MyBookings({ onBook, onSwitchToTrainer }: Props) {
+export default function MyBookings({ onBook }: Props) {
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -66,16 +64,6 @@ export default function MyBookings({ onBook, onSwitchToTrainer }: Props) {
         </Section>
       )}
       {bookings !== null && <ReminderSettings role="client" />}
-      {onSwitchToTrainer && (
-        <Section footer="Ваше расписание и клиенты остаются в режиме тренера.">
-          <Row
-            title="Режим тренера"
-            icon={{ name: 'user', color: 'var(--c-violet)' }}
-            chevron
-            onClick={onSwitchToTrainer}
-          />
-        </Section>
-      )}
       {opened && (
         <BookingDetails
           booking={opened}

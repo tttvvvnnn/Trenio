@@ -224,7 +224,7 @@ export default function ProfileForm({
       {onSwitchToClient && !onboarding && (
         <Section footer="Ваши записи к другим тренерам.">
           <Row
-            title="Режим клиента"
+            title="Профиль клиента"
             icon={{ name: 'calendar', color: 'var(--c-accent)' }}
             chevron
             onClick={onSwitchToClient}

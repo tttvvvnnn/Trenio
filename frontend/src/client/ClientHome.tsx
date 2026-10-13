@@ -54,8 +54,16 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
       {tab === 'book' && (
         <BookTab trainers={trainers} error={error} onOpen={setOpened} onBooked={onBooked} />
       )}
-      {tab === 'bookings' && (
-        <MyBookings onBook={() => open('book')} onSwitchToTrainer={onSwitchToTrainer} />
+      {tab === 'bookings' && <MyBookings onBook={() => open('book')} />}
+      {onSwitchToTrainer && tab !== 'packages' && (
+        <Section footer="Ваше расписание и клиенты остаются в профиле тренера.">
+          <Row
+            title="Профиль тренера"
+            icon={{ name: 'user', color: 'var(--c-violet)' }}
+            chevron
+            onClick={onSwitchToTrainer}
+          />
+        </Section>
       )}
       {tab === 'packages' && <MyPackages />}
       {opened && (
