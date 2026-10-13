@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/tttvvvnnn/Trenio/compare/v0.6.0...v0.7.0) (2026-10-13)
+
+
+### Новое
+
+* правила занятий тренера с согласием клиента ([#34](https://github.com/tttvvvnnn/Trenio/issues/34)) ([f17bdaf](https://github.com/tttvvvnnn/Trenio/commit/f17bdafd88475549e4ed7518c7e9b1126676bfb3))
+
+
+### Исправления
+
+* вся строка записи кликабельна вместе со статусом ([#32](https://github.com/tttvvvnnn/Trenio/issues/32)) ([9d38eef](https://github.com/tttvvvnnn/Trenio/commit/9d38eef142364080208fe8b953c2b18ddae9544f))
+
 ## [0.6.0](https://github.com/tttvvvnnn/Trenio/compare/v0.5.0...v0.6.0) (2026-10-13)
 
 
