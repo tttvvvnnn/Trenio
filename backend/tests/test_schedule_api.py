@@ -1,6 +1,7 @@
-"""Услуги, шаблон, исключения и окошки через API."""
+"""Услуги, шаблон, часы на даты и окошки через API."""
 
 from datetime import timedelta
+from typing import Any
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,16 +96,15 @@ async def test_two_weeks_of_slots(client: AsyncClient) -> None:
         )
         assert response.status_code == 201, response.text
 
-    # Среда первой недели — выходной, в субботу второй недели доп. окно
-    await client.post(
-        "/api/trainer/schedule/exceptions",
-        headers=headers,
-        json={"day": "2030-01-09", "kind": "closed"},
+    # Среда первой недели — выходной, в субботу второй недели свои часы
+    response = await client.put(
+        "/api/trainer/schedule/days", headers=headers, json={"days": ["2030-01-09"]}
     )
-    await client.post(
-        "/api/trainer/schedule/exceptions",
+    assert response.status_code == 204, response.text
+    await client.put(
+        "/api/trainer/schedule/days",
         headers=headers,
-        json={"day": "2030-01-19", "kind": "extra", "start": "09:00", "end": "10:00"},
+        json={"days": ["2030-01-19"], "windows": [{"start": "09:00", "end": "10:00"}]},
     )
 
     response = await client.get(
@@ -161,36 +161,76 @@ async def test_schedule_validation(client: AsyncClient) -> None:
         response = await client.post("/api/trainer/schedule/rules", headers=headers, json=body)
         assert response.status_code == 422, body
 
-    bad_exceptions: tuple[dict[str, object], ...] = (
-        {"day": MONDAY, "kind": "extra"},
-        {"day": MONDAY, "kind": "closed", "start": "10:00"},
-        {"day": MONDAY, "kind": "holiday"},
+    bad_days: tuple[dict[str, object], ...] = (
+        {"days": []},
+        {"days": [MONDAY], "windows": [{"start": "12:00", "end": "10:00"}]},
+        {"days": [MONDAY], "windows": [{"start": "10:00"}]},
+        {"days": [MONDAY], "windows": [{"start": "10:00", "end": "12:00", "service_ids": [999]}]},
     )
-    for body in bad_exceptions:
-        response = await client.post("/api/trainer/schedule/exceptions", headers=headers, json=body)
+    for body in bad_days:
+        response = await client.put("/api/trainer/schedule/days", headers=headers, json=body)
         assert response.status_code == 422, body
 
 
-async def test_exceptions_listing(client: AsyncClient) -> None:
+async def test_day_hours_calendar(client: AsyncClient) -> None:
     headers = await auth(client)
-    for day in ("2030-01-07", "2030-02-01"):
-        await client.post(
-            "/api/trainer/schedule/exceptions",
-            headers=headers,
-            json={"day": day, "kind": "closed"},
-        )
-    response = await client.get(
-        "/api/trainer/schedule/exceptions",
+    service_id = await create_service(client, headers)
+    await client.post(
+        "/api/trainer/schedule/rules",
         headers=headers,
-        params={"from": "2030-01-01", "to": "2030-01-31"},
+        json={"weekday": 0, "start": "10:00", "end": "13:00"},
     )
-    listed = response.json()
-    assert [item["day"] for item in listed] == ["2030-01-07"]
+    # Понедельник 2030-01-14 — свои часы только для одной услуги
+    await client.put(
+        "/api/trainer/schedule/days",
+        headers=headers,
+        json={
+            "days": ["2030-01-14"],
+            "windows": [{"start": "16:00", "end": "18:00", "service_ids": [service_id]}],
+        },
+    )
 
-    deleted = await client.delete(
-        f"/api/trainer/schedule/exceptions/{listed[0]['id']}", headers=headers
+    async def calendar(start: str, days: int) -> list[dict[str, Any]]:
+        response = await client.get(
+            "/api/trainer/schedule/days", headers=headers, params={"from": start, "days": days}
+        )
+        assert response.status_code == 200, response.text
+        found: list[dict[str, Any]] = response.json()
+        return found
+
+    found = await calendar("2030-01-07", 14)
+    by_day = {item["day"]: item for item in found}
+    assert by_day["2030-01-07"] == {
+        "day": "2030-01-07",
+        "custom": False,
+        "windows": [{"start": "10:00:00", "end": "13:00:00", "service_ids": []}],
+    }
+    assert by_day["2030-01-08"]["windows"] == []
+    assert by_day["2030-01-14"]["custom"] is True
+    assert by_day["2030-01-14"]["windows"] == [
+        {"start": "16:00:00", "end": "18:00:00", "service_ids": [service_id]}
+    ]
+
+    # Неделя с 14-го повторяется на две следующие: 21-е и 28-е со своими часами
+    response = await client.post(
+        "/api/trainer/schedule/days/copy-week",
+        headers=headers,
+        json={"day": "2030-01-16", "weeks": 2},
     )
-    assert deleted.status_code == 204
+    assert response.status_code == 204, response.text
+    found = await calendar("2030-01-21", 14)
+    custom = [item["day"] for item in found if item["custom"]]
+    assert custom == ["2030-01-21", "2030-01-28"]
+
+    response = await client.post(
+        "/api/trainer/schedule/days/reset",
+        headers=headers,
+        json={"days": ["2030-01-21", "2030-01-28"]},
+    )
+    assert response.status_code == 204
+    found = await calendar("2030-01-21", 1)
+    assert found[0]["custom"] is False
+    assert found[0]["windows"][0]["start"] == "10:00:00"
 
 
 async def test_trainers_cannot_touch_each_other(client: AsyncClient, session: AsyncSession) -> None:

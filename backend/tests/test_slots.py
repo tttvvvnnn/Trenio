@@ -1,14 +1,14 @@
-"""Расчёт окошек без базы: шаблон, исключения, часовые пояса."""
+"""Расчёт окошек без базы: шаблон, часы на даты, часовые пояса."""
 
 from datetime import UTC, date, datetime, time, timedelta
 
 from trenio.services.slots import (
     BusySpec,
-    ExceptionKind,
-    ExceptionSpec,
+    DaySpec,
     RuleSpec,
     ServiceSpec,
     Slot,
+    WindowSpec,
     free_slots,
     subtract,
 )
@@ -27,7 +27,7 @@ def slots(
     *,
     services: list[ServiceSpec],
     rules: list[RuleSpec],
-    exceptions: list[ExceptionSpec] | None = None,
+    custom_days: list[DaySpec] | None = None,
     busy: list[BusySpec] | None = None,
     start_day: date = MONDAY,
     days: int = 1,
@@ -40,7 +40,7 @@ def slots(
         timezone=timezone,
         services=services,
         rules=rules,
-        exceptions=exceptions or [],
+        custom_days=custom_days or [],
         now=now,
         busy=busy or [],
     )
@@ -84,31 +84,33 @@ def test_rules_apply_only_on_their_weekday() -> None:
     assert starts(found) == [utc(MONDAY, 7), utc(date(2026, 10, 19), 7)]
 
 
-def test_closed_day_and_closed_hours() -> None:
-    whole_day = ExceptionSpec(MONDAY, ExceptionKind.CLOSED, None, None)
-    assert slots(services=[PERSONAL], rules=[monday_rule(10, 14)], exceptions=[whole_day]) == []
+def test_custom_day_replaces_template() -> None:
+    day_off = DaySpec(MONDAY, ())
+    assert slots(services=[PERSONAL], rules=[monday_rule(10, 14)], custom_days=[day_off]) == []
 
-    lunch = ExceptionSpec(MONDAY, ExceptionKind.CLOSED, time(11), time(12))
-    found = slots(services=[PERSONAL], rules=[monday_rule(10, 14)], exceptions=[lunch])
-    assert starts(found) == [utc(MONDAY, h) for h in (7, 9, 10)]
+    # Свои часы на дату: шаблон 10–14 не действует, только 16–18
+    evening = DaySpec(MONDAY, (WindowSpec(time(16), time(18)),))
+    found = slots(services=[PERSONAL], rules=[monday_rule(10, 14)], custom_days=[evening])
+    assert starts(found) == [utc(MONDAY, 13), utc(MONDAY, 14)]
 
 
-def test_closed_exception_on_other_day_is_ignored() -> None:
-    other = ExceptionSpec(date(2026, 10, 13), ExceptionKind.CLOSED, None, None)
-    found = slots(services=[PERSONAL], rules=[monday_rule(10, 11)], exceptions=[other])
+def test_custom_day_on_other_date_is_ignored() -> None:
+    other = DaySpec(date(2026, 10, 13), ())
+    found = slots(services=[PERSONAL], rules=[monday_rule(10, 11)], custom_days=[other])
     assert len(found) == 1
 
 
-def test_extra_window_adds_slots_for_all_services() -> None:
+def test_custom_day_windows_respect_services() -> None:
     sunday = date(2026, 10, 18)
-    extra = ExceptionSpec(sunday, ExceptionKind.EXTRA, time(9), time(10, 30))
-    found = slots(
-        services=[PERSONAL, LONG],
-        rules=[],
-        exceptions=[extra],
-        start_day=sunday,
+    custom = DaySpec(
+        sunday,
+        (
+            WindowSpec(time(9), time(10, 30)),
+            WindowSpec(time(12), time(13), frozenset({1})),
+        ),
     )
-    assert starts(found, 1) == [utc(sunday, 6)]
+    found = slots(services=[PERSONAL, LONG], rules=[], custom_days=[custom], start_day=sunday)
+    assert starts(found, 1) == [utc(sunday, 6), utc(sunday, 9)]
     assert starts(found, 2) == [utc(sunday, 6)]
 
 
@@ -186,7 +188,6 @@ def test_start_step_shorter_than_service() -> None:
         timezone="Europe/Moscow",
         services=[PERSONAL],
         rules=[monday_rule(10, 12)],
-        exceptions=[],
         now=LONG_AGO,
         step_min=20,
     )

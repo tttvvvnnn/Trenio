@@ -1095,3 +1095,41 @@ button.time[aria-checked='true'] {
   background: color-mix(in srgb, var(--c-tone) 14%, transparent);
   box-shadow: inset 3px 0 0 var(--c-tone);
 }
+
+/* ===== Расписание на месяц ===== */
+
+.month-hours {
+  display: block;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--c-subtitle);
+}
+
+.month-hours.off {
+  color: var(--c-hint);
+}
+
+.month-day.custom .month-hours {
+  font-weight: 600;
+  color: var(--c-accent);
+}
+
+.month-day.custom.off .month-hours {
+  color: var(--c-hint);
+}
+
+.month-day.past {
+  opacity: 0.55;
+}
+
+.month-day.selected.past {
+  opacity: 1;
+}
+
+.month-grid.compact .month-day {
+  min-height: 48px;
+}
