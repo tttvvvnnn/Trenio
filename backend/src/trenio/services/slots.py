@@ -148,11 +148,13 @@ def free_slots(
     exceptions: Collection[ExceptionSpec],
     now: datetime,
     busy: Collection[BusySpec] = (),
+    step_min: int = 0,
 ) -> list[Slot]:
     """Окошки на days дней начиная с start_day (даты по часовому поясу тренера).
 
-    Окно нарезается шагом, равным длительности услуги, от начала окна:
-    10:00–14:00 при 60 минутах даёт 10, 11, 12, 13. Хвост короче услуги отбрасывается.
+    Начала окошек идут от начала окна с шагом step_min: 10:00–12:00 при шаге 15 минут
+    и услуге 60 минут даёт 10:00, 10:15, 10:30, 10:45, 11:00. Занятие должно целиком
+    помещаться в окно. step_min=0 — шаг равен длительности услуги: 10:00, 11:00.
     Прошедшие окошки не показываем.
 
     Из окошек вычитаются записи busy. Окошко, которое пересекается с чужим занятием,
@@ -167,6 +169,7 @@ def free_slots(
         day = start_day + timedelta(days=offset)
         for service_id, windows in day_windows(day, services, rules, exceptions).items():
             duration = durations[service_id]
+            step = step_min or duration
             for window_start, window_end in windows:
                 minute = window_start
                 while minute + duration <= window_end:
@@ -174,7 +177,7 @@ def free_slots(
                     if starts_at >= now:
                         ends_at = _local_to_utc(day, minute + duration, tz)
                         found.add(Slot(service_id, starts_at, ends_at))
-                    minute += duration
+                    minute += step
     # Перекрывающиеся правила дают одинаковые окошки: set убирает дубли
     result: list[Slot] = []
     for slot in sorted(found, key=lambda slot: (slot.starts_at, slot.service_id)):

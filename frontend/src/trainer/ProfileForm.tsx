@@ -18,6 +18,17 @@ import { MainButton } from '../ui/native'
 // За сколько часов до начала клиент ещё может отменить запись
 const CANCEL_HOURS = [0, 1, 2, 3, 4, 6, 8, 12, 24, 36, 48, 72, 168]
 
+// С каким шагом клиенту предлагается время начала; 0 — по длительности услуги
+const SLOT_STEPS: [number, string][] = [
+  [5, 'каждые 5 мин'],
+  [10, 'каждые 10 мин'],
+  [15, 'каждые 15 мин'],
+  [20, 'каждые 20 мин'],
+  [30, 'каждые 30 мин'],
+  [60, 'каждый час'],
+  [0, 'по длительности услуги'],
+]
+
 type Props = {
   trainer: Trainer
   // Онбординг: короткая форма и подсказки для первого входа
@@ -25,6 +36,11 @@ type Props = {
   onSaved: (trainer: Trainer) => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
+}
+
+// 795 -> "13:15"
+function clock(minutes: number): string {
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`
 }
 
 function initials(name: string): string {
@@ -54,6 +70,7 @@ export default function ProfileForm({
   const [address, setAddress] = useState(trainer.address ?? '')
   const [autoConfirm, setAutoConfirm] = useState(trainer.auto_confirm)
   const [cancelHours, setCancelHours] = useState(trainer.cancel_hours)
+  const [slotStep, setSlotStep] = useState(trainer.slot_step_min)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,7 +79,8 @@ export default function ProfileForm({
     timezone !== trainer.timezone ||
     address.trim() !== (trainer.address ?? '') ||
     autoConfirm !== trainer.auto_confirm ||
-    cancelHours !== trainer.cancel_hours
+    cancelHours !== trainer.cancel_hours ||
+    slotStep !== trainer.slot_step_min
   const valid = displayName.trim() !== ''
 
   async function submit() {
@@ -76,6 +94,7 @@ export default function ProfileForm({
         address: address.trim(),
         auto_confirm: autoConfirm,
         cancel_hours: cancelHours,
+        slot_step_min: slotStep,
       })
       haptic.success()
       onSaved(updated)
@@ -172,6 +191,32 @@ export default function ProfileForm({
               />
             }
           />
+        </Section>
+      )}
+      {!onboarding && (
+        <Section
+          footer={
+            slotStep === 0
+              ? 'Начала идут подряд: часовая услуга в 10:00, 11:00, 12:00.'
+              : `Клиент выбирает начало с шагом ${slotStep} мин, например 13:00 или ${clock(13 * 60 + slotStep)}. Занятие целиком помещается в рабочее время.`
+          }
+        >
+          <InlineField label="Время начала" icon={{ name: 'calendar', color: 'var(--c-accent)' }}>
+            {(id) => (
+              <select
+                id={id}
+                className="row-input"
+                value={slotStep}
+                onChange={(event) => setSlotStep(Number(event.target.value))}
+              >
+                {SLOT_STEPS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </InlineField>
         </Section>
       )}
       {onSwitchToClient && !onboarding && (

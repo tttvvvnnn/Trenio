@@ -177,3 +177,18 @@ def test_group_slot_is_closed_by_other_service() -> None:
         services=[PERSONAL, GROUP], rules=[monday_rule(10, 11)], busy=[booked(PERSONAL, 7)]
     )
     assert found == []
+
+
+def test_start_step_shorter_than_service() -> None:
+    found = free_slots(
+        start_day=MONDAY,
+        days=1,
+        timezone="Europe/Moscow",
+        services=[PERSONAL],
+        rules=[monday_rule(10, 12)],
+        exceptions=[],
+        now=LONG_AGO,
+        step_min=20,
+    )
+    # 10:00, 10:20, 10:40, 11:00; 11:20 + час уже не помещается до 12:00
+    assert starts(found) == [utc(MONDAY, 7), utc(MONDAY, 7, 20), utc(MONDAY, 7, 40), utc(MONDAY, 8)]

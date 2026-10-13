@@ -334,4 +334,5 @@ async def trainer_slots(
         ],
         now=now,
         busy=[BusySpec(b.service_id, b.starts_at, b.ends_at) for b in busy],
+        step_min=trainer.slot_step_min,
     )

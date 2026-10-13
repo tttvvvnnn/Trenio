@@ -150,8 +150,8 @@ async def test_stranger_cannot_book(client: AsyncClient) -> None:
 async def test_slot_must_exist(client: AsyncClient, session: AsyncSession) -> None:
     _, trainer_id, service_id = await setup_trainer(client)
     headers = await new_client(client, session, trainer_id, 3003)
-    # 10:30 нет в сетке окошек, 12:00 за пределами окна
-    for starts_at in ("2030-01-07T07:30:00Z", "2030-01-07T09:00:00Z"):
+    # 10:10 не попадает в шаг 15 минут, 11:30 + час вылезает за конец окна в 12:00
+    for starts_at in ("2030-01-07T07:10:00Z", "2030-01-07T08:30:00Z"):
         code, body = await book(client, headers, trainer_id, service_id, starts_at)
         assert code == 409, body
     code, _ = await book(client, headers, trainer_id, service_id + 100)
@@ -308,3 +308,27 @@ async def test_invite_link(client: AsyncClient, monkeypatch: pytest.MonkeyPatch)
     response = await client.get("/api/trainer/invite-link", headers=headers)
     assert response.status_code == 200, response.text
     assert response.json()["url"].startswith("https://t.me/trenio_test_bot?start=c_")
+
+
+async def test_start_step(client: AsyncClient, session: AsyncSession) -> None:
+    """По умолчанию начало каждые 15 минут, шаг меняется в профиле тренера."""
+    trainer_headers, trainer_id, service_id = await setup_trainer(client)
+    starts = [start for start, _ in await slot_starts(client, trainer_headers)]
+    assert starts == [
+        f"2030-01-07T0{h}:{m:02d}:00Z" for h, m in ((7, 0), (7, 15), (7, 30), (7, 45), (8, 0))
+    ]
+
+    headers = await new_client(client, session, trainer_id, 3003)
+    code, booking = await book(client, headers, trainer_id, service_id, "2030-01-07T07:15:00Z")
+    assert code == 201, booking
+    # 10:15–11:15 занято: ни одно часовое занятие в окне 10–12 больше не помещается
+    assert await slot_starts(client, trainer_headers) == []
+
+    response = await client.patch(
+        "/api/trainer/me", headers=trainer_headers, json={"slot_step_min": 7}
+    )
+    assert response.status_code == 422
+    response = await client.patch(
+        "/api/trainer/me", headers=trainer_headers, json={"slot_step_min": 0}
+    )
+    assert response.json()["slot_step_min"] == 0
