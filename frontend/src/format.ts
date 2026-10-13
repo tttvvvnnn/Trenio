@@ -1,5 +1,15 @@
+import type { BookingStatus } from './api'
+
 // 0 — понедельник, как в API
-export const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье']
+export const WEEKDAYS = [
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье',
+]
 export const WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 // Часовые пояса России; часовой пояс телефона добавляется, если его нет в списке
@@ -122,4 +132,16 @@ export function plural(count: number, one: string, few: string, many: string): s
   const rule = new Intl.PluralRules('ru-RU').select(count)
   const word = rule === 'one' ? one : rule === 'few' ? few : many
   return `${count} ${word}`
+}
+
+// "пн, 7 января, 10:00" в часовом поясе тренера
+export function dateTime(iso: string, timeZone: string): string {
+  return `${dayTitle(localDate(iso, timeZone))}, ${localTime(iso, timeZone)}`
+}
+
+export const BOOKING_STATUS: Record<BookingStatus, string> = {
+  pending: 'Ждёт подтверждения',
+  confirmed: 'Подтверждена',
+  declined: 'Отклонена',
+  cancelled: 'Отменена',
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { fetchMe, loginWithTelegram, type Me, type Trainer } from './api'
+import ClientHome from './client/ClientHome'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
@@ -14,6 +15,8 @@ type State =
 
 export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
+  // Тренер, который сам ходит к другому тренеру, переключается в режим клиента из профиля
+  const [clientMode, setClientMode] = useState(false)
 
   useEffect(() => {
     const initData = setupTelegram()
@@ -33,11 +36,29 @@ export default function App() {
     )
   }
 
-  const withTabbar = state.kind === 'ready' && state.me.trainer?.onboarded_at != null
-  return <main className={withTabbar ? 'app with-tabbar' : 'app'}>{render(state, setTrainer)}</main>
+  const view = state.kind === 'ready' ? chooseView(state.me, clientMode) : null
+  const withTabbar = view === 'client' || view === 'trainer'
+  return (
+    <main className={withTabbar ? 'app with-tabbar' : 'app'}>
+      {render(state, view, setTrainer, setClientMode)}
+    </main>
+  )
 }
 
-function render(state: State, setTrainer: (trainer: Trainer) => void) {
+type View = 'client' | 'trainer' | 'onboarding' | 'stranger'
+
+function chooseView(me: Me, clientMode: boolean): View {
+  if (me.trainer === null) return me.is_client ? 'client' : 'stranger'
+  if (me.trainer.onboarded_at === null) return 'onboarding'
+  return clientMode && me.is_client ? 'client' : 'trainer'
+}
+
+function render(
+  state: State,
+  view: View | null,
+  setTrainer: (trainer: Trainer) => void,
+  setClientMode: (clientMode: boolean) => void,
+) {
   switch (state.kind) {
     case 'loading':
       return <p className="centered">Загрузка…</p>
@@ -47,19 +68,30 @@ function render(state: State, setTrainer: (trainer: Trainer) => void) {
       return <p className="centered">Не удалось войти: {state.message}</p>
     case 'ready': {
       const { me } = state
+      if (view === 'client') {
+        return (
+          <ClientHome onSwitchToTrainer={me.trainer ? () => setClientMode(false) : undefined} />
+        )
+      }
       if (me.trainer === null) {
         return (
           <EmptyState
             icon="calendar"
             title={`Привет, ${me.first_name}!`}
-            text="Скоро здесь можно будет записаться к тренеру."
+            text="Чтобы записаться, попросите у тренера ссылку-приглашение и откройте её в Telegram."
           />
         )
       }
-      if (me.trainer.onboarded_at === null) {
+      if (view === 'onboarding') {
         return <ProfileForm trainer={me.trainer} onboarding onSaved={setTrainer} />
       }
-      return <TrainerHome trainer={me.trainer} onTrainerChange={setTrainer} />
+      return (
+        <TrainerHome
+          trainer={me.trainer}
+          onTrainerChange={setTrainer}
+          onSwitchToClient={me.is_client ? () => setClientMode(true) : undefined}
+        />
+      )
     }
   }
 }

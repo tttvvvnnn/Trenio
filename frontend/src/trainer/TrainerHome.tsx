@@ -20,9 +20,11 @@ type Tab = 'calendar' | 'schedule' | 'services' | 'profile'
 type Props = {
   trainer: Trainer
   onTrainerChange: (trainer: Trainer) => void
+  // Есть, когда тренер сам записан к другому тренеру
+  onSwitchToClient?: () => void
 }
 
-export default function TrainerHome({ trainer, onTrainerChange }: Props) {
+export default function TrainerHome({ trainer, onTrainerChange, onSwitchToClient }: Props) {
   const [tab, setTab] = useState<Tab>('calendar')
 
   function open(next: Tab) {
@@ -38,7 +40,13 @@ export default function TrainerHome({ trainer, onTrainerChange }: Props) {
       )}
       {tab === 'schedule' && <Schedule timezone={trainer.timezone} />}
       {tab === 'services' && <Services />}
-      {tab === 'profile' && <ProfileForm trainer={trainer} onSaved={onTrainerChange} />}
+      {tab === 'profile' && (
+        <ProfileForm
+          trainer={trainer}
+          onSaved={onTrainerChange}
+          onSwitchToClient={onSwitchToClient}
+        />
+      )}
       <nav className="tabbar" aria-label="Разделы">
         {TABS.map(([value, title, icon]) => (
           <button
