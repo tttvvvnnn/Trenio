@@ -64,7 +64,7 @@ export default function WeekTemplate() {
                 title={title}
                 tone="muted"
                 onClick={() => setOpenDay(weekday)}
-                after={<span className="badge">выходной</span>}
+                badge={<span className="badge">выходной</span>}
               />
             )
           }

@@ -115,7 +115,7 @@ export default function Clients({ timezone }: Props) {
                   : `с ${since(client.since)}`
               }
               onClick={() => setOpened(client)}
-              after={clientBadge(client)}
+              badge={clientBadge(client)}
             />
           ))}
         </Section>

@@ -74,7 +74,7 @@ export default function BookClient({ slot, serviceName, timezone, onBack, onBook
                 haptic.select()
                 setClientId(client.id)
               }}
-              after={
+              badge={
                 client.id === clientId ? <Icon name="check" className="row-check" /> : undefined
               }
             />

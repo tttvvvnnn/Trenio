@@ -25,14 +25,26 @@ type RowProps = {
   // Иконка на цветной плашке слева, цвет — CSS-значение
   icon?: { name: IconName; color: string }
   value?: ReactNode
-  // Элемент справа вне нажимаемой области: переключатель, степпер, бейдж
+  // Бейдж или галочка справа внутри нажимаемой области
+  badge?: ReactNode
+  // Элемент справа вне нажимаемой области: переключатель, степпер
   after?: ReactNode
   chevron?: boolean
   tone?: 'muted' | 'accent' | 'destructive'
   onClick?: () => void
 }
 
-export function Row({ title, subtitle, icon, value, after, chevron, tone, onClick }: RowProps) {
+export function Row({
+  title,
+  subtitle,
+  icon,
+  value,
+  badge,
+  after,
+  chevron,
+  tone,
+  onClick,
+}: RowProps) {
   const content = (
     <>
       {icon && (
@@ -45,6 +57,7 @@ export function Row({ title, subtitle, icon, value, after, chevron, tone, onClic
         {subtitle && <span className="row-subtitle">{subtitle}</span>}
       </span>
       {value !== undefined && <span className="row-value">{value}</span>}
+      {badge}
       {chevron && <Icon name="chevronRight" className="row-chevron" />}
     </>
   )

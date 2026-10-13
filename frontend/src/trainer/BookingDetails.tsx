@@ -99,7 +99,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
               key={attendance}
               title={ATTENDANCE[attendance]}
               onClick={busy ? undefined : () => void mark(attendance)}
-              after={
+              badge={
                 booking.attendance === attendance ? (
                   <Icon name="check" className="row-check" />
                 ) : undefined
