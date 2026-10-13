@@ -85,7 +85,7 @@ function BookingRow({ booking, onClick }: { booking: Booking; onClick: () => voi
       subtitle={`${booking.service.name} · ${booking.trainer.display_name}`}
       tone={isActive(booking) ? undefined : 'muted'}
       onClick={onClick}
-      after={<StatusBadge status={booking.status} />}
+      badge={<StatusBadge status={booking.status} />}
     />
   )
 }

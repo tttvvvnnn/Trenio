@@ -52,7 +52,7 @@ export default function MyPackages() {
       subtitle={packageLine(pkg)}
       tone={pkg.status === 'active' ? undefined : 'muted'}
       onClick={() => setOpened(pkg)}
-      after={<PackageBadge pkg={pkg} />}
+      badge={<PackageBadge pkg={pkg} />}
     />
   )
 

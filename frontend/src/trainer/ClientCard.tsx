@@ -85,7 +85,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
         subtitle={bookingNote(item, now)}
         tone={item.status === 'cancelled' || item.status === 'declined' ? 'muted' : undefined}
         onClick={() => setOpenedBooking(item)}
-        after={<BookingBadge booking={item} now={now} />}
+        badge={<BookingBadge booking={item} now={now} />}
       />
     )
   }
@@ -109,7 +109,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
                 subtitle={packageLine(item)}
                 tone={item.status === 'active' ? undefined : 'muted'}
                 onClick={() => setOpenedPackage(item.id)}
-                after={<PackageBadge pkg={item} />}
+                badge={<PackageBadge pkg={item} />}
               />
             ))}
             <AddRow title="Продать блок" onClick={() => setSelling(true)} />

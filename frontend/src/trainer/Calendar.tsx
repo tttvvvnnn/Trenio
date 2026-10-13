@@ -202,7 +202,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
               subtitle={bookingNote(item, now)}
               tone={isActive(item) || item.attendance ? undefined : 'muted'}
               onClick={() => setOpened(item)}
-              after={<BookingBadge booking={item} now={now} />}
+              badge={<BookingBadge booking={item} now={now} />}
             />
           ))}
         </div>
