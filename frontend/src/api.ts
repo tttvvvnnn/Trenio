@@ -278,14 +278,27 @@ export function fetchTrainerSlots(
   trainerId: number,
   serviceId: number,
   days = 14,
+  from?: string,
 ): Promise<Slot[]> {
+  const start = from ? `&from=${from}` : ''
   return request<Slot[]>(
-    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}`,
+    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}${start}`,
   )
 }
 
 export function fetchMyBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/client/bookings')
+}
+
+// Все свои записи у тренера за период, включая прошедшие: для календаря
+export function fetchMyBookingsFor(
+  trainerId: number,
+  from: string,
+  days: number,
+): Promise<Booking[]> {
+  return request<Booking[]>(
+    `/api/client/bookings?trainer_id=${trainerId}&from=${from}&days=${days}`,
+  )
 }
 
 export function createMyBooking(booking: {

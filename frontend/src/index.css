@@ -525,80 +525,7 @@ input[type='time'].row-input {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-/* ===== Окошки: лента дат и сетка времени ===== */
-
-.date-strip {
-  display: flex;
-  gap: var(--s-2);
-  padding: var(--s-2) var(--s-4) var(--s-1);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: var(--s-4);
-  scrollbar-width: none;
-}
-
-.section + .date-strip {
-  margin-top: var(--s-2);
-}
-.date-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.date {
-  flex: none;
-  width: 46px;
-  padding: 6px 0 7px;
-  border: 0;
-  border-radius: var(--r-group);
-  text-align: center;
-  background: var(--c-section);
-  scroll-snap-align: start;
-  transition: background-color 150ms var(--ease);
-}
-
-.date small {
-  display: block;
-  font-size: 12px;
-  color: var(--c-hint);
-}
-
-.date b {
-  display: block;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-/* Точка: в этот день есть свободное время */
-.date i {
-  display: block;
-  width: 5px;
-  height: 5px;
-  margin: 3px auto 0;
-  border-radius: 50%;
-  background: var(--c-accent);
-}
-
-.date.empty b {
-  color: var(--c-hint);
-}
-
-.date.empty i {
-  background: transparent;
-}
-
-.date[aria-pressed='true'] {
-  color: var(--c-on-accent);
-  background: var(--c-accent);
-}
-
-.date[aria-pressed='true'] small,
-.date[aria-pressed='true'] b {
-  color: var(--c-on-accent);
-}
-
-.date[aria-pressed='true'] i {
-  background: var(--c-on-accent);
-}
+/* ===== Окошки: сетка времени ===== */
 
 .service-head {
   display: flex;
@@ -1132,4 +1059,36 @@ button.time[aria-checked='true'] {
 
 .month-grid.compact .month-day {
   min-height: 48px;
+}
+
+/* ===== Календарь клиента ===== */
+
+/* Точка: в этот день есть свободное время */
+.month-free {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 2px auto 0;
+  border-radius: 50%;
+  background: var(--c-accent);
+}
+
+.month-legend .month-free {
+  display: inline-block;
+  margin: 0;
+}
+
+.month-day.empty:not(.today) .month-number {
+  color: var(--c-hint);
+}
+
+.month-dot.month-tag {
+  width: 14px;
+  height: 9px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c-tone) 30%, transparent);
+}
+
+.month-grid.compact .month-chip {
+  text-align: center;
 }

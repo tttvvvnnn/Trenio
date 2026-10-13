@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import {
   createMyBooking,
+  fetchMyBookingsFor,
   fetchMyPackages,
   fetchTrainerServices,
   fetchTrainerSlots,
@@ -11,8 +12,10 @@ import {
   type Service,
   type Slot,
 } from '../api'
+import { clientTone, monthDays, type Tone } from '../calendar'
 import {
-  addDays,
+  BOOKING_STATUS,
+  ATTENDANCE_SHORT,
   dateTime,
   dayTitle,
   deviceTimezone,
@@ -23,12 +26,19 @@ import {
   rubles,
 } from '../format'
 import { haptic } from '../telegram'
-import DateStrip from '../ui/DateStrip'
-import { Chips, EmptyState, ErrorText, SkeletonList } from '../ui/kit'
+import { Chips, EmptyState, ErrorText, Row, SkeletonList } from '../ui/kit'
+import MonthGrid from '../ui/MonthGrid'
 import { MainButton } from '../ui/native'
 
-// Сколько дней вперёд клиент видит окошки
-const DAYS = 14
+// Цвет плашки своей записи в списке дня
+const TONE_COLOR: Record<Tone, string> = {
+  planned: 'var(--c-accent)',
+  pending: 'var(--c-warning)',
+  alert: 'var(--c-alert)',
+  done: 'var(--c-success)',
+  missed: 'var(--c-hint)',
+  unmarked: 'var(--c-violet)',
+}
 
 type Props = {
   trainer: ClientTrainer
@@ -39,7 +49,11 @@ type Props = {
 export default function BookTrainer({ trainer, onBooked }: Props) {
   const [services, setServices] = useState<Service[] | null>(null)
   const [serviceId, setServiceId] = useState<number | null>(null)
-  const [slots, setSlots] = useState<Slot[] | null>(null)
+  const today = localDate(new Date(), trainer.timezone)
+  const [month, setMonth] = useState(`${today.slice(0, 7)}-01`)
+  // Окошки и свои записи загружены для month; null — ещё грузятся
+  const [slots, setSlots] = useState<{ month: string; items: Slot[] } | null>(null)
+  const [mine, setMine] = useState<{ month: string; items: Booking[] } | null>(null)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [selected, setSelected] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -61,17 +75,38 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
   useEffect(() => {
     if (serviceId === null) return
     let stale = false
-    setSlots(null)
     setSelected(null)
-    fetchTrainerSlots(trainer.id, serviceId, DAYS)
+    const days = monthDays(month)
+    const last = days[days.length - 1]
+    // В прошлое не записывают: окошки нужны с сегодняшнего дня
+    const first = days[0] > today ? days[0] : today
+    if (first > last) {
+      setSlots({ month, items: [] })
+      return
+    }
+    const count = Math.round((Date.parse(last) - Date.parse(first)) / 86_400_000) + 1
+    fetchTrainerSlots(trainer.id, serviceId, count, first)
       .then((loaded) => {
-        if (!stale) setSlots(loaded)
+        if (!stale) setSlots({ month, items: loaded })
       })
       .catch((err: unknown) => setError(String(err)))
     return () => {
       stale = true
     }
-  }, [trainer.id, serviceId, reloads])
+  }, [trainer.id, serviceId, month, today, reloads])
+
+  useEffect(() => {
+    let stale = false
+    const days = monthDays(month)
+    fetchMyBookingsFor(trainer.id, days[0], days.length)
+      .then((loaded) => {
+        if (!stale) setMine({ month, items: loaded })
+      })
+      .catch((err: unknown) => setError(String(err)))
+    return () => {
+      stale = true
+    }
+  }, [trainer.id, month, reloads])
 
   useEffect(() => {
     // Блоки нужны только для подсказки: без них запись всё равно работает
@@ -119,16 +154,28 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
 
   const timezone = trainer.timezone
   const service = services.find((item) => item.id === serviceId) ?? services[0]
+  const loading = slots?.month !== month || mine?.month !== month
   const byDay = new Map<string, Slot[]>()
-  for (const slot of slots ?? []) {
+  for (const slot of slots?.month === month ? slots.items : []) {
     const day = localDate(slot.starts_at, timezone)
     byDay.set(day, [...(byDay.get(day) ?? []), slot])
   }
-  const today = localDate(new Date(), timezone)
-  const days = Array.from({ length: DAYS }, (_, index) => addDays(today, index))
-  // По умолчанию открыт ближайший день со свободным временем
-  const current = selectedDay ?? days.find((day) => byDay.has(day)) ?? today
+  const mineByDay = new Map<string, Booking[]>()
+  // Отменённые и отклонённые в календаре не показываем, они есть в «Моих записях»
+  for (const booking of mine?.month === month ? mine.items : []) {
+    if (booking.attendance === null && !['pending', 'confirmed'].includes(booking.status)) continue
+    const day = localDate(booking.starts_at, timezone)
+    mineByDay.set(day, [...(mineByDay.get(day) ?? []), booking])
+  }
+  const now = new Date()
+  // По умолчанию открыт сегодняшний или ближайший день со свободным временем
+  const firstFree = monthDays(month).find(
+    (day) => day.slice(0, 7) === month.slice(0, 7) && byDay.has(day),
+  )
+  const current =
+    selectedDay ?? (byDay.has(today) || mineByDay.has(today) ? today : (firstFree ?? today))
   const daySlots = byDay.get(current) ?? []
+  const dayMine = mineByDay.get(current) ?? []
 
   const rules = [
     trainer.auto_confirm ? 'Запись подтверждается сразу.' : 'Запись подтверждает тренер.',
@@ -167,66 +214,120 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
         </div>
         {service.address && <p className="service-note">{service.address}</p>}
       </div>
-      {slots === null ? (
-        error ? (
-          <ErrorText>{error}</ErrorText>
-        ) : (
-          <SkeletonList rows={1} />
-        )
-      ) : slots.length === 0 ? (
-        <EmptyState
-          icon="calendar"
-          title="Свободного времени нет"
-          text="На ближайшие две недели всё занято. Загляните позже или напишите тренеру."
-        />
-      ) : (
-        <>
-          <DateStrip
-            days={days}
-            current={current}
-            count={(day) => byDay.get(day)?.length ?? 0}
-            onSelect={(day) => {
-              setSelectedDay(day)
-              setSelected(null)
-            }}
-          />
-          <h2 className="section-title day-title">{dayTitle(current)}</h2>
-          {daySlots.length === 0 ? (
-            <p className="section-footer">В этот день свободного времени нет.</p>
-          ) : (
-            <div className="group">
-              <div className="times" role="radiogroup" aria-label="Время">
-                {daySlots.map((slot) => (
-                  <button
-                    key={slot.starts_at}
-                    type="button"
-                    role="radio"
-                    className="time"
-                    aria-checked={selected?.starts_at === slot.starts_at}
-                    onClick={() => {
-                      haptic.select()
-                      setSelected(slot)
-                    }}
-                  >
-                    {localTime(slot.starts_at, timezone)}
-                    {service.capacity > 1 && (
-                      <small>{plural(slot.seats_left, 'место', 'места', 'мест')}</small>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {error && <ErrorText>{error}</ErrorText>}
-          {selected && !covered(packages, service.id, localDate(selected.starts_at, timezone)) && (
-            <p className="section-footer hint-alert">
-              Занятия в вашем блоке закончились или уже заняты записями. Эта запись будет без блока:
-              об оплате договоритесь с тренером.
-            </p>
-          )}
-          <p className="section-footer">{rules.join(' ')}</p>
-        </>
+      <MonthGrid
+        month={month}
+        today={today}
+        isSelected={(day) => day === current}
+        loading={loading}
+        compact
+        onMonth={(next) => {
+          setMonth(next)
+          setSelectedDay(null)
+          setSelected(null)
+        }}
+        onSelect={(day) => {
+          setSelectedDay(day)
+          setSelected(null)
+        }}
+        dayClass={(day) => (byDay.has(day) ? 'free' : mineByDay.has(day) ? undefined : 'empty')}
+        dayLabel={(day) => {
+          const own = mineByDay.get(day)?.length ?? 0
+          const free = byDay.get(day)?.length ?? 0
+          return `${dayTitle(day)}: ${own > 0 ? `моих записей ${own}, ` : ''}${free > 0 ? 'есть свободное время' : 'нет свободного времени'}`
+        }}
+        renderDay={(day) => (
+          <>
+            {(mineByDay.get(day) ?? []).slice(0, 2).map((booking) => (
+              <span key={booking.id} className={`month-chip ${clientTone(booking, now)}`}>
+                <b>{localTime(booking.starts_at, timezone)}</b>
+              </span>
+            ))}
+            {byDay.has(day) && !mineByDay.has(day) && <i className="month-free" />}
+          </>
+        )}
+        legend={
+          <>
+            <span>
+              <i className="month-free" />
+              есть время
+            </span>
+            <span>
+              <i className="month-dot month-tag planned" />
+              моя запись
+            </span>
+            <span>
+              <i className="month-dot month-tag done" />
+              прошла
+            </span>
+            <span>
+              <i className="month-dot month-tag missed" />
+              пропуск или без отметки
+            </span>
+          </>
+        }
+      />
+      <h2 className="section-title day-title">{dayTitle(current)}</h2>
+      {dayMine.length > 0 && (
+        <div className="group">
+          {dayMine.map((booking) => (
+            <Row
+              key={booking.id}
+              title={`${localTime(booking.starts_at, timezone)} · ${booking.service.name}`}
+              subtitle={
+                booking.attendance
+                  ? ATTENDANCE_SHORT[booking.attendance]
+                  : new Date(booking.starts_at) <= now
+                    ? 'тренер ещё не отметил'
+                    : BOOKING_STATUS[booking.status].toLowerCase()
+              }
+              icon={{
+                name: booking.attendance === 'attended' ? 'check' : 'calendar',
+                color: TONE_COLOR[clientTone(booking, now)],
+              }}
+            />
+          ))}
+        </div>
       )}
+      {!loading && daySlots.length === 0 && dayMine.length === 0 && (
+        <p className="section-footer">
+          {current < today ? 'Этот день уже прошёл.' : 'В этот день свободного времени нет.'}
+        </p>
+      )}
+      {daySlots.length > 0 && (
+        <section className="section">
+          <h2 className="section-title">Свободное время</h2>
+          <div className="group">
+            <div className="times" role="radiogroup" aria-label="Время">
+              {daySlots.map((slot) => (
+                <button
+                  key={slot.starts_at}
+                  type="button"
+                  role="radio"
+                  className="time"
+                  aria-checked={selected?.starts_at === slot.starts_at}
+                  onClick={() => {
+                    haptic.select()
+                    setSelected(slot)
+                  }}
+                >
+                  {localTime(slot.starts_at, timezone)}
+                  {service.capacity > 1 && (
+                    <small>{plural(slot.seats_left, 'место', 'места', 'мест')}</small>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      {error && <ErrorText>{error}</ErrorText>}
+      {selected && !covered(packages, service.id, localDate(selected.starts_at, timezone)) && (
+        <p className="section-footer hint-alert">
+          Занятия в вашем блоке закончились или уже заняты записями. Эта запись будет без блока: об
+          оплате договоритесь с тренером.
+        </p>
+      )}
+      <p className="section-footer">{rules.join(' ')}</p>
       <MainButton
         text={selected ? `Записаться: ${dateTime(selected.starts_at, timezone)}` : 'Записаться'}
         onClick={() => void book()}

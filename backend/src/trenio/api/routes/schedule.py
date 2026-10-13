@@ -14,8 +14,8 @@ from trenio.services.slots import Slot
 
 router = APIRouter(prefix="/trainer", tags=["schedule"])
 
-# Окошки отдаём не дальше месяца вперёд за один запрос
-MAX_SLOT_DAYS = 31
+# Окошки отдаём не больше чем на шесть недель с запасом: столько занимает месяц в календаре
+MAX_SLOT_DAYS = 62
 
 NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Не найдено")
 

@@ -57,3 +57,12 @@ export function shortRange(start: string, end: string): string {
       : value.slice(0, 5).replace(/^0/, '')
   return `${short(start)}–${short(end)}`
 }
+
+// Своя запись в календаре клиента: прошла, пропуск, ждёт ответа или впереди
+export function clientTone(booking: Booking, now: Date): Tone {
+  if (booking.attendance === 'attended') return 'done'
+  if (booking.attendance) return 'missed'
+  if (booking.status === 'pending') return 'pending'
+  if (new Date(booking.starts_at) <= now) return 'missed'
+  return 'planned'
+}
