@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/tttvvvnnn/Trenio/compare/v0.4.0...v0.5.0) (2026-10-13)
+
+
+### Новое
+
+* блоки тренировок и отметки посещений в backend ([#22](https://github.com/tttvvvnnn/Trenio/issues/22)) ([7bc0e0c](https://github.com/tttvvvnnn/Trenio/commit/7bc0e0c688badf73de2d81306ea7b62ee30fb2c2))
+* блоки, отметки посещений и карточка клиента у тренера в Mini App ([#23](https://github.com/tttvvvnnn/Trenio/issues/23)) ([d918856](https://github.com/tttvvvnnn/Trenio/commit/d9188564d49904d81dab9b7635557d479c591d6a))
+* вкладка «Блоки» у клиента в Mini App ([#24](https://github.com/tttvvvnnn/Trenio/issues/24)) ([831d204](https://github.com/tttvvvnnn/Trenio/commit/831d2048e01433250ae244972a613d27720054ea))
+* календарь месяцем, занятия блока списком и записи без блока ([#25](https://github.com/tttvvvnnn/Trenio/issues/25)) ([d0df8fb](https://github.com/tttvvvnnn/Trenio/commit/d0df8fbf42a0d18d7a51d0ada69646cdb4724eec))
+* картинки бота на светлом фоне ([#21](https://github.com/tttvvvnnn/Trenio/issues/21)) ([0004fb7](https://github.com/tttvvvnnn/Trenio/commit/0004fb74d4b5cf119606f8d7202c228f3cfa7acd))
+* логотип и фирменный стиль Trenio ([#19](https://github.com/tttvvvnnn/Trenio/issues/19)) ([2b01434](https://github.com/tttvvvnnn/Trenio/commit/2b01434eed12e67182dd514602c15cfa5ba684fa))
+* расписание на месяц с часами на даты и календарь у клиента ([#26](https://github.com/tttvvvnnn/Trenio/issues/26)) ([8ab3dd4](https://github.com/tttvvvnnn/Trenio/commit/8ab3dd48e01947e028e64937553ed3f543a01c0c))
+
 ## [0.4.0](https://github.com/tttvvvnnn/Trenio/compare/v0.3.0...v0.4.0) (2026-10-13)
 
 
