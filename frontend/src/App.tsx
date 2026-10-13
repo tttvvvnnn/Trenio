@@ -5,6 +5,7 @@ import ClientHome from './client/ClientHome'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
+import BrandMark from './ui/BrandMark'
 import { EmptyState } from './ui/kit'
 
 type State =
@@ -61,7 +62,11 @@ function render(
 ) {
   switch (state.kind) {
     case 'loading':
-      return <p className="centered">Загрузка…</p>
+      return (
+        <div className="centered splash" aria-busy="true" aria-label="Загрузка">
+          <BrandMark spinning />
+        </div>
+      )
     case 'outside-telegram':
       return <p className="centered">Откройте Trenio из Telegram через кнопку в боте.</p>
     case 'error':
