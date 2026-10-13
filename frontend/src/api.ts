@@ -62,17 +62,20 @@ export type Rule = {
 
 export type RuleInput = Omit<Rule, 'id'>
 
-export type ExceptionKind = 'closed' | 'extra'
-
-export type ScheduleException = {
-  id: number
-  day: string
-  kind: ExceptionKind
-  start: string | null
-  end: string | null
+// Промежуток рабочего времени; пустой service_ids — все услуги
+export type Window = {
+  start: string
+  end: string
+  service_ids: number[]
 }
 
-export type ExceptionInput = Omit<ScheduleException, 'id'>
+export type DayHours = {
+  day: string
+  // true — на дату заданы свои часы, false — работает шаблон недели
+  custom: boolean
+  // Пустой список — выходной
+  windows: Window[]
+}
 
 export type Slot = {
   service_id: number
@@ -237,16 +240,23 @@ export function deleteRule(id: number): Promise<void> {
   return send<void>('DELETE', `/api/trainer/schedule/rules/${id}`)
 }
 
-export function fetchExceptions(from: string, to: string): Promise<ScheduleException[]> {
-  return request<ScheduleException[]>(`/api/trainer/schedule/exceptions?from=${from}&to=${to}`)
+export function fetchDayHours(from: string, days: number): Promise<DayHours[]> {
+  return request<DayHours[]>(`/api/trainer/schedule/days?from=${from}&days=${days}`)
 }
 
-export function createException(exception: ExceptionInput): Promise<ScheduleException> {
-  return send<ScheduleException>('POST', '/api/trainer/schedule/exceptions', exception)
+// Одинаковые часы на несколько дат; пустой windows — выходной
+export function setDays(days: string[], windows: Window[]): Promise<void> {
+  return send<void>('PUT', '/api/trainer/schedule/days', { days, windows })
 }
 
-export function deleteException(id: number): Promise<void> {
-  return send<void>('DELETE', `/api/trainer/schedule/exceptions/${id}`)
+// Вернуть даты к шаблону недели
+export function resetDays(days: string[]): Promise<void> {
+  return send<void>('POST', '/api/trainer/schedule/days/reset', { days })
+}
+
+// Повторить неделю, в которую попадает day, на weeks следующих недель
+export function copyWeek(day: string, weeks: number): Promise<void> {
+  return send<void>('POST', '/api/trainer/schedule/days/copy-week', { day, weeks })
 }
 
 export function fetchSlots(days = 14, from?: string): Promise<Slot[]> {
@@ -268,14 +278,27 @@ export function fetchTrainerSlots(
   trainerId: number,
   serviceId: number,
   days = 14,
+  from?: string,
 ): Promise<Slot[]> {
+  const start = from ? `&from=${from}` : ''
   return request<Slot[]>(
-    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}`,
+    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}${start}`,
   )
 }
 
 export function fetchMyBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/client/bookings')
+}
+
+// Все свои записи у тренера за период, включая прошедшие: для календаря
+export function fetchMyBookingsFor(
+  trainerId: number,
+  from: string,
+  days: number,
+): Promise<Booking[]> {
+  return request<Booking[]>(
+    `/api/client/bookings?trainer_id=${trainerId}&from=${from}&days=${days}`,
+  )
 }
 
 export function createMyBooking(booking: {

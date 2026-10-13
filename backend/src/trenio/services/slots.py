@@ -1,6 +1,6 @@
 """Расчёт свободных окошек тренера.
 
-Окошки не хранятся в базе: их считаем на лету из недельного шаблона и исключений.
+Окошки не хранятся в базе: их считаем на лету из недельного шаблона и часов на даты.
 Так правка шаблона сразу меняет расписание. Занятые записи вычитаются тут же: тренер
 не может быть в двух местах сразу, а в групповое занятие можно записаться, пока есть места.
 
@@ -10,18 +10,10 @@
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timedelta
-from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 # Интервал внутри дня в минутах от полуночи: [start, end)
 Interval = tuple[int, int]
-
-
-class ExceptionKind(StrEnum):
-    # Тренер не работает: весь день или часть дня
-    CLOSED = "closed"
-    # Разовое дополнительное окно сверх шаблона
-    EXTRA = "extra"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,12 +34,19 @@ class RuleSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class ExceptionSpec:
+class WindowSpec:
+    start: time
+    end: time
+    # Пустой набор — все активные услуги
+    service_ids: frozenset[int] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class DaySpec:
+    """Часы на конкретную дату. Полностью заменяют недельный шаблон; пусто — выходной."""
+
     day: date
-    kind: ExceptionKind
-    # Без времени закрытие действует на весь день; у доп. окна время обязательно
-    start: time | None
-    end: time | None
+    windows: tuple[WindowSpec, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,31 +97,25 @@ def day_windows(
     day: date,
     services: Sequence[ServiceSpec],
     rules: Iterable[RuleSpec],
-    exceptions: Iterable[ExceptionSpec],
+    days: Iterable[DaySpec],
 ) -> dict[int, list[Interval]]:
-    """Рабочие окна дня по каждой услуге: шаблон плюс доп. окна минус закрытия."""
+    """Рабочие окна дня по каждой услуге: часы на эту дату, а если их нет — шаблон."""
     all_ids = frozenset(service.id for service in services)
     windows: dict[int, list[Interval]] = {service_id: [] for service_id in all_ids}
-    for rule in rules:
-        if rule.weekday != day.weekday():
-            continue
-        for service_id in rule.service_ids or all_ids:
+    custom = next((item for item in days if item.day == day), None)
+    if custom is not None:
+        found: Iterable[WindowSpec] = custom.windows
+    else:
+        found = (
+            WindowSpec(rule.start, rule.end, rule.service_ids)
+            for rule in rules
+            if rule.weekday == day.weekday()
+        )
+    for window in found:
+        for service_id in window.service_ids or all_ids:
             if service_id in windows:
-                windows[service_id].append((_minutes(rule.start), _minutes(rule.end)))
-
-    closed: list[Interval] = []
-    for exc in exceptions:
-        if exc.day != day:
-            continue
-        if exc.kind is ExceptionKind.EXTRA and exc.start is not None and exc.end is not None:
-            for service_id in all_ids:
-                windows[service_id].append((_minutes(exc.start), _minutes(exc.end)))
-        elif exc.kind is ExceptionKind.CLOSED:
-            if exc.start is None or exc.end is None:
-                closed.append((0, 24 * 60))
-            else:
-                closed.append((_minutes(exc.start), _minutes(exc.end)))
-    return {service_id: subtract(found, closed) for service_id, found in windows.items()}
+                windows[service_id].append((_minutes(window.start), _minutes(window.end)))
+    return windows
 
 
 def _seats_left(slot: Slot, capacity: int, busy: Iterable[BusySpec]) -> int:
@@ -145,7 +138,7 @@ def free_slots(
     timezone: str,
     services: Sequence[ServiceSpec],
     rules: Collection[RuleSpec],
-    exceptions: Collection[ExceptionSpec],
+    custom_days: Collection[DaySpec] = (),
     now: datetime,
     busy: Collection[BusySpec] = (),
     step_min: int = 0,
@@ -167,7 +160,7 @@ def free_slots(
     found: set[Slot] = set()
     for offset in range(days):
         day = start_day + timedelta(days=offset)
-        for service_id, windows in day_windows(day, services, rules, exceptions).items():
+        for service_id, windows in day_windows(day, services, rules, custom_days).items():
             duration = durations[service_id]
             step = step_min or duration
             for window_start, window_end in windows:

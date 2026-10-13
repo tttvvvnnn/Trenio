@@ -1,6 +1,6 @@
 """Запись со стороны клиента: его тренеры, их окошки и свои записи."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -86,10 +86,30 @@ async def list_slots(
 
 
 @router.get("/bookings")
-async def list_bookings(user: CurrentUser, session: SessionDep) -> list[BookingOut]:
-    """Предстоящие записи у всех тренеров, включая отменённые и отклонённые."""
+async def list_bookings(
+    user: CurrentUser,
+    session: SessionDep,
+    start: Annotated[date | None, Query(alias="from")] = None,
+    days: Annotated[int, Query(ge=1, le=MAX_SLOT_DAYS)] = 42,
+    trainer_id: int | None = None,
+) -> list[BookingOut]:
+    """Предстоящие записи у всех тренеров, включая отменённые и отклонённые.
+
+    С from — все записи за days дней, в том числе прошедшие: для календаря клиента.
+    Границы берём с запасом в сутки, даты по поясу тренера фронт считает сам.
+    """
     now = datetime.now(UTC)
-    found = await bookings.list_client_bookings(session, user, now)
+    if start is None:
+        found = await bookings.list_client_bookings(session, user, now)
+    else:
+        found = await bookings.list_client_bookings_between(
+            session,
+            user,
+            datetime.combine(start - timedelta(days=1), time(), UTC),
+            datetime.combine(start + timedelta(days=days + 1), time(), UTC),
+        )
+    if trainer_id is not None:
+        found = [booking for booking in found if booking.trainer_id == trainer_id]
     return [client_view(booking, now) for booking in found]
 
 

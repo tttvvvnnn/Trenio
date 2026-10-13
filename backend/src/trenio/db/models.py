@@ -1,6 +1,7 @@
 """Модели таблиц. Добавляются по этапам вместе с миграциями."""
 
 from datetime import date, datetime, time
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from trenio.db.base import Base, TimestampMixin
@@ -150,27 +152,22 @@ class ScheduleRule(TimestampMixin, Base):
     )
 
 
-class ScheduleException(TimestampMixin, Base):
-    """Правка конкретного дня: выходной (весь день или часть) или разовое доп. окно."""
+class ScheduleDay(TimestampMixin, Base):
+    """Часы на конкретную дату. Полностью заменяют недельный шаблон в этот день.
 
-    __tablename__ = "schedule_exceptions"
-    __table_args__ = (
-        CheckConstraint("kind IN ('closed', 'extra')", name="kind"),
-        CheckConstraint(
-            "(start_time IS NULL AND end_time IS NULL AND kind = 'closed')"
-            " OR (start_time IS NOT NULL AND end_time IS NOT NULL AND start_time < end_time)",
-            name="time_range",
-        ),
-    )
+    windows — список {"start": "10:00", "end": "14:00", "service_ids": [...]}; пустой
+    список — выходной. Окна хранятся одним полем: день всегда меняется целиком.
+    """
+
+    __tablename__ = "schedule_days"
+    __table_args__ = (UniqueConstraint("trainer_id", "day", name="uq_schedule_days_trainer_day"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     trainer_id: Mapped[int] = mapped_column(
         ForeignKey("trainers.id", ondelete="CASCADE"), index=True
     )
     day: Mapped[date] = mapped_column(Date)
-    kind: Mapped[str] = mapped_column(String(16))
-    start_time: Mapped[time | None] = mapped_column(Time)
-    end_time: Mapped[time | None] = mapped_column(Time)
+    windows: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
 
 
 class TrainerClient(TimestampMixin, Base):

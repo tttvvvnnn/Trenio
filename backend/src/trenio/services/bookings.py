@@ -225,6 +225,18 @@ async def list_client_bookings(
     return (await session.scalars(stmt)).all()
 
 
+async def list_client_bookings_between(
+    session: AsyncSession, client: User, start: datetime, end: datetime
+) -> Sequence[Booking]:
+    """Все записи клиента у всех тренеров, которые начинаются в [start, end)."""
+    stmt = (
+        select(Booking)
+        .where(Booking.client_id == client.id, Booking.starts_at >= start, Booking.starts_at < end)
+        .order_by(Booking.starts_at, Booking.id)
+    )
+    return (await session.scalars(stmt)).all()
+
+
 async def list_trainer_bookings(
     session: AsyncSession, trainer: Trainer, start: datetime, end: datetime
 ) -> Sequence[Booking]:

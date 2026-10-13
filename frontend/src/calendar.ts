@@ -48,3 +48,21 @@ export function shiftMonth(month: string, by: number): string {
   date.setUTCMonth(date.getUTCMonth() + by)
   return date.toISOString().slice(0, 10)
 }
+
+// "10:00:00", "14:30:00" -> "10–14:30": в клетке календаря места мало
+export function shortRange(start: string, end: string): string {
+  const short = (value: string) =>
+    value.slice(3, 5) === '00'
+      ? String(Number(value.slice(0, 2)))
+      : value.slice(0, 5).replace(/^0/, '')
+  return `${short(start)}–${short(end)}`
+}
+
+// Своя запись в календаре клиента: прошла, пропуск, ждёт ответа или впереди
+export function clientTone(booking: Booking, now: Date): Tone {
+  if (booking.attendance === 'attended') return 'done'
+  if (booking.attendance) return 'missed'
+  if (booking.status === 'pending') return 'pending'
+  if (new Date(booking.starts_at) <= now) return 'missed'
+  return 'planned'
+}

@@ -1,6 +1,6 @@
-"""Услуги, недельный шаблон, исключения и окошки тренера."""
+"""Услуги, недельный шаблон, часы на даты и окошки тренера."""
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -8,14 +8,14 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from trenio.api.deps import CurrentTrainer, SessionDep
-from trenio.db.models import ScheduleException, ScheduleRule
+from trenio.db.models import ScheduleRule
 from trenio.services import schedule
-from trenio.services.slots import ExceptionKind, Slot
+from trenio.services.slots import Slot
 
 router = APIRouter(prefix="/trainer", tags=["schedule"])
 
-# Окошки отдаём не дальше месяца вперёд за один запрос
-MAX_SLOT_DAYS = 31
+# Окошки отдаём не больше чем на шесть недель с запасом: столько занимает месяц в календаре
+MAX_SLOT_DAYS = 62
 
 NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, "Не найдено")
 
@@ -176,69 +176,97 @@ async def delete_rule(rule_id: int, trainer: CurrentTrainer, session: SessionDep
         raise NOT_FOUND from None
 
 
-# --- Исключения ---
+# --- Часы на даты ---
+
+# Календарь расписания отдаём не больше чем на шесть недель с запасом
+MAX_CALENDAR_DAYS = 62
 
 
-class ExceptionOut(BaseModel):
-    id: int
-    day: date
-    kind: ExceptionKind
-    start: time | None
-    end: time | None
+class WindowIO(BaseModel):
+    start: time
+    end: time
+    service_ids: list[int] = Field(
+        default_factory=list, description="Пустой список — все активные услуги"
+    )
+
+    _trim_times = field_validator("start", "end")(_trim)
 
     @classmethod
-    def of(cls, exc: ScheduleException) -> "ExceptionOut":
-        return cls(
-            id=exc.id,
-            day=exc.day,
-            kind=ExceptionKind(exc.kind),
-            start=exc.start_time,
-            end=exc.end_time,
-        )
+    def of(cls, window: schedule.WindowData) -> "WindowIO":
+        return cls(start=window.start, end=window.end, service_ids=list(window.service_ids))
+
+    def to_data(self) -> schedule.WindowData:
+        return schedule.WindowData(self.start, self.end, tuple(self.service_ids))
 
 
-class ExceptionIn(BaseModel):
+class DayHoursOut(BaseModel):
     day: date
-    kind: ExceptionKind
-    # Для выходного на весь день время не указывают
-    start: time | None = None
-    end: time | None = None
-
-    @field_validator("start", "end")
-    @classmethod
-    def _trim_optional(cls, value: time | None) -> time | None:
-        return _trim(value) if value is not None else None
+    # true — на дату заданы свои часы, false — работает недельный шаблон
+    custom: bool
+    # Пустой список — выходной
+    windows: list[WindowIO]
 
 
-@router.get("/schedule/exceptions")
-async def list_exceptions(
+@router.get("/schedule/days")
+async def list_days(
     trainer: CurrentTrainer,
     session: SessionDep,
     start: Annotated[date, Query(alias="from")],
-    end: Annotated[date, Query(alias="to")],
-) -> list[ExceptionOut]:
-    exceptions = await schedule.list_exceptions(session, trainer, start, end)
-    return [ExceptionOut.of(exc) for exc in exceptions]
+    days: Annotated[int, Query(ge=1, le=MAX_CALENDAR_DAYS)] = 42,
+) -> list[DayHoursOut]:
+    """Часы по датам: свои или из недельного шаблона."""
+    found = await schedule.day_hours(session, trainer, start, days)
+    return [
+        DayHoursOut(
+            day=item.day, custom=item.custom, windows=[WindowIO.of(w) for w in item.windows]
+        )
+        for item in found
+    ]
 
 
-@router.post("/schedule/exceptions", status_code=status.HTTP_201_CREATED)
-async def create_exception(
-    body: ExceptionIn, trainer: CurrentTrainer, session: SessionDep
-) -> ExceptionOut:
-    data = schedule.ExceptionData(body.day, body.kind, body.start, body.end)
+class DaysIn(BaseModel):
+    days: list[date] = Field(min_length=1, max_length=schedule.MAX_DAYS_AT_ONCE)
+    # Пустой список — выходной
+    windows: list[WindowIO] = Field(default_factory=list, max_length=schedule.MAX_WINDOWS)
+
+
+@router.put("/schedule/days", status_code=status.HTTP_204_NO_CONTENT)
+async def set_days(body: DaysIn, trainer: CurrentTrainer, session: SessionDep) -> None:
+    """Одинаковые часы на несколько дат. Полностью заменяют шаблон в эти дни."""
     try:
-        exc = await schedule.create_exception(session, trainer, data)
+        await schedule.set_days(
+            session, trainer, body.days, [window.to_data() for window in body.windows]
+        )
     except schedule.ScheduleError as error:
         raise _bad_request(error) from None
-    return ExceptionOut.of(exc)
-
-
-@router.delete("/schedule/exceptions/{exception_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_exception(exception_id: int, trainer: CurrentTrainer, session: SessionDep) -> None:
-    try:
-        await schedule.delete_exception(session, trainer, exception_id)
     except schedule.NotFound:
-        raise NOT_FOUND from None
+        raise HTTPException(422, "Услуга не найдена") from None
+
+
+class DaysResetIn(BaseModel):
+    days: list[date] = Field(min_length=1, max_length=schedule.MAX_DAYS_AT_ONCE)
+
+
+@router.post("/schedule/days/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_days(body: DaysResetIn, trainer: CurrentTrainer, session: SessionDep) -> None:
+    """Вернуть даты к недельному шаблону."""
+    await schedule.reset_days(session, trainer, body.days)
+
+
+class CopyWeekIn(BaseModel):
+    # Любой день недели, которую повторяем; неделя считается с понедельника
+    day: date
+    weeks: int = Field(ge=1, le=12)
+
+
+@router.post("/schedule/days/copy-week", status_code=status.HTTP_204_NO_CONTENT)
+async def copy_week(body: CopyWeekIn, trainer: CurrentTrainer, session: SessionDep) -> None:
+    """Повторить часы недели на следующие недели."""
+    monday = body.day - timedelta(days=body.day.weekday())
+    try:
+        await schedule.copy_week(session, trainer, monday, body.weeks)
+    except schedule.ScheduleError as error:
+        raise _bad_request(error) from None
 
 
 # --- Окошки ---
