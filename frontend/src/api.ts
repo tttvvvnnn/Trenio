@@ -117,7 +117,23 @@ export type Booking = {
   can_cancel: boolean
   // До какого момента клиент отменяет сам
   cancel_deadline: string
+  // Отметка тренера после занятия; null — не отмечено
+  attendance: Attendance | null
+  // Можно ли уже отметить посещение: занятие началось и не отклонено
+  can_mark: boolean
+  // Разовая: списать не из чего, оплачивается отдельно. Для неотмеченных — прогноз
+  one_off: boolean
+  // Из какого блока списано занятие
+  charge: {
+    package_id: number
+    package_name: string
+    number: number
+    sessions_count: number
+  } | null
 }
+
+// attended — прошла, missed_charged — пропуск со списанием, missed_free — без списания
+export type Attendance = 'attended' | 'missed_charged' | 'missed_free'
 
 export class ApiError extends Error {
   readonly status: number
@@ -271,6 +287,12 @@ export function cancelMyBooking(id: number): Promise<Booking> {
 export type Client = Person & {
   // Когда клиент впервые открыл ссылку тренера
   since: string
+  // Сколько занятий осталось в действующих блоках; null — действующих блоков нет
+  sessions_left: number | null
+  // Сколько клиент должен доплатить по блокам
+  debt: number
+  // Покупал ли клиент блоки вообще
+  has_packages: boolean
 }
 
 export function fetchTrainerBookings(days = 14): Promise<Booking[]> {
@@ -301,4 +323,162 @@ export function fetchClients(): Promise<Client[]> {
 
 export function fetchInviteLink(): Promise<string> {
   return request<{ url: string }>('/api/trainer/invite-link').then(({ url }) => url)
+}
+
+export function fetchUnmarkedBookings(): Promise<Booking[]> {
+  return request<Booking[]>('/api/trainer/bookings/unmarked')
+}
+
+export function markAttendance(id: number, attendance: Attendance | null): Promise<Booking> {
+  return send<Booking>('POST', `/api/trainer/bookings/${id}/attendance`, { attendance })
+}
+
+// --- Блоки ---
+
+export type ServiceRef = { id: number; name: string }
+
+export type PackageTemplate = {
+  id: number
+  name: string
+  // null — подходит к любой услуге
+  service: ServiceRef | null
+  sessions_count: number
+  price: number
+  // Сколько дней действует с даты покупки; null — бессрочно
+  valid_days: number | null
+}
+
+export type PackageTemplateInput = {
+  name: string
+  service_id: number | null
+  sessions_count: number
+  price: number
+  valid_days: number | null
+}
+
+export type PackageStatus = 'active' | 'finished' | 'expired' | 'closed'
+
+export type Payment = {
+  id: number
+  amount: number
+  paid_on: string
+  comment: string | null
+}
+
+export type PackageSession = {
+  id: number
+  // Порядковый номер в блоке, 1…N
+  number: number
+  day: string
+  status: 'attended' | 'missed_charged'
+  // null — отмечено в блоке вручную, без записи
+  booking_id: number | null
+}
+
+export type Package = {
+  id: number
+  name: string
+  trainer: { id: number; display_name: string }
+  service: ServiceRef | null
+  sessions_count: number
+  price: number
+  purchased_on: string
+  valid_until: string | null
+  closed_at: string | null
+  status: PackageStatus
+  used: number
+  left: number
+  paid: number
+  // Сколько осталось доплатить
+  due: number
+  // Осталось 1–2 занятия: пора предложить новый блок
+  ending_soon: boolean
+  payments: Payment[]
+  sessions: PackageSession[]
+}
+
+export type PackageInput = {
+  name: string
+  service_id: number | null
+  sessions_count: number
+  price: number
+  purchased_on: string
+  valid_until: string | null
+}
+
+export type ClientCard = {
+  client: Client
+  notes: string | null
+  // Новые первыми
+  packages: Package[]
+  // Все записи у тренера, новые первыми
+  history: Booking[]
+}
+
+export function fetchPackageTemplates(): Promise<PackageTemplate[]> {
+  return request<PackageTemplate[]>('/api/trainer/package-templates')
+}
+
+export function createPackageTemplate(template: PackageTemplateInput): Promise<PackageTemplate> {
+  return send<PackageTemplate>('POST', '/api/trainer/package-templates', template)
+}
+
+export function replacePackageTemplate(
+  id: number,
+  template: PackageTemplateInput,
+): Promise<PackageTemplate> {
+  return send<PackageTemplate>('PUT', `/api/trainer/package-templates/${id}`, template)
+}
+
+export function deletePackageTemplate(id: number): Promise<void> {
+  return send<void>('DELETE', `/api/trainer/package-templates/${id}`)
+}
+
+export function fetchClientCard(clientId: number): Promise<ClientCard> {
+  return request<ClientCard>(`/api/trainer/clients/${clientId}`)
+}
+
+export function saveClientNotes(clientId: number, notes: string | null): Promise<void> {
+  return send<void>('PUT', `/api/trainer/clients/${clientId}/notes`, { notes })
+}
+
+export function createPackage(clientId: number, data: PackageInput): Promise<Package> {
+  return send<Package>('POST', `/api/trainer/clients/${clientId}/packages`, data)
+}
+
+export function updatePackage(
+  id: number,
+  changes: Partial<Omit<PackageInput, 'service_id'>> & { closed?: boolean },
+): Promise<Package> {
+  return send<Package>('PATCH', `/api/trainer/packages/${id}`, changes)
+}
+
+export function deletePackage(id: number): Promise<void> {
+  return send<void>('DELETE', `/api/trainer/packages/${id}`)
+}
+
+export function addPayment(
+  packageId: number,
+  payment: { amount: number; paid_on: string; comment: string | null },
+): Promise<Package> {
+  return send<Package>('POST', `/api/trainer/packages/${packageId}/payments`, payment)
+}
+
+export function deletePayment(packageId: number, paymentId: number): Promise<Package> {
+  return send<Package>('DELETE', `/api/trainer/packages/${packageId}/payments/${paymentId}`)
+}
+
+export function addManualSession(
+  packageId: number,
+  session: { day: string; attendance: 'attended' | 'missed_charged' },
+): Promise<Package> {
+  return send<Package>('POST', `/api/trainer/packages/${packageId}/sessions`, session)
+}
+
+export function deleteManualSession(packageId: number, sessionId: number): Promise<Package> {
+  return send<Package>('DELETE', `/api/trainer/packages/${packageId}/sessions/${sessionId}`)
+}
+
+export function fetchMyPackages(): Promise<Package[]> {
+  return request<Package[]>('/api/client/packages')
 }

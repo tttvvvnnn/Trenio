@@ -1,4 +1,4 @@
-import type { BookingStatus } from './api'
+import type { Attendance, Booking, BookingStatus, Package, PackageStatus } from './api'
 
 // 0 — понедельник, как в API
 export const WEEKDAYS = [
@@ -149,4 +149,67 @@ export const BOOKING_STATUS: Record<BookingStatus, string> = {
 // "Анна Петрова"
 export function fullName(person: { first_name: string; last_name: string | null }): string {
   return [person.first_name, person.last_name].filter(Boolean).join(' ')
+}
+
+export const ATTENDANCE: Record<Attendance, string> = {
+  attended: 'Прошла',
+  missed_charged: 'Пропуск, списать',
+  missed_free: 'Пропуск, не списывать',
+}
+
+// Коротко для списков
+export const ATTENDANCE_SHORT: Record<Attendance, string> = {
+  attended: 'прошла',
+  missed_charged: 'пропуск, списано',
+  missed_free: 'пропуск',
+}
+
+export const PACKAGE_STATUS: Record<PackageStatus, string> = {
+  active: 'Действует',
+  finished: 'Закончился',
+  expired: 'Истёк срок',
+  closed: 'Закрыт',
+}
+
+// "2030-01-07" -> "07.01"
+export function shortDate(day: string): string {
+  return `${day.slice(8, 10)}.${day.slice(5, 7)}`
+}
+
+// "2030-01-07" -> "7 января 2030"
+export function longDate(day: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'UTC',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+    .format(utcNoon(day))
+    .replace(/\s*г\.$/, '')
+}
+
+// "осталось 2 занятия"
+export function sessionsLeft(left: number): string {
+  return `осталось ${plural(left, 'занятие', 'занятия', 'занятий')}`
+}
+
+// "Персональная · прошла · занятие 3 из 10" — запись в истории клиента и в списках тренера
+export function bookingNote(booking: Booking, now = new Date()): string {
+  const parts = [booking.service.name]
+  if (booking.attendance) parts.push(ATTENDANCE_SHORT[booking.attendance])
+  else if (booking.status === 'cancelled') parts.push('отменена')
+  else if (booking.status === 'declined') parts.push('отклонена')
+  else if (new Date(booking.starts_at) <= now) parts.push('не отмечена')
+  if (booking.charge) {
+    parts.push(`занятие ${booking.charge.number} из ${booking.charge.sessions_count}`)
+  } else if (booking.one_off) {
+    parts.push('разовая')
+  }
+  return parts.join(' · ')
+}
+
+// "пройдено 3 из 10 · внесено 10 000 ₽ из 20 000 ₽"
+export function packageLine(pkg: Package): string {
+  const money = pkg.due > 0 ? `внесено ${rubles(pkg.paid)} из ${rubles(pkg.price)}` : 'оплачен'
+  return `пройдено ${pkg.used} из ${pkg.sessions_count} · ${money}`
 }

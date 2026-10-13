@@ -5,12 +5,14 @@ import {
   fetchServices,
   fetchSlots,
   fetchTrainerBookings,
+  fetchUnmarkedBookings,
   type Booking,
   type Service,
   type Slot,
 } from '../api'
 import {
   addDays,
+  bookingNote,
   dateTime,
   dayTitle,
   duration,
@@ -21,6 +23,7 @@ import {
 } from '../format'
 import { haptic } from '../telegram'
 import DateStrip from '../ui/DateStrip'
+import Screen from '../ui/Screen'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import StatusBadge from '../ui/StatusBadge'
 import BookClient from './BookClient'
@@ -28,6 +31,8 @@ import BookingDetails from './BookingDetails'
 
 // Сколько дней вперёд показываем окошки и записи
 const DAYS = 14
+// Сколько неотмеченных занятий показываем сразу, остальные — по кнопке
+const UNMARKED_PREVIEW = 3
 
 type Props = {
   timezone: string
@@ -39,6 +44,7 @@ type Data = {
   services: Service[]
   bookings: Booking[]
   pending: Booking[]
+  unmarked: Booking[]
 }
 
 function isActive(booking: Booking): boolean {
@@ -51,6 +57,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [booking, setBooking] = useState<Slot | null>(null)
+  const [allUnmarked, setAllUnmarked] = useState(false)
   // Увеличиваем, чтобы перечитать данные после изменений
   const [reloads, setReloads] = useState(0)
 
@@ -60,15 +67,17 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       fetchServices(),
       fetchTrainerBookings(DAYS),
       fetchPendingBookings(),
+      fetchUnmarkedBookings(),
     ])
-      .then(([slots, services, bookings, pending]) =>
-        setData({ slots, services, bookings, pending }),
+      .then(([slots, services, bookings, pending, unmarked]) =>
+        setData({ slots, services, bookings, pending, unmarked }),
       )
       .catch((err: unknown) => setError(String(err)))
   }, [reloads])
 
   function reload() {
     setOpened(null)
+    setAllUnmarked(false)
     setBooking(null)
     setReloads((count) => count + 1)
   }
@@ -86,8 +95,8 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     )
   }
 
-  const { slots, services, bookings, pending } = data
-  if (slots.length === 0 && !bookings.some(isActive)) {
+  const { slots, services, bookings, pending, unmarked } = data
+  if (slots.length === 0 && !bookings.some(isActive) && unmarked.length === 0) {
     return (
       <>
         <PageHeader title="Записи" />
@@ -121,6 +130,16 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const current = selected ?? days.find((day) => count(day) > 0) ?? today
   const daySlots = slotsByDay.get(current) ?? []
   const dayBookings = bookingsByDay.get(current) ?? []
+  const unmarkedRow = (item: Booking) => (
+    <Row
+      key={item.id}
+      title={dateTime(item.starts_at, timezone)}
+      subtitle={`${fullName(item.client)} · ${bookingNote(item)}`}
+      icon={{ name: 'check', color: 'var(--c-violet)' }}
+      chevron
+      onClick={() => setOpened(item)}
+    />
+  )
   const serviceName = (id: number) => services.find((service) => service.id === id)?.name ?? ''
 
   return (
@@ -140,6 +159,22 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           ))}
         </Section>
       )}
+      {unmarked.length > 0 && (
+        <Section
+          title={`Не отмечены · ${unmarked.length}`}
+          footer="Отметьте, прошло ли занятие: так оно спишется из блока клиента."
+        >
+          {unmarked.slice(0, UNMARKED_PREVIEW).map(unmarkedRow)}
+          {unmarked.length > UNMARKED_PREVIEW && (
+            <Row
+              title={`Все неотмеченные · ${unmarked.length}`}
+              tone="accent"
+              chevron
+              onClick={() => setAllUnmarked(true)}
+            />
+          )}
+        </Section>
+      )}
       <DateStrip days={days} current={current} count={count} onSelect={setSelected} />
       <h2 className="section-title day-title">{dayTitle(current)}</h2>
       {dayBookings.length === 0 && daySlots.length === 0 && (
@@ -151,7 +186,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
             <Row
               key={item.id}
               title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
-              subtitle={item.service.name}
+              subtitle={bookingNote(item)}
               tone={isActive(item) ? undefined : 'muted'}
               onClick={() => setOpened(item)}
               after={<StatusBadge status={item.status} />}
@@ -195,6 +230,11 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
               </div>
             ))}
         </Section>
+      )}
+      {allUnmarked && (
+        <Screen title="Не отмечены" onBack={() => setAllUnmarked(false)}>
+          <Section>{unmarked.map(unmarkedRow)}</Section>
+        </Screen>
       )}
       {opened && (
         <BookingDetails booking={opened} onBack={() => setOpened(null)} onChanged={reload} />

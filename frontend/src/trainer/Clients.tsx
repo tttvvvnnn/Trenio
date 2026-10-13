@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 
 import { fetchClients, fetchInviteLink, type Client } from '../api'
-import { fullName } from '../format'
+import { fullName, rubles } from '../format'
 import { haptic, shareLink } from '../telegram'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import ClientCard from './ClientCard'
 
 const SHARE_TEXT = 'Записывайтесь ко мне на тренировки в Trenio'
 
@@ -11,11 +12,39 @@ function since(iso: string): string {
   return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(new Date(iso))
 }
 
-export default function Clients() {
+// Что показать справа в строке клиента: остаток занятий, долг или дату появления
+function clientBadge(client: Client) {
+  if (client.sessions_left !== null && client.sessions_left <= 2) {
+    return <span className="badge warning">осталось {client.sessions_left}</span>
+  }
+  if (client.debt > 0) {
+    return <span className="badge warning">долг {rubles(client.debt)}</span>
+  }
+  if (client.sessions_left !== null) {
+    return <span className="badge success">осталось {client.sessions_left}</span>
+  }
+  if (client.has_packages) {
+    return <span className="badge">блок закончился</span>
+  }
+  return undefined
+}
+
+type Props = {
+  timezone: string
+}
+
+export default function Clients({ timezone }: Props) {
   const [clients, setClients] = useState<Client[] | null>(null)
+  const [opened, setOpened] = useState<Client | null>(null)
   const [link, setLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function reloadClients() {
+    fetchClients()
+      .then(setClients)
+      .catch((err: unknown) => setError(String(err)))
+  }
 
   useEffect(() => {
     Promise.all([fetchClients(), fetchInviteLink()])
@@ -77,11 +106,24 @@ export default function Clients() {
             <Row
               key={client.id}
               title={fullName(client)}
-              subtitle={client.username ? `@${client.username}` : undefined}
-              value={`с ${since(client.since)}`}
+              subtitle={
+                client.username
+                  ? `@${client.username} · с ${since(client.since)}`
+                  : `с ${since(client.since)}`
+              }
+              onClick={() => setOpened(client)}
+              after={clientBadge(client)}
             />
           ))}
         </Section>
+      )}
+      {opened && (
+        <ClientCard
+          client={opened}
+          timezone={timezone}
+          onBack={() => setOpened(null)}
+          onChanged={reloadClients}
+        />
       )}
     </>
   )

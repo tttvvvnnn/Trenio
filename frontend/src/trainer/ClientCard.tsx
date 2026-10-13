@@ -1,0 +1,186 @@
+import { useEffect, useState } from 'react'
+
+import {
+  fetchClientCard,
+  saveClientNotes,
+  type Booking,
+  type Client,
+  type ClientCard as Card,
+  type Package,
+} from '../api'
+import { bookingNote, dateTime, fullName, packageLine, sessionsLeft } from '../format'
+import { haptic } from '../telegram'
+import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
+import { PackageBadge } from '../ui/PackageSummary'
+import Screen from '../ui/Screen'
+import StatusBadge from '../ui/StatusBadge'
+import BookingDetails from './BookingDetails'
+import PackageDetails from './PackageDetails'
+import SellPackage from './SellPackage'
+
+type Props = {
+  client: Client
+  timezone: string
+  onBack: () => void
+  // Блоки или записи поменялись: список клиентов стоит перечитать
+  onChanged: () => void
+}
+
+/** Карточка клиента: блоки, заметки и история записей. */
+export default function ClientCard({ client, timezone, onBack, onChanged }: Props) {
+  const [card, setCard] = useState<Card | null>(null)
+  const [notes, setNotes] = useState('')
+  const [notesState, setNotesState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const [openedPackage, setOpenedPackage] = useState<number | null>(null)
+  const [selling, setSelling] = useState(false)
+  const [openedBooking, setOpenedBooking] = useState<Booking | null>(null)
+  const [reloads, setReloads] = useState(0)
+
+  useEffect(() => {
+    fetchClientCard(client.id)
+      .then((loaded) => {
+        setCard(loaded)
+        setNotes((current) => (reloads === 0 ? (loaded.notes ?? '') : current))
+      })
+      .catch((err: unknown) => setError(String(err)))
+  }, [client.id, reloads])
+
+  function reload() {
+    setReloads((count) => count + 1)
+    onChanged()
+  }
+
+  async function saveNotes() {
+    if (card === null || notes.trim() === (card.notes ?? '')) return
+    setNotesState('saving')
+    try {
+      await saveClientNotes(client.id, notes.trim() || null)
+      setCard({ ...card, notes: notes.trim() || null })
+      setNotesState('saved')
+    } catch (err) {
+      haptic.error()
+      setNotesState('idle')
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const name = fullName(client)
+  const now = new Date()
+  const upcoming =
+    card?.history
+      .filter((b) => new Date(b.starts_at) > now && ['pending', 'confirmed'].includes(b.status))
+      .reverse() ?? []
+  const past = card?.history.filter((b) => new Date(b.starts_at) <= now) ?? []
+  const pkg = card?.packages.find((item) => item.id === openedPackage) ?? null
+  const summary = card?.client
+
+  let hint: string | null = null
+  if (summary && summary.sessions_left !== null && summary.sessions_left <= 2) {
+    hint = `У клиента ${sessionsLeft(summary.sessions_left)}. Пора предложить новый блок.`
+  } else if (summary?.has_packages && summary.sessions_left === null) {
+    hint = 'Действующих блоков нет: новые занятия будут разовыми.'
+  }
+
+  function bookingRow(item: Booking) {
+    return (
+      <Row
+        key={item.id}
+        title={dateTime(item.starts_at, timezone)}
+        subtitle={bookingNote(item, now)}
+        tone={item.status === 'cancelled' || item.status === 'declined' ? 'muted' : undefined}
+        onClick={() => setOpenedBooking(item)}
+        after={item.status === 'pending' ? <StatusBadge status="pending" /> : undefined}
+      />
+    )
+  }
+
+  return (
+    <Screen
+      title={name}
+      subtitle={client.username ? `@${client.username}` : undefined}
+      onBack={onBack}
+    >
+      {error && <ErrorText>{error}</ErrorText>}
+      {card === null && !error && <SkeletonList rows={3} />}
+      {card !== null && (
+        <>
+          <Section title="Блоки" footer={hint}>
+            {card.packages.map((item: Package) => (
+              <Row
+                key={item.id}
+                title={item.name}
+                subtitle={packageLine(item)}
+                tone={item.status === 'active' ? undefined : 'muted'}
+                onClick={() => setOpenedPackage(item.id)}
+                after={<PackageBadge pkg={item} />}
+              />
+            ))}
+            <AddRow title="Продать блок" onClick={() => setSelling(true)} />
+          </Section>
+          <section className="section">
+            <label className="section-title" htmlFor="client-notes">
+              Заметки
+            </label>
+            <div className="group">
+              <textarea
+                id="client-notes"
+                className="field-input"
+                placeholder="Цели, ограничения, о чём договорились. Клиент заметки не видит."
+                maxLength={4000}
+                value={notes}
+                onChange={(event) => {
+                  setNotes(event.target.value)
+                  setNotesState('idle')
+                }}
+                onBlur={() => void saveNotes()}
+              />
+            </div>
+            {notesState !== 'idle' && (
+              <p className="section-footer">
+                {notesState === 'saving' ? 'Сохраняем…' : 'Сохранено'}
+              </p>
+            )}
+          </section>
+          {upcoming.length > 0 && <Section title="Ближайшие">{upcoming.map(bookingRow)}</Section>}
+          {past.length > 0 && <Section title="История">{past.map(bookingRow)}</Section>}
+        </>
+      )}
+      {pkg && (
+        <PackageDetails
+          pkg={pkg}
+          clientName={name}
+          timezone={timezone}
+          onBack={() => setOpenedPackage(null)}
+          onChanged={(updated) => {
+            if (updated === null) setOpenedPackage(null)
+            reload()
+          }}
+        />
+      )}
+      {selling && (
+        <SellPackage
+          clientId={client.id}
+          clientName={name}
+          timezone={timezone}
+          onBack={() => setSelling(false)}
+          onSold={(sold) => {
+            setSelling(false)
+            setOpenedPackage(sold.id)
+            reload()
+          }}
+        />
+      )}
+      {openedBooking && (
+        <BookingDetails
+          booking={openedBooking}
+          onBack={() => setOpenedBooking(null)}
+          onChanged={(updated) => {
+            setOpenedBooking(updated)
+            reload()
+          }}
+        />
+      )}
+    </Screen>
+  )
+}

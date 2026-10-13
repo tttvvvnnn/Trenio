@@ -18,6 +18,7 @@ import {
 } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
+import PackageTemplates from './PackageTemplates'
 
 export default function Services() {
   const [services, setServices] = useState<Service[] | null>(null)
@@ -90,6 +91,7 @@ export default function Services() {
           >
             <AddRow title="Добавить услугу" onClick={() => setEditing('new')} />
           </Section>
+          <PackageTemplates services={services.filter((service) => service.is_active)} />
         </>
       )}
       {editing !== null && (
