@@ -23,6 +23,8 @@ type Props = {
   // Онбординг: короткая форма и подсказки для первого входа
   onboarding?: boolean
   onSaved: (trainer: Trainer) => void
+  // Есть, когда тренер сам записан к другому тренеру
+  onSwitchToClient?: () => void
 }
 
 function initials(name: string): string {
@@ -34,7 +36,12 @@ function initials(name: string): string {
     .join('')
 }
 
-export default function ProfileForm({ trainer, onboarding = false, onSaved }: Props) {
+export default function ProfileForm({
+  trainer,
+  onboarding = false,
+  onSaved,
+  onSwitchToClient,
+}: Props) {
   const [displayName, setDisplayName] = useState(trainer.display_name)
   // При первом входе подставляем часовой пояс телефона, если он из списка
   const [timezone, setTimezone] = useState(() => {
@@ -164,6 +171,16 @@ export default function ProfileForm({ trainer, onboarding = false, onSaved }: Pr
                 format={(value) => `${value} ч`}
               />
             }
+          />
+        </Section>
+      )}
+      {onSwitchToClient && !onboarding && (
+        <Section footer="Ваши записи к другим тренерам.">
+          <Row
+            title="Режим клиента"
+            icon={{ name: 'calendar', color: 'var(--c-accent)' }}
+            chevron
+            onClick={onSwitchToClient}
           />
         </Section>
       )}

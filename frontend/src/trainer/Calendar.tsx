@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { fetchServices, fetchSlots, type Service, type Slot } from '../api'
-import {
-  addDays,
-  dayOfMonth,
-  dayTitle,
-  duration,
-  localDate,
-  localTime,
-  plural,
-  weekdayShort,
-} from '../format'
-import { haptic } from '../telegram'
+import { addDays, dayTitle, duration, localDate, localTime } from '../format'
+import DateStrip from '../ui/DateStrip'
 import { EmptyState, ErrorText, PageHeader, SkeletonList } from '../ui/kit'
 
 // Сколько дней вперёд показываем окошки
@@ -78,28 +69,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   return (
     <>
       {header}
-      <div className="date-strip" role="group" aria-label="Дни">
-        {days.map((day) => {
-          const count = byDay.get(day)?.length ?? 0
-          return (
-            <button
-              key={day}
-              type="button"
-              className={count === 0 ? 'date empty' : 'date'}
-              aria-pressed={day === current}
-              aria-label={`${dayTitle(day)}, ${count === 0 ? 'нет окошек' : plural(count, 'окошко', 'окошка', 'окошек')}`}
-              onClick={() => {
-                haptic.select()
-                setSelected(day)
-              }}
-            >
-              <small>{weekdayShort(day)}</small>
-              <b>{dayOfMonth(day)}</b>
-              <i />
-            </button>
-          )
-        })}
-      </div>
+      <DateStrip
+        days={days}
+        current={current}
+        count={(day) => byDay.get(day)?.length ?? 0}
+        onSelect={setSelected}
+      />
       <h2 className="section-title day-title">{dayTitle(current)}</h2>
       {daySlots.length === 0 ? (
         <p className="section-footer">В этот день свободного времени нет.</p>

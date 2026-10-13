@@ -19,6 +19,8 @@ export type Me = {
   username: string | null
   is_trainer: boolean
   is_admin: boolean
+  // Есть хотя бы один тренер, к которому можно записаться
+  is_client: boolean
   trainer: Trainer | null
 }
 
@@ -71,6 +73,45 @@ export type Slot = {
   service_id: number
   starts_at: string
   ends_at: string
+  // Сколько ещё человек можно записать; у индивидуальной услуги всегда 1
+  seats_left: number
+}
+
+// Тренер, каким его видит клиент
+export type ClientTrainer = {
+  id: number
+  display_name: string
+  timezone: string
+  address: string | null
+  auto_confirm: boolean
+  cancel_hours: number
+}
+
+export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled'
+
+export type Person = {
+  id: number
+  first_name: string
+  last_name: string | null
+  username: string | null
+}
+
+export type Booking = {
+  id: number
+  status: BookingStatus
+  starts_at: string
+  ends_at: string
+  created_by: 'client' | 'trainer'
+  cancelled_by: 'client' | 'trainer' | null
+  service: { id: number; name: string; duration_min: number; capacity: number }
+  trainer: { id: number; display_name: string; timezone: string }
+  client: Person
+  // Адрес услуги или, если его нет, адрес тренера
+  address: string | null
+  // Может ли тот, кто смотрит, отменить запись прямо сейчас
+  can_cancel: boolean
+  // До какого момента клиент отменяет сам
+  cancel_deadline: string
 }
 
 export class ApiError extends Error {
@@ -107,7 +148,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, { ...init, headers })
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
-    throw new ApiError(response.status, errorMessage(body, `${response.status} ${response.statusText}`))
+    throw new ApiError(
+      response.status,
+      errorMessage(body, `${response.status} ${response.statusText}`),
+    )
   }
   if (response.status === 204) {
     return undefined as T
@@ -179,4 +223,40 @@ export function deleteException(id: number): Promise<void> {
 
 export function fetchSlots(days = 14): Promise<Slot[]> {
   return request<Slot[]>(`/api/trainer/slots?days=${days}`)
+}
+
+// --- Клиент ---
+
+export function fetchMyTrainers(): Promise<ClientTrainer[]> {
+  return request<ClientTrainer[]>('/api/client/trainers')
+}
+
+export function fetchTrainerServices(trainerId: number): Promise<Service[]> {
+  return request<Service[]>(`/api/client/trainers/${trainerId}/services`)
+}
+
+export function fetchTrainerSlots(
+  trainerId: number,
+  serviceId: number,
+  days = 14,
+): Promise<Slot[]> {
+  return request<Slot[]>(
+    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}`,
+  )
+}
+
+export function fetchMyBookings(): Promise<Booking[]> {
+  return request<Booking[]>('/api/client/bookings')
+}
+
+export function createMyBooking(booking: {
+  trainer_id: number
+  service_id: number
+  starts_at: string
+}): Promise<Booking> {
+  return send<Booking>('POST', '/api/client/bookings', booking)
+}
+
+export function cancelMyBooking(id: number): Promise<Booking> {
+  return send<Booking>('POST', `/api/client/bookings/${id}/cancel`)
 }
