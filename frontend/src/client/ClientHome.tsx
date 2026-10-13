@@ -9,12 +9,14 @@ import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import BookTrainer from './BookTrainer'
 import MyBookings from './MyBookings'
+import MyPackages from './MyPackages'
 
-type Tab = 'book' | 'bookings'
+type Tab = 'book' | 'bookings' | 'packages'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['book', 'Запись', 'calendar'],
   ['bookings', 'Мои записи', 'list'],
+  ['packages', 'Блоки', 'ticket'],
 ]
 
 type Props = {
@@ -55,6 +57,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
       {tab === 'bookings' && (
         <MyBookings onBook={() => open('book')} onSwitchToTrainer={onSwitchToTrainer} />
       )}
+      {tab === 'packages' && <MyPackages />}
       {opened && (
         <Screen
           title={opened.display_name}
