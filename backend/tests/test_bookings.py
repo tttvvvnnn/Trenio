@@ -332,3 +332,45 @@ async def test_start_step(client: AsyncClient, session: AsyncSession) -> None:
         "/api/trainer/me", headers=trainer_headers, json={"slot_step_min": 0}
     )
     assert response.json()["slot_step_min"] == 0
+
+
+async def test_client_accepts_trainer_rules(client: AsyncClient, session: AsyncSession) -> None:
+    headers, trainer_id, service_id = await setup_trainer(client)
+    client_headers = await new_client(client, session, trainer_id, 3101)
+
+    # Без правил подтверждать нечего
+    trainers = (await client.get("/api/client/trainers", headers=client_headers)).json()
+    assert trainers[0]["rules"] is None
+    assert trainers[0]["rules_pending"] is False
+
+    response = await client.patch(
+        "/api/trainer/me", headers=headers, json={"rules": "  Отмена за 12 часов.  "}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["rules"] == "Отмена за 12 часов."
+
+    trainers = (await client.get("/api/client/trainers", headers=client_headers)).json()
+    assert trainers[0]["rules_pending"] is True
+    code, _ = await book(client, client_headers, trainer_id, service_id)
+    assert code == 409
+
+    response = await client.post(
+        f"/api/client/trainers/{trainer_id}/rules/accept", headers=client_headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["rules_pending"] is False
+    code, body = await book(client, client_headers, trainer_id, service_id)
+    assert code == 201, body
+
+    # Та же редакция не сбрасывает согласие, новая — сбрасывает
+    await client.patch("/api/trainer/me", headers=headers, json={"rules": "Отмена за 12 часов."})
+    trainers = (await client.get("/api/client/trainers", headers=client_headers)).json()
+    assert trainers[0]["rules_pending"] is False
+    await client.patch("/api/trainer/me", headers=headers, json={"rules": "Отмена за 24 часа."})
+    trainers = (await client.get("/api/client/trainers", headers=client_headers)).json()
+    assert trainers[0]["rules_pending"] is True
+
+    # Пустые правила убирают требование
+    await client.patch("/api/trainer/me", headers=headers, json={"rules": ""})
+    trainers = (await client.get("/api/client/trainers", headers=client_headers)).json()
+    assert trainers[0] == trainers[0] | {"rules": None, "rules_pending": False}

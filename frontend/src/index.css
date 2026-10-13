@@ -1099,3 +1099,16 @@ button.time[aria-checked='true'] {
   padding-top: var(--s-6);
   color: var(--c-text);
 }
+
+/* ===== Правила занятий ===== */
+
+.rules-text {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+textarea.rules-input {
+  min-height: 240px;
+}

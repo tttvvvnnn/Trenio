@@ -6,6 +6,7 @@ import { haptic } from '../telegram'
 import Icon, { type IconName } from '../ui/icons'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
+import { RulesGate, RulesScreen } from '../ui/Rules'
 import Screen from '../ui/Screen'
 import BookTrainer from './BookTrainer'
 import MyBookings from './MyBookings'
@@ -30,6 +31,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
   // Выбранный тренер, когда их несколько
   const [opened, setOpened] = useState<ClientTrainer | null>(null)
   const [booked, setBooked] = useState<Booking | null>(null)
+  const [rulesOf, setRulesOf] = useState<ClientTrainer | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -49,10 +51,42 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
     setBooked(booking)
   }
 
+  // Новые или изменённые правила тренера показываем до всего остального
+  const pending = trainers?.find((trainer) => trainer.rules_pending)
+  if (pending) {
+    return (
+      <RulesGate
+        key={pending.id}
+        trainer={pending}
+        onAccepted={(accepted) =>
+          setTrainers(
+            (current) =>
+              current?.map((trainer) => (trainer.id === accepted.id ? accepted : trainer)) ?? null,
+          )
+        }
+      />
+    )
+  }
+  const withRules = trainers?.filter((trainer) => trainer.rules) ?? []
+
   return (
     <>
       {tab === 'book' && (
         <BookTab trainers={trainers} error={error} onOpen={setOpened} onBooked={onBooked} />
+      )}
+      {tab === 'book' && withRules.length > 0 && (
+        <Section>
+          {withRules.map((trainer) => (
+            <Row
+              key={trainer.id}
+              title="Правила занятий"
+              subtitle={(trainers?.length ?? 0) > 1 ? trainer.display_name : undefined}
+              icon={{ name: 'list', color: 'var(--c-warning)' }}
+              chevron
+              onClick={() => setRulesOf(trainer)}
+            />
+          ))}
+        </Section>
       )}
       {tab === 'bookings' && <MyBookings onBook={() => open('book')} />}
       {onSwitchToTrainer && tab !== 'packages' && (
@@ -75,6 +109,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
           <BookTrainer trainer={opened} onBooked={onBooked} />
         </Screen>
       )}
+      {rulesOf && <RulesScreen trainer={rulesOf} onBack={() => setRulesOf(null)} />}
       {booked && (
         <BookedScreen
           booking={booked}

@@ -10,6 +10,9 @@ export type Trainer = {
   cancel_hours: number
   // Шаг времени начала записи в минутах; 0 — равен длительности услуги
   slot_step_min: number
+  // Правила занятий: клиенты подтверждают их перед записью; null — правил нет
+  rules: string | null
+  rules_updated_at: string | null
   // null: тренер ещё не прошёл первую настройку
   onboarded_at: string | null
 }
@@ -29,7 +32,13 @@ export type Me = {
 export type TrainerProfileInput = Partial<
   Pick<
     Trainer,
-    'display_name' | 'timezone' | 'address' | 'auto_confirm' | 'cancel_hours' | 'slot_step_min'
+    | 'display_name'
+    | 'timezone'
+    | 'address'
+    | 'auto_confirm'
+    | 'cancel_hours'
+    | 'slot_step_min'
+    | 'rules'
   >
 >
 
@@ -93,6 +102,9 @@ export type ClientTrainer = {
   address: string | null
   auto_confirm: boolean
   cancel_hours: number
+  rules: string | null
+  // Правила нужно прочитать и принять, прежде чем записываться
+  rules_pending: boolean
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled'
@@ -293,6 +305,10 @@ export function fetchSlots(days = 14, from?: string): Promise<Slot[]> {
 
 export function fetchMyTrainers(): Promise<ClientTrainer[]> {
   return request<ClientTrainer[]>('/api/client/trainers')
+}
+
+export function acceptTrainerRules(trainerId: number): Promise<ClientTrainer> {
+  return send<ClientTrainer>('POST', `/api/client/trainers/${trainerId}/rules/accept`)
 }
 
 export function fetchTrainerServices(trainerId: number): Promise<Service[]> {

@@ -15,6 +15,7 @@ import {
 } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import ReminderSettings from '../ui/ReminderSettings'
+import RulesEditor from './RulesEditor'
 
 // За сколько часов до начала клиент ещё может отменить запись
 const CANCEL_HOURS = [0, 1, 2, 3, 4, 6, 8, 12, 24, 36, 48, 72, 168]
@@ -72,6 +73,7 @@ export default function ProfileForm({
   const [autoConfirm, setAutoConfirm] = useState(trainer.auto_confirm)
   const [cancelHours, setCancelHours] = useState(trainer.cancel_hours)
   const [slotStep, setSlotStep] = useState(trainer.slot_step_min)
+  const [rulesOpen, setRulesOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -220,6 +222,17 @@ export default function ProfileForm({
           </InlineField>
         </Section>
       )}
+      {!onboarding && (
+        <Section footer="Клиент читает их и соглашается перед первой записью.">
+          <Row
+            title="Правила занятий"
+            subtitle={trainer.rules ? undefined : 'Не заполнены'}
+            icon={{ name: 'list', color: 'var(--c-warning)' }}
+            chevron
+            onClick={() => setRulesOpen(true)}
+          />
+        </Section>
+      )}
       {!onboarding && <ReminderSettings role="trainer" />}
       {onSwitchToClient && !onboarding && (
         <Section footer="Ваши записи к другим тренерам.">
@@ -232,6 +245,9 @@ export default function ProfileForm({
         </Section>
       )}
       {error && <ErrorText>{error}</ErrorText>}
+      {rulesOpen && (
+        <RulesEditor trainer={trainer} onSaved={onSaved} onBack={() => setRulesOpen(false)} />
+      )}
       <MainButton
         text={onboarding ? 'Продолжить' : 'Сохранить'}
         onClick={() => void submit()}

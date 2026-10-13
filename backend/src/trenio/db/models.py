@@ -71,6 +71,10 @@ class Trainer(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     # Когда тренер прошёл первую настройку в Mini App; None — ещё не прошёл
     onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Правила занятий: клиент подтверждает их перед первой записью; None — правил нет
+    rules: Mapped[str | None] = mapped_column(Text)
+    # Когда правила последний раз менялись: принятые раньше клиенты подтверждают снова
+    rules_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(lazy="joined")
 
@@ -182,9 +186,19 @@ class TrainerClient(TimestampMixin, Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     # Заметки тренера о клиенте; клиент их не видит
     notes: Mapped[str | None] = mapped_column(Text)
+    # Когда клиент согласился с правилами тренера; None — ещё не соглашался
+    rules_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(lazy="joined")
     trainer: Mapped[Trainer] = relationship(lazy="joined")
+
+    @property
+    def rules_pending(self) -> bool:
+        """У тренера есть правила, а клиент их ещё не принял или они с тех пор менялись."""
+        updated = self.trainer.rules_updated_at
+        if not self.trainer.rules or updated is None:
+            return False
+        return self.rules_accepted_at is None or self.rules_accepted_at < updated
 
 
 # Записи, которые занимают время тренера. Отменённые и отклонённые остаются для истории

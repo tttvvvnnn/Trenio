@@ -1,6 +1,7 @@
 """Клиенты тренера: привязка по персональной ссылке и списки с обеих сторон."""
 
 from collections.abc import Sequence
+from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import select
@@ -74,6 +75,35 @@ async def list_my_trainers(session: AsyncSession, user: User) -> Sequence[Traine
         .order_by(Trainer.display_name, Trainer.id)
     )
     return (await session.scalars(stmt)).all()
+
+
+async def list_my_links(session: AsyncSession, user: User) -> Sequence[TrainerClient]:
+    """Связи клиента с тренерами — вместе с тем, принял ли он их правила."""
+    stmt = (
+        select(TrainerClient)
+        .join(TrainerClient.trainer)
+        .where(TrainerClient.user_id == user.id, Trainer.is_active.is_(True))
+        .order_by(Trainer.display_name, Trainer.id)
+    )
+    return (await session.scalars(stmt)).all()
+
+
+async def get_my_link(session: AsyncSession, user: User, trainer_id: int) -> TrainerClient | None:
+    stmt = (
+        select(TrainerClient)
+        .join(TrainerClient.trainer)
+        .where(
+            TrainerClient.trainer_id == trainer_id,
+            TrainerClient.user_id == user.id,
+            Trainer.is_active.is_(True),
+        )
+    )
+    return await session.scalar(stmt)
+
+
+async def accept_rules(session: AsyncSession, link: TrainerClient, now: datetime) -> None:
+    link.rules_accepted_at = now
+    await session.commit()
 
 
 async def get_my_trainer(session: AsyncSession, user: User, trainer_id: int) -> Trainer | None:
