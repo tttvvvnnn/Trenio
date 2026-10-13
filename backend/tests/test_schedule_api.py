@@ -84,6 +84,8 @@ async def test_service_validation(client: AsyncClient) -> None:
 async def test_two_weeks_of_slots(client: AsyncClient) -> None:
     headers = await auth(client)
     service_id = await create_service(client, headers)
+    # Шаг по длительности услуги: в окне 10–13 ровно три часовых окошка
+    await client.patch("/api/trainer/me", headers=headers, json={"slot_step_min": 0})
 
     for weekday in (0, 2):  # понедельник и среда, 10:00–13:00
         response = await client.post(

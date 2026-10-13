@@ -178,6 +178,7 @@ class TrainerProfileUpdate:
     address: str | None = None
     auto_confirm: bool | None = None
     cancel_hours: int | None = None
+    slot_step_min: int | None = None
 
 
 async def update_profile(
@@ -194,6 +195,8 @@ async def update_profile(
         trainer.auto_confirm = changes.auto_confirm
     if changes.cancel_hours is not None:
         trainer.cancel_hours = changes.cancel_hours
+    if changes.slot_step_min is not None:
+        trainer.slot_step_min = changes.slot_step_min
     if trainer.onboarded_at is None:
         # Первое сохранение профиля и есть завершение онбординга
         trainer.onboarded_at = datetime.now(UTC)

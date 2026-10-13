@@ -42,6 +42,9 @@ class Trainer(TimestampMixin, Base):
     """Профиль тренера. Есть строка и is_active — значит, у пользователя есть бета-доступ."""
 
     __tablename__ = "trainers"
+    __table_args__ = (
+        CheckConstraint("slot_step_min IN (0, 5, 10, 15, 20, 30, 60)", name="slot_step"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
@@ -56,6 +59,8 @@ class Trainer(TimestampMixin, Base):
     invite_code: Mapped[str] = mapped_column(String(32), unique=True)
     # Записи подтверждаются сразу или после одобрения тренера
     auto_confirm: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # Шаг, с которым клиенту предлагается время начала, в минутах; 0 — длительность услуги
+    slot_step_min: Mapped[int] = mapped_column(Integer, default=15, server_default=text("15"))
     # За сколько часов до начала клиент ещё может отменить запись сам
     cancel_hours: Mapped[int] = mapped_column(Integer, default=12, server_default=text("12"))
     # Админ может отключить тренера; данные при этом сохраняются

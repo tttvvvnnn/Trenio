@@ -8,6 +8,8 @@ export type Trainer = {
   address: string | null
   auto_confirm: boolean
   cancel_hours: number
+  // Шаг времени начала записи в минутах; 0 — равен длительности услуги
+  slot_step_min: number
   // null: тренер ещё не прошёл первую настройку
   onboarded_at: string | null
 }
@@ -25,7 +27,10 @@ export type Me = {
 }
 
 export type TrainerProfileInput = Partial<
-  Pick<Trainer, 'display_name' | 'timezone' | 'address' | 'auto_confirm' | 'cancel_hours'>
+  Pick<
+    Trainer,
+    'display_name' | 'timezone' | 'address' | 'auto_confirm' | 'cancel_hours' | 'slot_step_min'
+  >
 >
 
 export type Service = {

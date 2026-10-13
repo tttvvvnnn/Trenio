@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +20,8 @@ class TrainerOut(BaseModel):
     address: str | None
     auto_confirm: bool
     cancel_hours: int
+    # Шаг времени начала записи в минутах; 0 — равен длительности услуги
+    slot_step_min: int
     onboarded_at: datetime | None
 
     @classmethod
@@ -33,6 +36,7 @@ class TrainerProfileIn(BaseModel):
     auto_confirm: bool | None = None
     # Не больше недели: дальше правило отмены теряет смысл
     cancel_hours: int | None = Field(default=None, ge=0, le=168)
+    slot_step_min: Literal[0, 5, 10, 15, 20, 30, 60] | None = None
 
 
 @router.get("/me")
@@ -51,6 +55,7 @@ async def patch_profile(
         address=body.address.strip() if body.address is not None else None,
         auto_confirm=body.auto_confirm,
         cancel_hours=body.cancel_hours,
+        slot_step_min=body.slot_step_min,
     )
     try:
         trainer = await update_profile(session, trainer, changes)
