@@ -7,6 +7,7 @@ import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
 import BrandMark from './ui/BrandMark'
 import { EmptyState } from './ui/kit'
+import RolePicker from './ui/RolePicker'
 
 type State =
   | { kind: 'loading' }
@@ -16,8 +17,9 @@ type State =
 
 export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
-  // Тренер, который сам ходит к другому тренеру, переключается в режим клиента из профиля
-  const [clientMode, setClientMode] = useState(false)
+  // Тренер, который сам ходит к другому тренеру, выбирает профиль при каждом входе.
+  // null — ещё не выбрал
+  const [clientMode, setClientMode] = useState<boolean | null>(null)
 
   useEffect(() => {
     const initData = setupTelegram()
@@ -46,12 +48,14 @@ export default function App() {
   )
 }
 
-type View = 'client' | 'trainer' | 'onboarding' | 'stranger'
+type View = 'client' | 'trainer' | 'onboarding' | 'stranger' | 'choose'
 
-function chooseView(me: Me, clientMode: boolean): View {
+function chooseView(me: Me, clientMode: boolean | null): View {
   if (me.trainer === null) return me.is_client ? 'client' : 'stranger'
   if (me.trainer.onboarded_at === null) return 'onboarding'
-  return clientMode && me.is_client ? 'client' : 'trainer'
+  if (!me.is_client) return 'trainer'
+  if (clientMode === null) return 'choose'
+  return clientMode ? 'client' : 'trainer'
 }
 
 function render(
@@ -73,6 +77,9 @@ function render(
       return <p className="centered">Не удалось войти: {state.message}</p>
     case 'ready': {
       const { me } = state
+      if (view === 'choose') {
+        return <RolePicker name={me.first_name} onChoose={setClientMode} />
+      }
       if (view === 'client') {
         return (
           <ClientHome onSwitchToTrainer={me.trainer ? () => setClientMode(false) : undefined} />
