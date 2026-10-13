@@ -73,11 +73,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
           }}
         />
       )}
-      <nav
-        className="tabbar"
-        aria-label="Разделы"
-        style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}
-      >
+      <nav className="tabbar" aria-label="Разделы">
         {TABS.map(([value, title, icon]) => (
           <button
             key={value}

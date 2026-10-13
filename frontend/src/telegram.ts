@@ -17,6 +17,7 @@ import {
   setMiniAppBackgroundColor,
   setMiniAppBottomBarColor,
   setMiniAppHeaderColor,
+  shareURL,
 } from '@telegram-apps/sdk'
 
 /**
@@ -121,4 +122,14 @@ export function setBackButton(visible: boolean): void {
 export function onBackButtonClick(handler: () => void): () => void {
   const [called, off] = backButton.onClick.ifAvailable(handler)
   return called ? off : () => {}
+}
+
+/** Окно «Поделиться» Telegram: выбрать чат и отправить ссылку. */
+export function shareLink(url: string, text: string): void {
+  if (shareURL.isAvailable()) {
+    shareURL(url, text)
+    return
+  }
+  const params = new URLSearchParams({ url, text })
+  window.open(`https://t.me/share/url?${params}`, '_blank')
 }
