@@ -101,7 +101,11 @@ class BookingOut(BaseModel):
     can_mark: bool
     # Разовая: списать не из чего, оплачивается отдельно. Для неотмеченных — прогноз
     one_off: bool = False
+    # Разовая у клиента, который покупал блоки: блок закончился, стоит продать новый
+    out_of_block: bool = False
     charge: BookingChargeOut | None = None
+    # Неотмеченная запись: из какого блока спишется, если пройдёт
+    planned: BookingChargeOut | None = None
 
     @classmethod
     def of(
@@ -136,7 +140,9 @@ class BookingOut(BaseModel):
             attendance=booking.attendance,
             can_mark=booking.starts_at <= now and booking.status != BookingStatus.DECLINED,
             one_off=billing is not None and booking.id in billing.one_off,
+            out_of_block=billing is not None and booking.id in billing.out_of_block,
             charge=_charge_out(billing.charges.get(booking.id)) if billing else None,
+            planned=_charge_out(billing.planned.get(booking.id)) if billing else None,
         )
 
 
@@ -238,6 +244,12 @@ async def own_booking(session: SessionDep, trainer: CurrentTrainer, booking_id: 
         raise NOT_FOUND from None
 
 
+@router.get("/bookings/{booking_id:int}")
+async def get_booking(booking_id: int, trainer: CurrentTrainer, session: SessionDep) -> BookingOut:
+    booking = await own_booking(session, trainer, booking_id)
+    return await trainer_view(session, booking, datetime.now(UTC))
+
+
 @router.post("/bookings/{booking_id}/confirm")
 async def confirm_booking(
     booking_id: int, trainer: CurrentTrainer, session: SessionDep
@@ -288,6 +300,8 @@ class ClientOut(PersonOut):
     debt: int = 0
     # Покупал ли клиент блоки вообще: отличает «блок закончился» от «блоков не было»
     has_packages: bool = False
+    # Сколько будущих записей не покрыто блоками: они будут разовыми
+    upcoming_one_off: int = 0
 
     @classmethod
     def of_link(
@@ -298,13 +312,20 @@ class ClientOut(PersonOut):
             out.sessions_left = summary.sessions_left
             out.debt = summary.debt
             out.has_packages = summary.has_packages
+            out.upcoming_one_off = summary.upcoming_one_off
         return out
 
 
 @router.get("/clients")
 async def get_clients(trainer: CurrentTrainer, session: SessionDep) -> list[ClientOut]:
-    today = packages.trainer_today(trainer, datetime.now(UTC))
-    summary = packages.summarize(await packages.list_trainer_packages(session, trainer), today)
+    now = datetime.now(UTC)
+    today = packages.trainer_today(trainer, now)
+    summary = packages.summarize(
+        await packages.list_trainer_packages(session, trainer),
+        today,
+        await packages.forecast(session, [trainer.id]),
+        now,
+    )
     return [
         ClientOut.of_link(link, summary.get(link.user_id))
         for link in await list_clients(session, trainer)

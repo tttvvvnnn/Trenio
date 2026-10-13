@@ -123,13 +123,20 @@ export type Booking = {
   can_mark: boolean
   // Разовая: списать не из чего, оплачивается отдельно. Для неотмеченных — прогноз
   one_off: boolean
+  // Разовая у клиента, который покупал блоки: блок закончился, стоит продать новый
+  out_of_block: boolean
   // Из какого блока списано занятие
-  charge: {
-    package_id: number
-    package_name: string
-    number: number
-    sessions_count: number
-  } | null
+  charge: BookingCharge | null
+  // Неотмеченная запись: из какого блока спишется, если пройдёт
+  planned: BookingCharge | null
+}
+
+export type BookingCharge = {
+  package_id: number
+  package_name: string
+  // Какое по счёту занятие блока
+  number: number
+  sessions_count: number
 }
 
 // attended — прошла, missed_charged — пропуск со списанием, missed_free — без списания
@@ -242,8 +249,9 @@ export function deleteException(id: number): Promise<void> {
   return send<void>('DELETE', `/api/trainer/schedule/exceptions/${id}`)
 }
 
-export function fetchSlots(days = 14): Promise<Slot[]> {
-  return request<Slot[]>(`/api/trainer/slots?days=${days}`)
+export function fetchSlots(days = 14, from?: string): Promise<Slot[]> {
+  const start = from ? `&from=${from}` : ''
+  return request<Slot[]>(`/api/trainer/slots?days=${days}${start}`)
 }
 
 // --- Клиент ---
@@ -293,10 +301,17 @@ export type Client = Person & {
   debt: number
   // Покупал ли клиент блоки вообще
   has_packages: boolean
+  // Сколько будущих записей не покрыто блоками: они будут разовыми
+  upcoming_one_off: number
 }
 
-export function fetchTrainerBookings(days = 14): Promise<Booking[]> {
-  return request<Booking[]>(`/api/trainer/bookings?days=${days}`)
+export function fetchTrainerBookings(days = 14, from?: string): Promise<Booking[]> {
+  const start = from ? `&from=${from}` : ''
+  return request<Booking[]>(`/api/trainer/bookings?days=${days}${start}`)
+}
+
+export function fetchTrainerBooking(id: number): Promise<Booking> {
+  return request<Booking>(`/api/trainer/bookings/${id}`)
 }
 
 export function fetchPendingBookings(): Promise<Booking[]> {
@@ -378,7 +393,7 @@ export type PackageSession = {
 export type Package = {
   id: number
   name: string
-  trainer: { id: number; display_name: string }
+  trainer: { id: number; display_name: string; timezone: string }
   service: ServiceRef | null
   sessions_count: number
   price: number
@@ -395,6 +410,15 @@ export type Package = {
   ending_soon: boolean
   payments: Payment[]
   sessions: PackageSession[]
+  // Неотмеченные записи, которые по прогнозу лягут в блок, по времени
+  planned: PlannedSession[]
+}
+
+export type PlannedSession = {
+  booking_id: number
+  starts_at: string
+  // Каким по счёту занятием блока станет
+  number: number
 }
 
 export type PackageInput = {
@@ -473,6 +497,14 @@ export function addManualSession(
   session: { day: string; attendance: 'attended' | 'missed_charged' },
 ): Promise<Package> {
   return send<Package>('POST', `/api/trainer/packages/${packageId}/sessions`, session)
+}
+
+export function updateManualSession(
+  packageId: number,
+  sessionId: number,
+  session: { day: string; attendance: 'attended' | 'missed_charged' },
+): Promise<Package> {
+  return send<Package>('PATCH', `/api/trainer/packages/${packageId}/sessions/${sessionId}`, session)
 }
 
 export function deleteManualSession(packageId: number, sessionId: number): Promise<Package> {

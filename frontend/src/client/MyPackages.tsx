@@ -38,6 +38,10 @@ export default function MyPackages() {
   }
 
   const current = packages.filter((pkg) => pkg.status === 'active')
+  // По тренерам, у которых блок закончился и нового нет
+  const ended = [...new Set(packages.map((pkg) => pkg.trainer.id))].filter(
+    (id) => !current.some((pkg) => pkg.trainer.id === id),
+  )
   const past = packages.filter((pkg) => pkg.status !== 'active')
   // Имя тренера показываем, только если тренеров несколько
   const manyTrainers = new Set(packages.map((pkg) => pkg.trainer.id)).size > 1
@@ -55,6 +59,12 @@ export default function MyPackages() {
   return (
     <>
       {header}
+      {ended.length > 0 && (
+        <p className="card-hint pending">
+          Блок закончился. Записываться можно и дальше, но занятия будут без блока: о новом блоке
+          договоритесь с тренером.
+        </p>
+      )}
       {current.length > 0 && <Section title="Действующие">{current.map(row)}</Section>}
       {past.length > 0 && <Section title="Завершённые">{past.map(row)}</Section>}
       {opened && (

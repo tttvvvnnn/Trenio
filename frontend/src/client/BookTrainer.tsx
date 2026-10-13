@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 
 import {
   createMyBooking,
+  fetchMyPackages,
   fetchTrainerServices,
   fetchTrainerSlots,
   type Booking,
   type ClientTrainer,
+  type Package,
   type Service,
   type Slot,
 } from '../api'
@@ -42,6 +44,7 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
   const [selected, setSelected] = useState<Slot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [packages, setPackages] = useState<Package[]>([])
 
   useEffect(() => {
     fetchTrainerServices(trainer.id)
@@ -69,6 +72,13 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
       stale = true
     }
   }, [trainer.id, serviceId, reloads])
+
+  useEffect(() => {
+    // Блоки нужны только для подсказки: без них запись всё равно работает
+    fetchMyPackages()
+      .then((loaded) => setPackages(loaded.filter((pkg) => pkg.trainer.id === trainer.id)))
+      .catch(() => setPackages([]))
+  }, [trainer.id, reloads])
 
   async function book() {
     if (selected === null || saving) return
@@ -208,6 +218,12 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
             </div>
           )}
           {error && <ErrorText>{error}</ErrorText>}
+          {selected && !covered(packages, service.id, localDate(selected.starts_at, timezone)) && (
+            <p className="section-footer hint-alert">
+              Занятия в вашем блоке закончились или уже заняты записями. Эта запись будет без блока:
+              об оплате договоритесь с тренером.
+            </p>
+          )}
           <p className="section-footer">{rules.join(' ')}</p>
         </>
       )}
@@ -218,5 +234,17 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
         loading={saving}
       />
     </>
+  )
+}
+
+// Хватит ли блока на ещё одну запись. Если блоков у тренера не было, не предупреждаем
+function covered(packages: Package[], serviceId: number, day: string): boolean {
+  if (packages.length === 0) return true
+  return packages.some(
+    (pkg) =>
+      pkg.status === 'active' &&
+      (pkg.service === null || pkg.service.id === serviceId) &&
+      (pkg.valid_until === null || pkg.valid_until >= day) &&
+      pkg.left - pkg.planned.length > 0,
   )
 }

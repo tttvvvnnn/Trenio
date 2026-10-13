@@ -142,9 +142,19 @@ class PackageSessionOut(BaseModel):
     booking_id: int | None
 
 
+class PlannedSessionOut(BaseModel):
+    """Будущая запись, которая по прогнозу спишется из блока."""
+
+    booking_id: int
+    starts_at: datetime
+    # Каким по счёту занятием блока станет
+    number: int
+
+
 class PackageTrainerOut(BaseModel):
     id: int
     display_name: str
+    timezone: str
 
 
 class PackageOut(BaseModel):
@@ -169,15 +179,21 @@ class PackageOut(BaseModel):
     ending_soon: bool
     payments: list[PaymentOut]
     sessions: list[PackageSessionOut]
+    # Неотмеченные записи, которые лягут в блок, по времени
+    planned: list[PlannedSessionOut] = []
 
     @classmethod
-    def of(cls, package: Package, today: date) -> "PackageOut":
+    def of(
+        cls, package: Package, today: date, plan: packages.Forecast | None = None
+    ) -> "PackageOut":
         service = package.service
         return cls(
             id=package.id,
             name=package.name,
             trainer=PackageTrainerOut(
-                id=package.trainer.id, display_name=package.trainer.display_name
+                id=package.trainer.id,
+                display_name=package.trainer.display_name,
+                timezone=package.trainer.timezone,
             ),
             service=ServiceRefOut(id=service.id, name=service.name) if service else None,
             sessions_count=package.sessions_count,
@@ -200,6 +216,10 @@ class PackageOut(BaseModel):
                     id=s.id, number=number, day=s.day, status=s.status, booking_id=s.booking_id
                 )
                 for number, s in enumerate(package.sessions, 1)
+            ],
+            planned=[
+                PlannedSessionOut(booking_id=b.id, starts_at=b.starts_at, number=number)
+                for b, number in (plan.planned_for(package) if plan else [])
             ],
         )
 
@@ -332,6 +352,24 @@ async def add_manual_session(
     return PackageOut.of(package, _today(trainer))
 
 
+@router.patch("/trainer/packages/{package_id}/sessions/{session_id}")
+async def update_manual_session(
+    package_id: int,
+    session_id: int,
+    body: ManualSessionIn,
+    trainer: CurrentTrainer,
+    session: SessionDep,
+) -> PackageOut:
+    """Поменять дату или отметку занятия, списанного вручную."""
+    try:
+        package = await packages.update_manual_session(
+            session, trainer, package_id, session_id, body.day, body.attendance
+        )
+    except PackageRejected as rejected:
+        raise package_error(rejected) from None
+    return PackageOut.of(package, _today(trainer))
+
+
 @router.delete("/trainer/packages/{package_id}/sessions/{session_id}")
 async def delete_manual_session(
     package_id: int, session_id: int, trainer: CurrentTrainer, session: SessionDep
@@ -404,10 +442,12 @@ async def get_client_card(
         raise package_error(rejected) from None
     own = await packages.list_client_packages(session, trainer, client_id)
     history = await packages.client_history(session, trainer, client_id, HISTORY_LIMIT)
+    plan = await packages.forecast(session, [trainer.id], [client_id])
+    summary = packages.summarize(own, today, plan, now).get(client_id)
     return ClientCardOut(
-        client=ClientOut.of_link(link, packages.summarize(own, today).get(client_id)),
+        client=ClientOut.of_link(link, summary),
         notes=link.notes,
-        packages=[PackageOut.of(p, today) for p in reversed(own)],
+        packages=[PackageOut.of(p, today, plan) for p in reversed(own)],
         history=await trainer_views(session, history, now),
     )
 
@@ -436,4 +476,5 @@ async def my_packages(user: CurrentUser, session: SessionDep) -> list[PackageOut
     """Блоки клиента у всех тренеров, новые первыми."""
     now = datetime.now(UTC)
     found = await packages.list_my_packages(session, user.id)
-    return [PackageOut.of(p, packages.trainer_today(p.trainer, now)) for p in reversed(found)]
+    plan = await packages.forecast(session, {p.trainer_id for p in found}, [user.id])
+    return [PackageOut.of(p, packages.trainer_today(p.trainer, now), plan) for p in reversed(found)]

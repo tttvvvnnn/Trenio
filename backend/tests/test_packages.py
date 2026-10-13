@@ -433,3 +433,80 @@ async def test_parallel_marks_do_not_overdraw(
     assert package["used"] == 1
     card = (await client.get(f"/api/trainer/clients/{client_id}", headers=headers)).json()
     assert sorted(b["one_off"] for b in card["history"]) == [False, True]
+
+
+async def test_forecast_of_future_bookings(client: AsyncClient, session: AsyncSession) -> None:
+    """Будущие записи раскладываются по остатку блока, лишние — разовые."""
+    headers, trainer_id, service_id = await setup_trainer(client)
+    client_headers = await new_client(client, session, trainer_id, 3003)
+    client_id = await client_id_of(client, client_headers)
+    package = await sell(client, headers, client_id, sessions_count=3)
+    done = await past_booking(session, trainer_id, client_id, service_id, 2)
+    assert (await mark(client, headers, done, "attended"))[0] == 200
+    # Отрицательный days_ago — запись в будущем
+    first, second, third = [
+        await past_booking(session, trainer_id, client_id, service_id, -days) for days in (1, 2, 3)
+    ]
+
+    card = (await client.get(f"/api/trainer/clients/{client_id}", headers=headers)).json()
+    assert card["client"]["sessions_left"] == 2
+    assert card["client"]["upcoming_one_off"] == 1
+    assert [(p["booking_id"], p["number"]) for p in card["packages"][0]["planned"]] == [
+        (first, 2),
+        (second, 3),
+    ]
+    history = {b["id"]: b for b in card["history"]}
+    assert history[first]["planned"]["number"] == 2
+    assert history[first]["one_off"] is False
+    assert history[third]["planned"] is None
+    assert history[third]["one_off"] is True
+    assert history[third]["out_of_block"] is True
+
+    clients = (await client.get("/api/trainer/clients", headers=headers)).json()
+    assert clients[0]["upcoming_one_off"] == 1
+
+    # Клиент видит те же планы в своих блоках
+    mine = (await client.get("/api/client/packages", headers=client_headers)).json()
+    assert [p["booking_id"] for p in mine[0]["planned"]] == [first, second]
+
+    # Отдельная запись тренера открывается по id
+    response = await client.get(f"/api/trainer/bookings/{third}", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["one_off"] is True
+
+    # Ручное занятие можно исправить
+    url = f"/api/trainer/packages/{package['id']}/sessions"
+    added = (await client.post(url, headers=headers, json={"day": "2026-10-01"})).json()
+    manual = next(s for s in added["sessions"] if s["booking_id"] is None)
+    response = await client.patch(
+        f"{url}/{manual['id']}",
+        headers=headers,
+        json={"day": "2026-09-30", "attendance": "missed_charged"},
+    )
+    assert response.status_code == 200, response.text
+    changed = next(s for s in response.json()["sessions"] if s["id"] == manual["id"])
+    assert (changed["day"], changed["status"]) == ("2026-09-30", "missed_charged")
+    linked = next(s for s in added["sessions"] if s["booking_id"] == done)
+    response = await client.patch(
+        f"{url}/{linked['id']}", headers=headers, json={"day": "2026-09-30"}
+    )
+    assert response.status_code == 409
+
+    # После ручного списания в блоке осталось одно место: вторая будущая запись стала разовой
+    card = (await client.get(f"/api/trainer/clients/{client_id}", headers=headers)).json()
+    assert card["client"]["upcoming_one_off"] == 2
+
+
+async def test_client_without_packages_is_not_flagged(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Клиент без блоков платит разово: записи разовые, но «блок закончился» не выделяем."""
+    headers, trainer_id, service_id = await setup_trainer(client)
+    client_headers = await new_client(client, session, trainer_id, 3003)
+    client_id = await client_id_of(client, client_headers)
+    future = await past_booking(session, trainer_id, client_id, service_id, -1)
+
+    card = (await client.get(f"/api/trainer/clients/{client_id}", headers=headers)).json()
+    assert card["client"]["upcoming_one_off"] == 0
+    booking = card["history"][0]
+    assert (booking["id"], booking["one_off"], booking["out_of_block"]) == (future, True, False)
