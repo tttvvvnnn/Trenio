@@ -26,14 +26,16 @@ def run_migrations() -> None:
 
 
 async def run_scheduler_forever() -> None:
+    from trenio.bot.setup import get_bot
     from trenio.scheduler.setup import create_scheduler
 
-    scheduler = create_scheduler()
+    scheduler, _ = create_scheduler()
     scheduler.start()
     try:
         await asyncio.Event().wait()
     finally:
         scheduler.shutdown(wait=False)
+        await get_bot().session.close()
 
 
 def main() -> None:
