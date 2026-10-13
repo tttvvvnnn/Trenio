@@ -1,8 +1,15 @@
 import { useState } from 'react'
 
-import { changeTrainerBooking, type Booking, type BookingAction } from '../api'
-import { dateTime, duration, fullName } from '../format'
+import {
+  changeTrainerBooking,
+  markAttendance,
+  type Attendance,
+  type Booking,
+  type BookingAction,
+} from '../api'
+import { ATTENDANCE, dateTime, duration, fullName } from '../format'
 import { confirmAction, haptic } from '../telegram'
+import Icon from '../ui/icons'
 import { ErrorText, Row, Section } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
@@ -16,7 +23,7 @@ type Props = {
 
 /** Запись глазами тренера: кто, когда, и что с ней сделать. */
 export default function BookingDetails({ booking, onBack, onChanged }: Props) {
-  const [busy, setBusy] = useState<BookingAction | null>(null)
+  const [busy, setBusy] = useState<BookingAction | 'mark' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { client } = booking
   const timezone = booking.trainer.timezone
@@ -43,7 +50,27 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
     }
   }
 
+  async function mark(attendance: Attendance | null) {
+    if (attendance === booking.attendance) return
+    setBusy('mark')
+    setError(null)
+    try {
+      const updated = await markAttendance(booking.id, attendance)
+      haptic.success()
+      onChanged(updated)
+    } catch (err) {
+      haptic.error()
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const pending = booking.status === 'pending'
+  const marks: Attendance[] =
+    booking.status === 'cancelled'
+      ? ['missed_charged', 'missed_free']
+      : ['attended', 'missed_charged', 'missed_free']
   let note: string | null = null
   if (pending) note = 'Клиент ждёт ответа. Пока запись не отклонена, время занято.'
   else if (booking.status === 'cancelled')
@@ -65,6 +92,34 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
         />
         {booking.address && <Row title="Место" subtitle={booking.address} />}
       </Section>
+      {booking.can_mark && (
+        <Section title="Посещение" footer={chargeNote(booking)}>
+          {marks.map((attendance) => (
+            <Row
+              key={attendance}
+              title={ATTENDANCE[attendance]}
+              onClick={busy ? undefined : () => void mark(attendance)}
+              after={
+                booking.attendance === attendance ? (
+                  <Icon name="check" className="row-check" />
+                ) : undefined
+              }
+            />
+          ))}
+          {booking.attendance && (
+            <Row
+              title={busy === 'mark' ? 'Сохраняем…' : 'Снять отметку'}
+              tone="accent"
+              onClick={busy ? undefined : () => void mark(null)}
+            />
+          )}
+        </Section>
+      )}
+      {!booking.can_mark && booking.one_off && (
+        <p className="section-footer">
+          У клиента нет подходящего блока: занятие будет разовым, если ничего не изменится.
+        </p>
+      )}
       {error && <ErrorText>{error}</ErrorText>}
       {pending && (
         <Section>
@@ -93,4 +148,21 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
       />
     </Screen>
   )
+}
+
+function chargeNote(booking: Booking): string {
+  if (booking.charge) {
+    const { package_name, number, sessions_count } = booking.charge
+    return `Списано из блока «${package_name}»: занятие ${number} из ${sessions_count}.`
+  }
+  if (booking.attendance === 'missed_free') return 'Пропуск без списания: блок не тратится.'
+  if (booking.one_off) {
+    return booking.attendance
+      ? 'Разовое занятие: подходящего блока нет, оплата отдельно.'
+      : 'Подходящего блока нет: после отметки занятие станет разовым.'
+  }
+  if (booking.attendance === null) {
+    return '«Прошла» и «Пропуск, списать» спишут занятие из самого старого подходящего блока.'
+  }
+  return ''
 }

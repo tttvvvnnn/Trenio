@@ -40,7 +40,7 @@ export default function TrainerHome({ trainer, onTrainerChange, onSwitchToClient
       {tab === 'calendar' && (
         <Calendar timezone={trainer.timezone} onGoToSetup={() => open('schedule')} />
       )}
-      {tab === 'clients' && <Clients />}
+      {tab === 'clients' && <Clients timezone={trainer.timezone} />}
       {tab === 'schedule' && <Schedule timezone={trainer.timezone} />}
       {tab === 'services' && <Services />}
       {tab === 'profile' && (

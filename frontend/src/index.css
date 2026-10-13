@@ -18,25 +18,16 @@
   --fb-bar: #ffffff;
 
   --c-bg: var(--tg-theme-secondary-bg-color, var(--fb-bg));
-  --c-section: var(
-    --tg-theme-section-bg-color,
-    var(--tg-theme-bg-color, var(--fb-section))
-  );
+  --c-section: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, var(--fb-section)));
   --c-bar: var(--tg-theme-bg-color, var(--fb-bar));
   --c-text: var(--tg-theme-text-color, var(--fb-text));
   --c-hint: var(--tg-theme-hint-color, var(--fb-hint));
   --c-subtitle: var(--tg-theme-subtitle-text-color, var(--c-hint));
-  --c-section-header: var(
-    --tg-theme-section-header-text-color,
-    var(--fb-header)
-  );
+  --c-section-header: var(--tg-theme-section-header-text-color, var(--fb-header));
   --c-link: var(--tg-theme-link-color, var(--fb-link));
   --c-accent: var(--tg-theme-button-color, var(--fb-button));
   --c-on-accent: var(--tg-theme-button-text-color, var(--fb-button-text));
-  --c-destructive: var(
-    --tg-theme-destructive-text-color,
-    var(--fb-destructive)
-  );
+  --c-destructive: var(--tg-theme-destructive-text-color, var(--fb-destructive));
   --c-separator: var(--tg-theme-section-separator-color, var(--fb-separator));
   /* Не из темы: статусы и плашки иконок одинаковы в обеих темах */
   --c-success: #31b545;
@@ -48,8 +39,8 @@
   --c-pressed: rgba(120, 120, 128, 0.14);
 
   --font:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI",
-    Roboto, "Helvetica Neue", sans-serif;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
 
   /* Отступы по шагу 4 */
   --s-1: 4px;
@@ -121,9 +112,7 @@ button {
 }
 
 .app.with-tabbar {
-  padding-bottom: calc(
-    var(--tabbar-height) + var(--s-6) + env(safe-area-inset-bottom, 0px)
-  );
+  padding-bottom: calc(var(--tabbar-height) + var(--s-6) + env(safe-area-inset-bottom, 0px));
 }
 
 .page-header {
@@ -203,7 +192,7 @@ button {
 }
 
 .row + .row::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   right: 0;
@@ -329,16 +318,27 @@ button.row-main:active {
   color: var(--c-hint);
   background: var(--c-fill);
 }
-.badge.pending {
+.badge.pending,
+.badge.warning {
   color: var(--c-warning);
   background: color-mix(in srgb, var(--c-warning) 14%, transparent);
 }
-.badge.confirmed {
+.badge.confirmed,
+.badge.success {
   color: var(--c-success);
   background: color-mix(in srgb, var(--c-success) 14%, transparent);
 }
 
 /* ===== Поля ввода ===== */
+
+textarea.field-input {
+  display: block;
+  min-height: 96px;
+  resize: vertical;
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+}
 
 .field-input {
   box-sizing: border-box;
@@ -393,7 +393,7 @@ select.row-input {
   text-align-last: right;
 }
 
-input[type="time"].row-input {
+input[type='time'].row-input {
   flex: none;
   min-width: 80px;
 }
@@ -413,7 +413,7 @@ input[type="time"].row-input {
 }
 
 .switch::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 2px;
   left: 2px;
@@ -427,11 +427,11 @@ input[type="time"].row-input {
   transition: transform 200ms var(--ease);
 }
 
-.switch[aria-checked="true"] {
+.switch[aria-checked='true'] {
   background: var(--c-success);
 }
 
-.switch[aria-checked="true"]::after {
+.switch[aria-checked='true']::after {
   transform: translateX(20px);
 }
 
@@ -494,7 +494,7 @@ input[type="time"].row-input {
   transition: background-color 150ms var(--ease);
 }
 
-.chip[aria-checked="true"] {
+.chip[aria-checked='true'] {
   color: var(--c-on-accent);
   background: var(--c-accent);
 }
@@ -518,7 +518,7 @@ input[type="time"].row-input {
   transition: background-color 150ms var(--ease);
 }
 
-.segmented button[aria-checked="true"] {
+.segmented button[aria-checked='true'] {
   font-weight: 600;
   background: var(--c-section);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -585,17 +585,17 @@ input[type="time"].row-input {
   background: transparent;
 }
 
-.date[aria-pressed="true"] {
+.date[aria-pressed='true'] {
   color: var(--c-on-accent);
   background: var(--c-accent);
 }
 
-.date[aria-pressed="true"] small,
-.date[aria-pressed="true"] b {
+.date[aria-pressed='true'] small,
+.date[aria-pressed='true'] b {
   color: var(--c-on-accent);
 }
 
-.date[aria-pressed="true"] i {
+.date[aria-pressed='true'] i {
   background: var(--c-on-accent);
 }
 
@@ -645,7 +645,7 @@ button.time small {
   font-weight: 400;
   opacity: 0.8;
 }
-button.time[aria-checked="true"] {
+button.time[aria-checked='true'] {
   color: var(--c-on-accent);
   background: var(--c-accent);
 }
@@ -705,8 +705,7 @@ button.time[aria-checked="true"] {
   bottom: 0;
   left: 0;
   z-index: 20;
-  padding: var(--s-2) var(--s-4)
-    calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
+  padding: var(--s-2) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
   border-top: 0.5px solid var(--c-separator);
   background: var(--c-bar);
 }
@@ -761,7 +760,7 @@ button.time[aria-checked="true"] {
   height: 26px;
 }
 
-.tab[aria-current="page"] {
+.tab[aria-current='page'] {
   color: var(--c-accent);
 }
 
@@ -897,4 +896,51 @@ button.time[aria-checked="true"] {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ===== Посещения блока: пронумерованные клетки 1…N ===== */
+
+.visits {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+}
+
+.visit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--c-hint);
+  background: var(--c-fill);
+}
+
+.visit strong {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.visit.attended {
+  color: var(--c-success);
+  background: color-mix(in srgb, var(--c-success) 14%, transparent);
+}
+
+.visit.missed_charged {
+  color: var(--c-warning);
+  background: color-mix(in srgb, var(--c-warning) 14%, transparent);
+}
+
+.visit.free strong {
+  color: var(--c-hint);
+}
+
+button.visit:active {
+  opacity: 0.7;
 }
