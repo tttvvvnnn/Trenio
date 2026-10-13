@@ -4,6 +4,7 @@ import { fetchMe, loginWithTelegram, type Me, type Trainer } from './api'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
+import { EmptyState } from './ui/kit'
 
 type State =
   | { kind: 'loading' }
@@ -32,37 +33,31 @@ export default function App() {
     )
   }
 
-  return <main className="screen">{render(state, setTrainer)}</main>
+  const withTabbar = state.kind === 'ready' && state.me.trainer?.onboarded_at != null
+  return <main className={withTabbar ? 'app with-tabbar' : 'app'}>{render(state, setTrainer)}</main>
 }
 
 function render(state: State, setTrainer: (trainer: Trainer) => void) {
   switch (state.kind) {
     case 'loading':
-      return <p className="hint">Загрузка…</p>
+      return <p className="centered">Загрузка…</p>
     case 'outside-telegram':
-      return <p className="hint">Откройте Trenio из Telegram через кнопку в боте.</p>
+      return <p className="centered">Откройте Trenio из Telegram через кнопку в боте.</p>
     case 'error':
-      return <p className="hint">Не удалось войти: {state.message}</p>
+      return <p className="centered">Не удалось войти: {state.message}</p>
     case 'ready': {
       const { me } = state
       if (me.trainer === null) {
         return (
-          <>
-            <h1>Привет, {me.first_name}!</h1>
-            <p className="hint">Скоро здесь можно будет записаться к тренеру.</p>
-          </>
+          <EmptyState
+            icon="calendar"
+            title={`Привет, ${me.first_name}!`}
+            text="Скоро здесь можно будет записаться к тренеру."
+          />
         )
       }
       if (me.trainer.onboarded_at === null) {
-        return (
-          <>
-            <h1>Добро пожаловать в Trenio!</h1>
-            <p className="hint">
-              Пара вопросов, чтобы настроить профиль. Всё можно поменять позже во вкладке «Профиль».
-            </p>
-            <ProfileForm trainer={me.trainer} onboarding onSaved={setTrainer} />
-          </>
-        )
+        return <ProfileForm trainer={me.trainer} onboarding onSaved={setTrainer} />
       }
       return <TrainerHome trainer={me.trainer} onTrainerChange={setTrainer} />
     }
