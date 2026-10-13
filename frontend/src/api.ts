@@ -260,3 +260,40 @@ export function createMyBooking(booking: {
 export function cancelMyBooking(id: number): Promise<Booking> {
   return send<Booking>('POST', `/api/client/bookings/${id}/cancel`)
 }
+
+// --- Записи и клиенты тренера ---
+
+export type Client = Person & {
+  // Когда клиент впервые открыл ссылку тренера
+  since: string
+}
+
+export function fetchTrainerBookings(days = 14): Promise<Booking[]> {
+  return request<Booking[]>(`/api/trainer/bookings?days=${days}`)
+}
+
+export function fetchPendingBookings(): Promise<Booking[]> {
+  return request<Booking[]>('/api/trainer/bookings/pending')
+}
+
+export function createTrainerBooking(booking: {
+  client_id: number
+  service_id: number
+  starts_at: string
+}): Promise<Booking> {
+  return send<Booking>('POST', '/api/trainer/bookings', booking)
+}
+
+export type BookingAction = 'confirm' | 'decline' | 'cancel'
+
+export function changeTrainerBooking(id: number, action: BookingAction): Promise<Booking> {
+  return send<Booking>('POST', `/api/trainer/bookings/${id}/${action}`)
+}
+
+export function fetchClients(): Promise<Client[]> {
+  return request<Client[]>('/api/trainer/clients')
+}
+
+export function fetchInviteLink(): Promise<string> {
+  return request<{ url: string }>('/api/trainer/invite-link').then(({ url }) => url)
+}

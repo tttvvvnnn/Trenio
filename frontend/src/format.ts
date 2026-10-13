@@ -145,3 +145,8 @@ export const BOOKING_STATUS: Record<BookingStatus, string> = {
   declined: 'Отклонена',
   cancelled: 'Отменена',
 }
+
+// "Анна Петрова"
+export function fullName(person: { first_name: string; last_name: string | null }): string {
+  return [person.first_name, person.last_name].filter(Boolean).join(' ')
+}
