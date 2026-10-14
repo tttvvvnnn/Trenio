@@ -64,7 +64,7 @@ export function Row({
       {chevron && <Icon name="chevronRight" className="row-chevron" />}
     </>
   )
-  const className = ['row', icon && 'with-icon', tone, centered && 'centered']
+  const className = ['row', icon && 'with-icon', tone, centered && 'row-centered']
     .filter(Boolean)
     .join(' ')
   return (
