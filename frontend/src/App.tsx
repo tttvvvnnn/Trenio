@@ -100,6 +100,7 @@ function render(
       return (
         <TrainerHome
           trainer={me.trainer}
+          isAdmin={me.is_admin}
           onTrainerChange={setTrainer}
           onSwitchToClient={me.is_client ? () => setClientMode(true) : undefined}
         />

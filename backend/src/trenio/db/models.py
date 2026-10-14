@@ -56,6 +56,8 @@ class User(TimestampMixin, Base):
     avatar_telegram_id: Mapped[str | None] = mapped_column(String(64))
     # Когда последний раз спрашивали фото у Telegram
     avatar_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Когда человек последний раз открывал Mini App: для активности в админ-панели
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class UserAvatar(Base):

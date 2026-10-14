@@ -15,6 +15,7 @@ from enum import StrEnum
 from fastapi import APIRouter, FastAPI
 
 from trenio.api.routes import (
+    admin,
     auth,
     avatars,
     bookings,
@@ -96,6 +97,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
         api.include_router(client.router)
         api.include_router(packages.router)
         api.include_router(finance.router)
+        api.include_router(admin.router)
         app.include_router(api)
     if Component.BOT in components and settings.bot_mode is BotMode.WEBHOOK:
         app.include_router(bot_webhook.router)

@@ -39,6 +39,8 @@ type Props = {
   onSaved: (trainer: Trainer) => void
   // Услуги и шаблоны блоков: отдельный экран
   onOpenServices?: () => void
+  // Есть только у админа
+  onOpenAdmin?: () => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
 }
@@ -53,6 +55,7 @@ export default function ProfileForm({
   onboarding = false,
   onSaved,
   onOpenServices,
+  onOpenAdmin,
   onSwitchToClient,
 }: Props) {
   const [displayName, setDisplayName] = useState(trainer.display_name)
@@ -214,6 +217,16 @@ export default function ProfileForm({
               </select>
             )}
           </InlineField>
+        </Section>
+      )}
+      {!onboarding && onOpenAdmin && (
+        <Section footer="Видите только вы: тренеры, клиенты и общие цифры платформы.">
+          <Row
+            title="Админ-панель"
+            icon={{ name: 'users', color: 'var(--c-planned)' }}
+            chevron
+            onClick={onOpenAdmin}
+          />
         </Section>
       )}
       {!onboarding && onOpenServices && (
