@@ -13,8 +13,6 @@ import BookingDays, { Named } from '../ui/BookingDays'
 import CancelScreen from '../ui/CancelScreen'
 import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
-import MyPhoto from '../ui/MyPhoto'
-import ReminderSettings from '../ui/ReminderSettings'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
@@ -125,8 +123,6 @@ export default function MyBookings({ onBook }: Props) {
               )}
             />
           )}
-          {bookings !== null && <MyPhoto variant="section" />}
-          {bookings !== null && <ReminderSettings role="client" />}
         </>
       )}
       {tab === 'history' && (

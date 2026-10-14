@@ -9,18 +9,20 @@ import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import NextSession from '../ui/NextSession'
-import { RulesGate, RulesScreen } from '../ui/Rules'
+import { RulesGate } from '../ui/Rules'
 import Screen from '../ui/Screen'
 import BookTrainer from './BookTrainer'
+import ClientProfile from './ClientProfile'
 import MyBookings from './MyBookings'
 import MyPackages from './MyPackages'
 
-type Tab = 'book' | 'bookings' | 'packages'
+type Tab = 'book' | 'bookings' | 'packages' | 'profile'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['book', 'Запись', 'calendar'],
   ['bookings', 'Мои записи', 'list'],
   ['packages', 'Блоки', 'ticket'],
+  ['profile', 'Профиль', 'user'],
 ]
 
 type Props = {
@@ -34,7 +36,6 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
   // Выбранный тренер, когда их несколько
   const [opened, setOpened] = useState<ClientTrainer | null>(null)
   const [booked, setBooked] = useState<Booking | null>(null)
-  const [rulesOf, setRulesOf] = useState<ClientTrainer | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Ближайшее занятие для карточки наверху вкладки «Запись»
   const [next, setNext] = useState<Booking | null>(null)
@@ -79,7 +80,6 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
       />
     )
   }
-  const withRules = trainers?.filter((trainer) => trainer.rules) ?? []
 
   return (
     <>
@@ -93,32 +93,11 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
           onBooked={onBooked}
         />
       )}
-      {tab === 'book' && withRules.length > 0 && (
-        <Section>
-          {withRules.map((trainer) => (
-            <Row
-              key={trainer.id}
-              title="Правила занятий"
-              subtitle={(trainers?.length ?? 0) > 1 ? trainer.display_name : undefined}
-              icon={{ name: 'list', color: 'var(--c-warning)' }}
-              chevron
-              onClick={() => setRulesOf(trainer)}
-            />
-          ))}
-        </Section>
-      )}
       {tab === 'bookings' && <MyBookings onBook={() => open('book')} />}
-      {onSwitchToTrainer && tab !== 'packages' && (
-        <Section footer="Ваше расписание и клиенты остаются в профиле тренера.">
-          <Row
-            title="Профиль тренера"
-            icon={{ name: 'user', color: 'var(--c-violet)' }}
-            chevron
-            onClick={onSwitchToTrainer}
-          />
-        </Section>
-      )}
       {tab === 'packages' && <MyPackages />}
+      {tab === 'profile' && (
+        <ClientProfile trainers={trainers} onSwitchToTrainer={onSwitchToTrainer} />
+      )}
       {opened && (
         <Screen
           title={opened.display_name}
@@ -129,7 +108,6 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
           <BookTrainer trainer={opened} onBooked={onBooked} />
         </Screen>
       )}
-      {rulesOf && <RulesScreen trainer={rulesOf} onBack={() => setRulesOf(null)} />}
       {booked && (
         <BookedScreen
           booking={booked}
