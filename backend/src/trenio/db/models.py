@@ -40,8 +40,14 @@ class User(TimestampMixin, Base):
     # Внутренний id; telegram_id лишь один из способов входа (потом появятся телефон и т.п.)
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
+    # Имя, которое видят другие: из Telegram или своё, если человек его поменял
     first_name: Mapped[str] = mapped_column(String(128))
     last_name: Mapped[str | None] = mapped_column(String(128))
+    # True — имя задано в профиле, Telegram его больше не перезаписывает
+    name_custom: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # Имя из Telegram на последний вход: к нему возвращаемся, если своё сбросили
+    telegram_first_name: Mapped[str | None] = mapped_column(String(128))
+    telegram_last_name: Mapped[str | None] = mapped_column(String(128))
     username: Mapped[str | None] = mapped_column(String(64))
     language_code: Mapped[str | None] = mapped_column(String(16))
     # Фото: telegram — берём из Telegram и обновляем, custom — человек загрузил своё,
