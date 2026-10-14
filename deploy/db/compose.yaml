@@ -21,6 +21,11 @@ services:
       timeout: 3s
       retries: 5
     mem_limit: 256m
+    # Логи в journald, как у остальных контейнеров Trenio: journalctl -t trenio-postgres
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
 
 networks:
   trenio-db:

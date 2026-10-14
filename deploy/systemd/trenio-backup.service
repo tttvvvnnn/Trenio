@@ -1,0 +1,10 @@
+# Один запуск бэкапа prod базы. Запускает его trenio-backup.timer.
+# Лог: journalctl -u trenio-backup
+[Unit]
+Description=Trenio: бэкап prod базы
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/trenio/bin/backup.sh

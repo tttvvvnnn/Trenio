@@ -1,0 +1,12 @@
+# Каждый день в 03:30 по времени сервера.
+# Persistent: если сервер был выключен в 03:30, бэкап сделается сразу после включения
+[Unit]
+Description=Trenio: ежедневный бэкап prod базы
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
