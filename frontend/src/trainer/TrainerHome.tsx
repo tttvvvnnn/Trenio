@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Trainer } from '../api'
 import { haptic } from '../telegram'
 import Icon, { type IconName } from '../ui/icons'
+import AdminPanel from '../admin/AdminPanel'
 import Screen from '../ui/Screen'
 import Calendar from './Calendar'
 import Clients from './Clients'
@@ -23,15 +24,23 @@ type Tab = 'calendar' | 'clients' | 'schedule' | 'finance' | 'profile'
 
 type Props = {
   trainer: Trainer
+  // Админу в Профиле доступна админ-панель
+  isAdmin?: boolean
   onTrainerChange: (trainer: Trainer) => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
 }
 
-export default function TrainerHome({ trainer, onTrainerChange, onSwitchToClient }: Props) {
+export default function TrainerHome({
+  trainer,
+  isAdmin = false,
+  onTrainerChange,
+  onSwitchToClient,
+}: Props) {
   const [tab, setTab] = useState<Tab>('calendar')
   // Услуги и шаблоны блоков открываются из Профиля
   const [services, setServices] = useState(false)
+  const [admin, setAdmin] = useState(false)
 
   function open(next: Tab) {
     if (next !== tab) haptic.select()
@@ -52,6 +61,7 @@ export default function TrainerHome({ trainer, onTrainerChange, onSwitchToClient
           trainer={trainer}
           onSaved={onTrainerChange}
           onOpenServices={() => setServices(true)}
+          onOpenAdmin={isAdmin ? () => setAdmin(true) : undefined}
           onSwitchToClient={onSwitchToClient}
         />
       )}
@@ -64,6 +74,7 @@ export default function TrainerHome({ trainer, onTrainerChange, onSwitchToClient
           <Services embedded />
         </Screen>
       )}
+      {tab === 'profile' && admin && <AdminPanel onBack={() => setAdmin(false)} />}
       <nav className="tabbar" aria-label="Разделы">
         {TABS.map(([value, title, icon]) => (
           <button

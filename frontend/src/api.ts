@@ -766,3 +766,79 @@ export function fetchFinanceMonth(month: string): Promise<FinanceMonth> {
 export function fetchFinanceForecast(): Promise<FinanceForecast> {
   return request<FinanceForecast>('/api/trainer/finance/forecast')
 }
+
+// --- Админ-панель ---
+
+export type AdminOverview = {
+  users: number
+  users_seen_week: number
+  trainers: number
+  trainers_active: number
+  trainers_disabled: number
+  clients: number
+  clients_new_week: number
+  bookings_week: number
+  attended_week: number
+  upcoming_week: number
+  invites_open: number
+  notifications_sent_day: number
+  notifications_failed_day: number
+  version: string
+  // Понедельник недели и сколько пришло
+  weeks: { start: string; new_clients: number; new_trainers: number }[]
+  funnel: {
+    trainers: number
+    onboarded: number
+    set_up: number
+    with_clients: number
+    with_bookings: number
+  }
+  // Деньги всей платформы за текущий месяц, без разбивки по тренерам
+  money: {
+    month: string
+    received: number
+    received_prev: number
+    packages_sold: number
+    packages_amount: number
+  }
+}
+
+export type AdminTrainerState = 'active' | 'quiet' | 'not_set_up' | 'disabled'
+
+export type AdminTrainer = {
+  id: number
+  display_name: string
+  avatar_url: string | null
+  user: Person
+  state: AdminTrainerState
+  is_admin: boolean
+  since: string
+  timezone: string
+  clients: number
+  clients_new_week: number
+  bookings_month: number
+  attended_month: number
+  services: number
+  last_booking_at: string | null
+  last_seen_at: string | null
+}
+
+export function fetchAdminOverview(): Promise<AdminOverview> {
+  return request<AdminOverview>('/api/admin/overview')
+}
+
+export function fetchAdminTrainers(): Promise<AdminTrainer[]> {
+  return request<AdminTrainer[]>('/api/admin/trainers')
+}
+
+export function setTrainerActive(id: number, active: boolean): Promise<void> {
+  return send<void>('POST', `/api/admin/trainers/${id}/active`, { active })
+}
+
+export function createTrainerInvite(): Promise<{ url: string; expires_at: string }> {
+  return send<{ url: string; expires_at: string }>('POST', '/api/admin/invites')
+}
+
+export function fetchOpenInvites(): Promise<{ created_at: string; expires_at: string }[]> {
+  return request<{ created_at: string; expires_at: string }[]>('/api/admin/invites')
+}

@@ -36,6 +36,8 @@ async def login_telegram(
     except InitDataError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверные данные Telegram") from None
     user = await upsert_telegram_user(session, tg_user)
+    user.last_seen_at = datetime.now(UTC)
+    await session.commit()
     await ensure_admin_is_trainer(session, user, settings.admin_telegram_ids)
     # Фото из Telegram подтягиваем после ответа, чтобы не задерживать открытие Mini App
     tasks.add_task(avatars.refresh_in_background, user.id, datetime.now(UTC))

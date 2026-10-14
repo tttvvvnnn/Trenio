@@ -13,6 +13,7 @@ import {
   mountMiniAppSync,
   mountSwipeBehavior,
   mountThemeParamsSync,
+  openTelegramLink,
   popup,
   retrieveRawInitData,
   setMiniAppBackgroundColor,
@@ -157,4 +158,13 @@ export function shareLink(url: string, text: string): void {
   }
   const params = new URLSearchParams({ url, text })
   window.open(`https://t.me/share/url?${params}`, '_blank')
+}
+
+/** Открыть ссылку t.me внутри Telegram: чат с человеком или ботом. */
+export function openTelegram(url: string): void {
+  if (openTelegramLink.isAvailable()) {
+    openTelegramLink(url)
+    return
+  }
+  window.open(url, '_blank')
 }
