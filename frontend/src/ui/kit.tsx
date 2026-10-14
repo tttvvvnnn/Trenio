@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react'
 
 import { haptic } from '../telegram'
+import { BrandWordmark } from './BrandMark'
 import Icon, { type IconName } from './icons'
 
 type SectionProps = {
@@ -387,11 +388,14 @@ export function ErrorText({ children }: { children: ReactNode }) {
 type PageHeaderProps = {
   title: string
   subtitle?: ReactNode
+  // Надпись trenio над заголовком: на главном экране
+  brand?: boolean
 }
 
-export function PageHeader({ title, subtitle }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, brand = false }: PageHeaderProps) {
   return (
     <header className="page-header">
+      {brand && <BrandWordmark height={20} />}
       <h1>{title}</h1>
       {subtitle && <p>{subtitle}</p>}
     </header>

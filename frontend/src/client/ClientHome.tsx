@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMyTrainers, type Booking, type ClientTrainer } from '../api'
+import { fetchMyBookings, fetchMyTrainers, type Booking, type ClientTrainer } from '../api'
+import { nextBooking } from '../calendar'
 import { dateTime } from '../format'
 import { haptic } from '../telegram'
 import Icon, { type IconName } from '../ui/icons'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
+import NextSession from '../ui/NextSession'
 import { RulesGate, RulesScreen } from '../ui/Rules'
 import Screen from '../ui/Screen'
 import BookTrainer from './BookTrainer'
@@ -33,12 +35,21 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
   const [booked, setBooked] = useState<Booking | null>(null)
   const [rulesOf, setRulesOf] = useState<ClientTrainer | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Ближайшее занятие для карточки наверху вкладки «Запись»
+  const [next, setNext] = useState<Booking | null>(null)
 
   useEffect(() => {
     fetchMyTrainers()
       .then(setTrainers)
       .catch((err: unknown) => setError(String(err)))
   }, [])
+
+  useEffect(() => {
+    // Карточка необязательная: если не загрузилась, просто не показываем
+    fetchMyBookings()
+      .then((items) => setNext(nextBooking(items, new Date())))
+      .catch(() => setNext(null))
+  }, [booked])
 
   function open(next: Tab) {
     if (next !== tab) haptic.select()
@@ -72,7 +83,14 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
   return (
     <>
       {tab === 'book' && (
-        <BookTab trainers={trainers} error={error} onOpen={setOpened} onBooked={onBooked} />
+        <BookTab
+          trainers={trainers}
+          error={error}
+          next={next}
+          onNext={() => open('bookings')}
+          onOpen={setOpened}
+          onBooked={onBooked}
+        />
       )}
       {tab === 'book' && withRules.length > 0 && (
         <Section>
@@ -140,15 +158,26 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
 type BookTabProps = {
   trainers: ClientTrainer[] | null
   error: string | null
+  next: Booking | null
+  onNext: () => void
   onOpen: (trainer: ClientTrainer) => void
   onBooked: (booking: Booking) => void
 }
 
-function BookTab({ trainers, error, onOpen, onBooked }: BookTabProps) {
+function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabProps) {
+  const nextCard = next && (
+    <NextSession
+      booking={next}
+      viewer="client"
+      timezone={next.trainer.timezone}
+      now={new Date()}
+      onOpen={onNext}
+    />
+  )
   if (trainers === null) {
     return (
       <>
-        <PageHeader title="Запись" />
+        <PageHeader title="Запись" brand />
         {error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />}
       </>
     )
@@ -167,14 +196,16 @@ function BookTab({ trainers, error, onOpen, onBooked }: BookTabProps) {
     const [trainer] = trainers
     return (
       <>
-        <PageHeader title={trainer.display_name} subtitle={trainer.address ?? undefined} />
+        <PageHeader title={trainer.display_name} subtitle={trainer.address ?? undefined} brand />
+        {nextCard}
         <BookTrainer trainer={trainer} onBooked={onBooked} />
       </>
     )
   }
   return (
     <>
-      <PageHeader title="Запись" subtitle="Выберите тренера." />
+      <PageHeader title="Запись" subtitle="Выберите тренера." brand />
+      {nextCard}
       <Section>
         {trainers.map((trainer) => (
           <Row

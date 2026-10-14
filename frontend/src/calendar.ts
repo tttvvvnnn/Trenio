@@ -66,3 +66,14 @@ export function clientTone(booking: Booking, now: Date): Tone {
   if (new Date(booking.starts_at) <= now) return 'missed'
   return 'planned'
 }
+
+/** Ближайшая запись, которая ещё не закончилась: идущая сейчас или следующая. */
+export function nextBooking(items: Booking[], now: Date): Booking | null {
+  return (
+    items
+      .filter(
+        (b) => (b.status === 'confirmed' || b.status === 'pending') && new Date(b.ends_at) > now,
+      )
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0] ?? null
+  )
+}
