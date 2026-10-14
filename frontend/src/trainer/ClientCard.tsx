@@ -15,6 +15,7 @@ import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
 import { BookingBadge } from '../ui/MonthCalendar'
 import BookingDetails from './BookingDetails'
+import NewBooking from './NewBooking'
 import PackageDetails from './PackageDetails'
 import SellPackage from './SellPackage'
 
@@ -35,6 +36,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
   const [openedPackage, setOpenedPackage] = useState<number | null>(null)
   const [selling, setSelling] = useState(false)
   const [openedBooking, setOpenedBooking] = useState<Booking | null>(null)
+  const [booking, setBooking] = useState(false)
   const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
@@ -138,7 +140,10 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
               </p>
             )}
           </section>
-          {upcoming.length > 0 && <Section title="Ближайшие">{upcoming.map(bookingRow)}</Section>}
+          <Section title="Ближайшие">
+            {upcoming.map(bookingRow)}
+            <AddRow title="Записать на занятие" onClick={() => setBooking(true)} />
+          </Section>
           {past.length > 0 && <Section title="История">{past.map(bookingRow)}</Section>}
         </>
       )}
@@ -163,6 +168,17 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
           onSold={(sold) => {
             setSelling(false)
             setOpenedPackage(sold.id)
+            reload()
+          }}
+        />
+      )}
+      {booking && (
+        <NewBooking
+          timezone={timezone}
+          client={client}
+          onBack={() => setBooking(false)}
+          onBooked={() => {
+            setBooking(false)
             reload()
           }}
         />

@@ -29,6 +29,8 @@ class Kind(StrEnum):
     BOOKING_DECLINED = "booking_declined"
     # Клиенту: тренер отменил запись
     TRAINER_CANCELLED = "trainer_cancelled"
+    # Второй стороне: запись перенесли, payload: by, from и to (время до и после, ISO)
+    BOOKING_RESCHEDULED = "booking_rescheduled"
     # Напоминание о занятии клиенту или тренеру, payload: role и offset
     REMINDER = "reminder"
     # Тренеру после занятия: отметьте, прошло ли оно
@@ -101,15 +103,26 @@ async def _enqueue(
 
 
 async def _event(
-    session: AsyncSession, kind: Kind, booking: Booking, user_id: int, now: datetime
+    session: AsyncSession,
+    kind: Kind,
+    booking: Booking,
+    user_id: int,
+    now: datetime,
+    *,
+    repeatable: bool = False,
+    payload: dict[str, Any] | None = None,
 ) -> None:
+    # Повторяемое событие (перенос, подтверждение после переноса) может случиться с записью
+    # не раз: ключ отличаем временем события
+    suffix = f":{now.timestamp():.0f}" if repeatable else ""
     await _enqueue(
         session,
         user_id=user_id,
         kind=kind,
-        dedup_key=f"{kind.value}:{booking.id}",
+        dedup_key=f"{kind.value}:{booking.id}{suffix}",
         send_at=now,
         booking_id=booking.id,
+        payload=payload,
     )
 
 
@@ -131,7 +144,8 @@ async def booking_created(session: AsyncSession, booking: Booking, now: datetime
 
 
 async def booking_confirmed(session: AsyncSession, booking: Booking, now: datetime) -> None:
-    await _event(session, Kind.BOOKING_CONFIRMED, booking, booking.client_id, now)
+    # Перенесённую клиентом запись тренер подтверждает ещё раз
+    await _event(session, Kind.BOOKING_CONFIRMED, booking, booking.client_id, now, repeatable=True)
     await schedule_reminders(session, booking, now)
 
 
@@ -149,6 +163,34 @@ async def booking_cancelled(
     else:
         await _event(session, Kind.TRAINER_CANCELLED, booking, booking.client_id, now)
     await drop_upcoming(session, booking.id)
+
+
+async def booking_rescheduled(
+    session: AsyncSession, booking: Booking, by: Role, previous: datetime, now: datetime
+) -> None:
+    """Перенос: сообщить второй стороне и поставить напоминания под новое время."""
+    if by is Role.CLIENT:
+        user_id = await _trainer_user_id(session, booking)
+    else:
+        user_id = booking.client_id
+    payload = {
+        "by": by.value,
+        "from": previous.isoformat(),
+        "to": booking.starts_at.isoformat(),
+    }
+    await _event(
+        session, Kind.BOOKING_RESCHEDULED, booking, user_id, now, repeatable=True, payload=payload
+    )
+    # Напоминания о прежнем времени, даже уже отправленные, больше ни о чём: убираем их,
+    # иначе ключи дедупликации не дадут поставить напоминания о новом времени
+    await session.execute(
+        delete(Notification).where(
+            Notification.booking_id == booking.id, Notification.kind == Kind.REMINDER
+        )
+    )
+    await drop_upcoming(session, booking.id)
+    if booking.status == "confirmed":
+        await schedule_reminders(session, booking, now)
 
 
 async def drop_upcoming(session: AsyncSession, booking_id: int) -> None:

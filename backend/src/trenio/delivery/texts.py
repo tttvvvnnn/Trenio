@@ -92,6 +92,53 @@ def _session_line(booking: Booking) -> str:
     return f"{booking.service.name} · {when(booking.starts_at, booking.trainer.timezone)}"
 
 
+def _comment(comment: str | None) -> str | None:
+    return f"Комментарий: {comment}" if comment else None
+
+
+def _confirm_buttons(booking: Booking) -> list[list[Button]]:
+    return [
+        [
+            action("Подтвердить", Action.CONFIRM, booking),
+            action("Отклонить", Action.DECLINE, booking),
+        ]
+    ]
+
+
+def _rescheduled(booking: Booking, row: Notification, now: datetime) -> OutMessage | None:
+    # Запись отменили или успели перенести ещё раз: о новом переносе придёт своё сообщение
+    if booking.status not in ACTIVE_BOOKING_STATUSES:
+        return None
+    if datetime.fromisoformat(row.payload["to"]) != booking.starts_at:
+        return None
+    timezone = booking.trainer.timezone
+    times = (
+        f"Было: {when(datetime.fromisoformat(row.payload['from']), timezone)}",
+        f"Стало: {when(booking.starts_at, timezone)}",
+    )
+    comment = _comment(booking.reschedule_comment)
+    if Role(row.payload["by"]) is Role.CLIENT:
+        pending = booking.status == "pending"
+        text = _lines(
+            f"🔁 {person(booking.client)} перенёс(ла) запись"
+            + (", ждёт подтверждения" if pending else ""),
+            booking.service.name,
+            *times,
+            comment,
+        )
+        if pending and booking.starts_at > now:
+            return OutMessage(text, _confirm_buttons(booking) + open_app())
+        return OutMessage(text, open_app())
+    text = _lines(
+        f"🔁 Тренер {booking.trainer.display_name} перенёс запись",
+        booking.service.name,
+        *times,
+        address(booking),
+        comment,
+    )
+    return OutMessage(text, client_cancel(booking, now) + open_app())
+
+
 async def _superseded(session: AsyncSession, row: Notification, now: datetime) -> bool:
     """Есть более позднее напоминание о том же занятии, которому тоже пора.
 
@@ -204,13 +251,7 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _session_line(booking),
             )
             if pending and booking.starts_at > now:
-                buttons = [
-                    [
-                        action("Подтвердить", Action.CONFIRM, booking),
-                        action("Отклонить", Action.DECLINE, booking),
-                    ]
-                ]
-                return OutMessage(text, buttons + open_app())
+                return OutMessage(text, _confirm_buttons(booking) + open_app())
         case Kind.TRAINER_BOOKED:
             if not active:
                 return None
@@ -228,14 +269,25 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _session_line(booking),
                 address(booking),
             )
+        case Kind.BOOKING_RESCHEDULED:
+            return _rescheduled(booking, row, now)
         case Kind.BOOKING_DECLINED:
             text = _lines(
                 f"Тренер {trainer} не сможет провести занятие в это время",
                 _session_line(booking),
+                _comment(booking.cancel_comment),
                 "Выберите другое окошко в приложении.",
             )
         case Kind.CLIENT_CANCELLED:
-            text = _lines(f"❌ {client} отменил(а) запись", _session_line(booking))
+            text = _lines(
+                f"❌ {client} отменил(а) запись",
+                _session_line(booking),
+                _comment(booking.cancel_comment),
+            )
         case Kind.TRAINER_CANCELLED:
-            text = _lines(f"❌ Тренер {trainer} отменил запись", _session_line(booking))
+            text = _lines(
+                f"❌ Тренер {trainer} отменил запись",
+                _session_line(booking),
+                _comment(booking.cancel_comment),
+            )
     return OutMessage(text, open_app())

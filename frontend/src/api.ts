@@ -123,12 +123,18 @@ export type Booking = {
   ends_at: string
   created_by: 'client' | 'trainer'
   cancelled_by: 'client' | 'trainer' | null
+  // Комментарий того, кто отменил или отклонил
+  cancel_comment: string | null
+  // Последний перенос: прежнее время, кто перенёс и комментарий
+  rescheduled_from: string | null
+  rescheduled_by: 'client' | 'trainer' | null
+  reschedule_comment: string | null
   service: { id: number; name: string; duration_min: number; capacity: number }
   trainer: { id: number; display_name: string; timezone: string }
   client: Person
   // Адрес услуги или, если его нет, адрес тренера
   address: string | null
-  // Может ли тот, кто смотрит, отменить запись прямо сейчас
+  // Может ли тот, кто смотрит, отменить или перенести запись прямо сейчас
   can_cancel: boolean
   // До какого момента клиент отменяет сам
   cancel_deadline: string
@@ -296,9 +302,18 @@ export function copyWeek(day: string, weeks: number): Promise<void> {
   return send<void>('POST', '/api/trainer/schedule/days/copy-week', { day, weeks })
 }
 
-export function fetchSlots(days = 14, from?: string): Promise<Slot[]> {
-  const start = from ? `&from=${from}` : ''
-  return request<Slot[]>(`/api/trainer/slots?days=${days}${start}`)
+// serviceId — только окошки этой услуги; reschedule — переносимая запись, её время тоже свободно
+export function fetchSlots(
+  days = 14,
+  from?: string,
+  serviceId?: number,
+  reschedule?: number,
+): Promise<Slot[]> {
+  const params = new URLSearchParams({ days: String(days) })
+  if (from) params.set('from', from)
+  if (serviceId !== undefined) params.set('service_id', String(serviceId))
+  if (reschedule !== undefined) params.set('reschedule', String(reschedule))
+  return request<Slot[]>(`/api/trainer/slots?${params}`)
 }
 
 // --- Клиент ---
@@ -320,11 +335,12 @@ export function fetchTrainerSlots(
   serviceId: number,
   days = 14,
   from?: string,
+  reschedule?: number,
 ): Promise<Slot[]> {
-  const start = from ? `&from=${from}` : ''
-  return request<Slot[]>(
-    `/api/client/trainers/${trainerId}/slots?service_id=${serviceId}&days=${days}${start}`,
-  )
+  const params = new URLSearchParams({ service_id: String(serviceId), days: String(days) })
+  if (from) params.set('from', from)
+  if (reschedule !== undefined) params.set('reschedule', String(reschedule))
+  return request<Slot[]>(`/api/client/trainers/${trainerId}/slots?${params}`)
 }
 
 export function fetchMyBookings(): Promise<Booking[]> {
@@ -350,8 +366,19 @@ export function createMyBooking(booking: {
   return send<Booking>('POST', '/api/client/bookings', booking)
 }
 
-export function cancelMyBooking(id: number): Promise<Booking> {
-  return send<Booking>('POST', `/api/client/bookings/${id}/cancel`)
+export function cancelMyBooking(id: number, comment?: string): Promise<Booking> {
+  return send<Booking>('POST', `/api/client/bookings/${id}/cancel`, { comment: comment || null })
+}
+
+export function rescheduleMyBooking(
+  id: number,
+  startsAt: string,
+  comment?: string,
+): Promise<Booking> {
+  return send<Booking>('POST', `/api/client/bookings/${id}/reschedule`, {
+    starts_at: startsAt,
+    comment: comment || null,
+  })
 }
 
 // --- Записи и клиенты тренера ---
@@ -392,8 +419,26 @@ export function createTrainerBooking(booking: {
 
 export type BookingAction = 'confirm' | 'decline' | 'cancel'
 
-export function changeTrainerBooking(id: number, action: BookingAction): Promise<Booking> {
-  return send<Booking>('POST', `/api/trainer/bookings/${id}/${action}`)
+// comment — для отмены и отклонения, необязательный
+export function changeTrainerBooking(
+  id: number,
+  action: BookingAction,
+  comment?: string,
+): Promise<Booking> {
+  return send<Booking>('POST', `/api/trainer/bookings/${id}/${action}`, {
+    comment: comment || null,
+  })
+}
+
+export function rescheduleTrainerBooking(
+  id: number,
+  startsAt: string,
+  comment?: string,
+): Promise<Booking> {
+  return send<Booking>('POST', `/api/trainer/bookings/${id}/reschedule`, {
+    starts_at: startsAt,
+    comment: comment || null,
+  })
 }
 
 export function fetchClients(): Promise<Client[]> {

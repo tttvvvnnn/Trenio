@@ -54,6 +54,31 @@ export function localDate(iso: string | Date, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(iso))
 }
 
+// День YYYY-MM-DD и время HH:MM в часовом поясе тренера -> момент в ISO (UTC)
+export function zonedIso(day: string, time: string, timeZone: string): string {
+  const wall = Date.parse(`${day}T${time}:00Z`)
+  // Смещение пояса узнаём, отформатировав момент в нём; второй проход — на случай перехода
+  // на летнее время между догадкой и ответом
+  let guess = wall
+  for (let pass = 0; pass < 2; pass++) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).formatToParts(new Date(guess))
+    const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '00'
+    const shown = Date.parse(
+      `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:00Z`,
+    )
+    guess += wall - shown
+  }
+  return new Date(guess).toISOString()
+}
+
 export function localTime(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat('ru-RU', { timeZone, hour: '2-digit', minute: '2-digit' }).format(
     new Date(iso),
@@ -146,6 +171,19 @@ export const BOOKING_STATUS: Record<BookingStatus, string> = {
   cancelled: 'Отменена',
 }
 
+// «Клиент перенёс с пн, 7 января, 10:00» — с точки зрения того, кто смотрит
+export function rescheduleNote(booking: Booking, viewer: 'client' | 'trainer'): string | null {
+  if (!booking.rescheduled_from || !booking.rescheduled_by) return null
+  const from = dateTime(booking.rescheduled_from, booking.trainer.timezone)
+  const who =
+    booking.rescheduled_by === viewer
+      ? 'Вы перенесли'
+      : booking.rescheduled_by === 'client'
+        ? 'Клиент перенёс'
+        : 'Тренер перенёс'
+  return `${who} с ${from}`
+}
+
 // "Анна Петрова"
 export function fullName(person: { first_name: string; last_name: string | null }): string {
   return [person.first_name, person.last_name].filter(Boolean).join(' ')
@@ -200,6 +238,7 @@ export function bookingNote(booking: Booking, now = new Date()): string {
   else if (booking.status === 'cancelled') parts.push('отменена')
   else if (booking.status === 'declined') parts.push('отклонена')
   else if (new Date(booking.starts_at) <= now) parts.push('не отмечена')
+  else if (booking.rescheduled_from) parts.push('перенесена')
   const charge = booking.charge ?? booking.planned
   if (charge) {
     parts.push(`занятие ${charge.number} из ${charge.sessions_count}`)

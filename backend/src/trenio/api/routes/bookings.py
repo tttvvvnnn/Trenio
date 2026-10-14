@@ -6,7 +6,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import AwareDatetime, BaseModel
+from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.api.deps import CurrentTrainer, SessionDep
@@ -29,9 +29,15 @@ _ERRORS = {
     BookingError.ALREADY_BOOKED: (409, "На это время уже есть запись."),
     BookingError.NOT_CLIENT: (403, "Сначала нужно перейти по ссылке тренера."),
     BookingError.SERVICE_NOT_FOUND: (404, "Услуга не найдена."),
-    BookingError.TOO_LATE_TO_CANCEL: (409, "Отменить самому уже поздно. Напишите тренеру."),
+    BookingError.TOO_LATE_TO_CANCEL: (
+        409,
+        "Отменить или перенести самому уже поздно. Напишите тренеру.",
+    ),
     BookingError.STARTED: (409, "Занятие уже началось."),
     BookingError.WRONG_STATUS: (409, "Запись уже отменена или изменена."),
+    BookingError.TRAINER_BUSY: (409, "В это время у вас другое занятие."),
+    BookingError.IN_PAST: (409, "Это время уже прошло."),
+    BookingError.SAME_TIME: (409, "Запись уже стоит на это время."),
 }
 
 
@@ -86,12 +92,18 @@ class BookingOut(BaseModel):
     ends_at: datetime
     created_by: str
     cancelled_by: str | None
+    # Комментарий того, кто отменил или отклонил
+    cancel_comment: str | None = None
+    # Последний перенос: прежнее время, кто перенёс и комментарий
+    rescheduled_from: datetime | None = None
+    rescheduled_by: str | None = None
+    reschedule_comment: str | None = None
     service: BookingServiceOut
     trainer: BookingTrainerOut
     client: PersonOut
     # Место: адрес услуги, а если его нет — адрес тренера
     address: str | None
-    # Может ли тот, кто смотрит, отменить запись прямо сейчас
+    # Может ли тот, кто смотрит, отменить или перенести запись прямо сейчас
     can_cancel: bool
     # До какого момента клиент отменяет сам
     cancel_deadline: datetime
@@ -124,6 +136,10 @@ class BookingOut(BaseModel):
             ends_at=booking.ends_at,
             created_by=booking.created_by,
             cancelled_by=booking.cancelled_by,
+            cancel_comment=booking.cancel_comment,
+            rescheduled_from=booking.rescheduled_from,
+            rescheduled_by=booking.rescheduled_by,
+            reschedule_comment=booking.reschedule_comment,
             service=BookingServiceOut(
                 id=service.id,
                 name=service.name,
@@ -213,11 +229,22 @@ class TrainerBookingIn(BaseModel):
     starts_at: AwareDatetime
 
 
+class CommentIn(BaseModel):
+    comment: str | None = Field(default=None, max_length=bookings.MAX_COMMENT_LENGTH)
+
+
+class RescheduleIn(CommentIn):
+    starts_at: AwareDatetime
+
+
 @router.post("/bookings", status_code=status.HTTP_201_CREATED)
 async def create_booking(
     body: TrainerBookingIn, trainer: CurrentTrainer, session: SessionDep
 ) -> BookingOut:
-    """Тренер сам записывает своего клиента в свободное окошко. Запись сразу подтверждена."""
+    """Тренер сам записывает своего клиента на любое будущее время, когда сам свободен.
+
+    Запись сразу подтверждена.
+    """
     client = await get_user(session, body.client_id)
     if client is None:
         raise booking_error(BookingRejected(BookingError.NOT_CLIENT))
@@ -265,12 +292,13 @@ async def confirm_booking(
 
 @router.post("/bookings/{booking_id}/decline")
 async def decline_booking(
-    booking_id: int, trainer: CurrentTrainer, session: SessionDep
+    booking_id: int, trainer: CurrentTrainer, session: SessionDep, body: CommentIn | None = None
 ) -> BookingOut:
     booking = await own_booking(session, trainer, booking_id)
     now = datetime.now(UTC)
+    comment = body.comment if body else None
     try:
-        booking = await bookings.decline_booking(session, booking, now)
+        booking = await bookings.decline_booking(session, booking, now, comment)
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
     return await trainer_view(session, booking, now)
@@ -278,12 +306,29 @@ async def decline_booking(
 
 @router.post("/bookings/{booking_id}/cancel")
 async def cancel_booking(
-    booking_id: int, trainer: CurrentTrainer, session: SessionDep
+    booking_id: int, trainer: CurrentTrainer, session: SessionDep, body: CommentIn | None = None
 ) -> BookingOut:
     booking = await own_booking(session, trainer, booking_id)
     now = datetime.now(UTC)
+    comment = body.comment if body else None
     try:
-        booking = await bookings.cancel_booking(session, booking, Actor.TRAINER, now)
+        booking = await bookings.cancel_booking(session, booking, Actor.TRAINER, now, comment)
+    except BookingRejected as rejected:
+        raise booking_error(rejected) from None
+    return await trainer_view(session, booking, now)
+
+
+@router.post("/bookings/{booking_id}/reschedule")
+async def reschedule_booking(
+    booking_id: int, body: RescheduleIn, trainer: CurrentTrainer, session: SessionDep
+) -> BookingOut:
+    """Перенос на любое будущее время, когда тренер свободен. Запись сразу подтверждена."""
+    booking = await own_booking(session, trainer, booking_id)
+    now = datetime.now(UTC)
+    try:
+        booking = await bookings.reschedule_booking(
+            session, booking, body.starts_at.astimezone(UTC), Actor.TRAINER, now, body.comment
+        )
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
     return await trainer_view(session, booking, now)

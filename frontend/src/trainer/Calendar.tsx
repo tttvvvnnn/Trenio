@@ -24,9 +24,10 @@ import { haptic } from '../telegram'
 import { monthDays } from '../calendar'
 import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
 import Screen from '../ui/Screen'
-import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import BookClient from './BookClient'
 import BookingDetails from './BookingDetails'
+import NewBooking from './NewBooking'
 
 // Сколько неотмеченных занятий показываем сразу, остальные — по кнопке
 const UNMARKED_PREVIEW = 3
@@ -59,6 +60,8 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const [selected, setSelected] = useState(today)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [booking, setBooking] = useState<Slot | null>(null)
+  // Новая запись на выбранный день: в окошко или на любое время
+  const [newBooking, setNewBooking] = useState(false)
   const [allUnmarked, setAllUnmarked] = useState(false)
   // Увеличиваем, чтобы перечитать данные после изменений
   const [reloads, setReloads] = useState(0)
@@ -88,6 +91,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     setOpened(null)
     setAllUnmarked(false)
     setBooking(null)
+    setNewBooking(false)
     setReloads((count) => count + 1)
   }
 
@@ -207,6 +211,11 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           ))}
         </div>
       )}
+      {selected >= today && (
+        <div className="group">
+          <AddRow title="Записать клиента" onClick={() => setNewBooking(true)} />
+        </div>
+      )}
       {daySlots.length > 0 && (
         <Section title="Свободно" footer="Нажмите на время, чтобы записать клиента самому.">
           {services
@@ -251,6 +260,14 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       )}
       {opened && (
         <BookingDetails booking={opened} onBack={() => setOpened(null)} onChanged={reload} />
+      )}
+      {newBooking && (
+        <NewBooking
+          timezone={timezone}
+          day={selected}
+          onBack={() => setNewBooking(false)}
+          onBooked={reload}
+        />
       )}
       {booking && (
         <BookClient
