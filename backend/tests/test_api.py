@@ -1,7 +1,11 @@
+from datetime import UTC, datetime, timedelta
+
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import ADMIN_TELEGRAM_ID
 from tests.factories import make_init_data
+from trenio.db.models import Notification, User
 
 
 async def login(client: AsyncClient, init_data: str) -> str:
@@ -18,6 +22,32 @@ async def test_health(client: AsyncClient) -> None:
     assert body["status"] == "ok"
     assert body["database"] == "ok"
     assert body["env"] == "test"
+    assert body["notifications"] == "ok"
+
+
+async def test_health_reports_stuck_notifications(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    # Напоминание должно было уйти час назад: значит, планировщик не работает
+    user = User(telegram_id=5, first_name="Анна")
+    session.add(user)
+    await session.flush()
+    session.add(
+        Notification(
+            user_id=user.id,
+            kind="reminder",
+            dedup_key="health-test",
+            send_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    )
+    await session.commit()
+
+    response = await client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    # Живость не страдает: деплой и монитор доступности смотрят на status
+    assert body["status"] == "ok"
+    assert body["notifications"] == "stuck"
 
 
 async def test_login_and_me(client: AsyncClient) -> None:

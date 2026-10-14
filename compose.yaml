@@ -2,11 +2,19 @@
 # COMPOSE_PROJECT_NAME, TRENIO_TAG, WEB_PORT, DATABASE_URL и секреты.
 # Образы собирает CI, сервер их только скачивает.
 
+# Логи контейнеров идут в journald: переживают пересоздание контейнера при деплое,
+# размер ограничивает сам journald. Читать: journalctl -t <имя контейнера>
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+
 x-backend: &backend
   image: ghcr.io/tttvvvnnn/trenio-backend:${TRENIO_TAG:?TRENIO_TAG не задан в .env}
   env_file: .env
   # default: сеть проекта (web -> backend), trenio-db: общий PostgreSQL
   networks: [default, trenio-db]
+  logging: *logging
 
 services:
   migrate:
@@ -29,6 +37,7 @@ services:
     ports:
       - "127.0.0.1:${WEB_PORT:?WEB_PORT не задан в .env}:80"
     mem_limit: 64m
+    logging: *logging
     depends_on:
       - backend
 
