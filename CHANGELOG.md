@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/tttvvvnnn/Trenio/compare/v0.7.0...v0.8.0) (2026-10-14)
+
+
+### Новое
+
+* ежедневный бэкап базы, логи в journald и очередь уведомлений в /health ([#35](https://github.com/tttvvvnnn/Trenio/issues/35)) ([8ed4793](https://github.com/tttvvvnnn/Trenio/commit/8ed4793735722537ebf67b4b43f40d9d4bc7b4bb))
+
 ## [0.7.0](https://github.com/tttvvvnnn/Trenio/compare/v0.6.0...v0.7.0) (2026-10-13)
 
 
