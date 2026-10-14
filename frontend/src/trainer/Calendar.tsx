@@ -10,18 +10,10 @@ import {
   type Service,
   type Slot,
 } from '../api'
-import {
-  bookingNote,
-  dateTime,
-  dayTitle,
-  duration,
-  fullName,
-  localDate,
-  localTime,
-  plural,
-} from '../format'
+import { bookingNote, dayTitle, duration, fullName, localDate, localTime, plural } from '../format'
 import { haptic } from '../telegram'
 import { monthDays, nextBooking } from '../calendar'
+import { DateLeaf, Named } from '../ui/BookingDays'
 import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
 import { PersonAvatar } from '../ui/Avatar'
 import NextSession from '../ui/NextSession'
@@ -153,9 +145,14 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const unmarkedRow = (item: Booking) => (
     <Row
       key={item.id}
-      title={dateTime(item.starts_at, timezone)}
-      subtitle={`${fullName(item.client)} · ${bookingNote(item)}`}
-      leading={<PersonAvatar person={item.client} />}
+      leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
+      title={
+        <Named
+          avatar={<PersonAvatar person={item.client} size="xs" />}
+          name={fullName(item.client)}
+        />
+      }
+      subtitle={`${localTime(item.starts_at, timezone)} · ${bookingNote(item)}`}
       chevron
       onClick={() => setOpened(item)}
     />
@@ -186,9 +183,14 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           {pending.map((item) => (
             <Row
               key={item.id}
-              title={dateTime(item.starts_at, timezone)}
-              subtitle={`${fullName(item.client)} · ${item.service.name}`}
-              leading={<PersonAvatar person={item.client} />}
+              leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
+              title={
+                <Named
+                  avatar={<PersonAvatar person={item.client} size="xs" />}
+                  name={fullName(item.client)}
+                />
+              }
+              subtitle={`${localTime(item.starts_at, timezone)} · ${item.service.name}`}
               chevron
               onClick={() => setOpened(item)}
             />

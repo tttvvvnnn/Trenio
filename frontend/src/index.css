@@ -1448,3 +1448,88 @@ button.time:active,
 textarea.rules-input {
   min-height: 240px;
 }
+
+/* ===== Записи по дням: листок календаря слева, день — отдельная карточка ===== */
+
+.booking-days {
+  margin-top: var(--s-4);
+}
+
+.booking-days > .group + .group {
+  margin-top: var(--s-2);
+}
+
+.booking-days > .section-title:not(:first-child) {
+  margin-top: var(--s-2);
+}
+
+.date-leaf {
+  display: grid;
+  flex: none;
+  width: 38px;
+  height: 40px;
+  place-content: center;
+  justify-items: center;
+  border-radius: 10px;
+  background: var(--c-tint);
+  line-height: 1.1;
+}
+
+.date-leaf.blank {
+  background: none;
+}
+
+.date-leaf-weekday {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-link);
+}
+
+.date-leaf-day {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.date-leaf.muted {
+  background: var(--c-fill);
+}
+
+.date-leaf.muted .date-leaf-weekday,
+.date-leaf.muted .date-leaf-day {
+  color: var(--c-hint);
+}
+
+/* В строках с листком подзаголовок в одну строку: строка остаётся узкой, подробности по нажатию */
+.row-main:has(> .date-leaf) .row-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Фото перед именем в строке текста: строчное, чтобы длинная строка обрезалась по тексту */
+.named .avatar-xs {
+  --avatar: 18px;
+  display: inline-grid;
+  margin-right: 5px;
+  vertical-align: text-bottom;
+}
+
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-success);
+}
+
+.load-more {
+  display: block;
+  margin: var(--s-3) auto 0;
+  padding: var(--s-2) var(--s-4);
+  border: 0;
+  font-size: 15px;
+  color: var(--c-link);
+  background: none;
+}
