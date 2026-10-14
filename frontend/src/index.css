@@ -1448,3 +1448,176 @@ button.time:active,
 textarea.rules-input {
   min-height: 240px;
 }
+
+/* ===== Финансы ===== */
+
+.finance-switch {
+  margin: var(--s-2) var(--s-4) 0;
+}
+
+.finance-period {
+  margin-top: var(--s-3);
+}
+
+/* Главная сумма: фирменная плашка, как «Следующее занятие» */
+.money-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: var(--s-2) var(--s-4) 0;
+  padding: var(--s-4);
+  border-radius: var(--r-group);
+  color: #fff;
+  background: var(--brand-gradient);
+  box-shadow: var(--brand-shadow);
+}
+
+.money-hero-kicker {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.money-hero-amount {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: var(--s-3) var(--s-4) 0;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s-3);
+  border: 0;
+  border-radius: 18px;
+  text-align: left;
+  color: var(--c-text);
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+  transition: transform 150ms var(--ease);
+}
+
+button.stat-tile:active {
+  transform: scale(0.97);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--c-hint);
+}
+
+.stat-value {
+  font-size: 19px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.stat-note {
+  font-size: 13px;
+  color: var(--c-hint);
+}
+
+.stat-note.warning {
+  color: var(--c-warning);
+}
+
+.bar-chart-card {
+  padding: var(--s-3) var(--s-3) var(--s-2);
+}
+
+.bar-chart {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-1);
+  height: 140px;
+}
+
+.bar-month {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+  padding: 4px 0 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+}
+
+.bar-month[aria-current='true'] {
+  background: var(--c-tint);
+}
+
+.bar-pair {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.bar {
+  width: min(12px, 35%);
+  min-height: 2px;
+  border-radius: 4px 4px 2px 2px;
+}
+
+.bar.received {
+  background: var(--c-accent);
+}
+
+.bar.worked {
+  box-sizing: border-box;
+  border: 1.5px solid var(--c-accent);
+  background: transparent;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: var(--c-hint);
+  text-align: center;
+}
+
+.bar-month[aria-current='true'] .bar-label {
+  font-weight: 600;
+  color: var(--c-link);
+}
+
+.bar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  font-size: 12px;
+  color: var(--c-hint);
+}
+
+.bar-legend i {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+}
+
+.bar-legend i.received {
+  background: var(--c-accent);
+}
+
+.bar-legend i.worked {
+  border: 1.5px solid var(--c-accent);
+}
+
+.bar-max {
+  margin-left: auto;
+}

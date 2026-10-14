@@ -132,7 +132,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
         <EmptyState
           icon="calendar"
           title="Пока нет свободного времени"
-          text="Добавьте услугу и рабочие часы, и окошки появятся здесь."
+          text="Добавьте услугу в Профиле и рабочие часы в Расписании, и окошки появятся здесь."
           action={{ label: 'Настроить расписание', onClick: onGoToSetup }}
         />
       </>

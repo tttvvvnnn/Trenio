@@ -661,3 +661,90 @@ export function fetchMyPackages(): Promise<Package[]> {
 export function mediaUrl(path: string): string {
   return `${API_URL}${path}`
 }
+
+// --- Финансы тренера ---
+
+export type MonthPoint = { month: string; received: number; worked: number }
+
+export type FinanceSummary = {
+  // "2026-10"
+  month: string
+  // Получено: оплаты блоков по датам и разовые занятия
+  received: number
+  received_prev: number
+  incomes_count: number
+  // Отработано: стоимость проведённых и списанных занятий
+  worked: number
+  worked_sessions: number
+  clients: number
+  // Сейчас: долги по блокам и деньги за ещё не отработанные занятия
+  debt: number
+  debt_clients: number
+  advance: number
+  // Оставшиеся в месяце записи и их стоимость
+  planned: number
+  planned_count: number
+  from_packages: number
+  from_one_off: number
+  // Полгода, заканчивая этим месяцем
+  chart: MonthPoint[]
+}
+
+export type FinanceYear = {
+  year: number
+  received: number
+  worked: number
+  worked_sessions: number
+  months: MonthPoint[]
+}
+
+export type FinanceMonth = {
+  month: string
+  incomes: {
+    day: string
+    client: Person
+    kind: 'payment' | 'one_off'
+    label: string
+    amount: number
+  }[]
+  clients: { client: Person; received: number; worked: number; sessions: number }[]
+}
+
+export type FinanceForecast = {
+  days: number
+  total: number
+  one_off: number
+  one_off_count: number
+  dues: {
+    client: Person
+    package_id: number
+    package_name: string
+    price: number
+    paid: number
+    due: number
+  }[]
+  renewals: {
+    client: Person
+    package_id: number
+    package_name: string
+    sessions_count: number
+    left: number
+    price: number
+  }[]
+}
+
+export function fetchFinanceSummary(month: string): Promise<FinanceSummary> {
+  return request<FinanceSummary>(`/api/trainer/finance/summary?month=${month}`)
+}
+
+export function fetchFinanceYear(year: number): Promise<FinanceYear> {
+  return request<FinanceYear>(`/api/trainer/finance/year?year=${year}`)
+}
+
+export function fetchFinanceMonth(month: string): Promise<FinanceMonth> {
+  return request<FinanceMonth>(`/api/trainer/finance/month?month=${month}`)
+}
+
+export function fetchFinanceForecast(): Promise<FinanceForecast> {
+  return request<FinanceForecast>('/api/trainer/finance/forecast')
+}

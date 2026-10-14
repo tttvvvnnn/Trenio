@@ -20,7 +20,12 @@ import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import PackageTemplates from './PackageTemplates'
 
-export default function Services() {
+type Props = {
+  // Внутри экрана Профиля: заголовок уже есть у экрана
+  embedded?: boolean
+}
+
+export default function Services({ embedded = false }: Props) {
   const [services, setServices] = useState<Service[] | null>(null)
   // null — форма закрыта, 'new' — новая услуга, иначе редактируем эту
   const [editing, setEditing] = useState<Service | 'new' | null>(null)
@@ -57,7 +62,7 @@ export default function Services() {
 
   return (
     <>
-      <PageHeader title="Услуги" subtitle="На них клиенты записываются в окошки." />
+      {!embedded && <PageHeader title="Услуги" subtitle="На них клиенты записываются в окошки." />}
       {services === null && !error && <SkeletonList />}
       {error && <ErrorText>{error}</ErrorText>}
       {services !== null && (

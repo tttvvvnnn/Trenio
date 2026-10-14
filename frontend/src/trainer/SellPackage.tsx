@@ -105,7 +105,7 @@ export default function SellPackage({ clientId, clientName, timezone, onBack, on
       {templates !== null && (
         <>
           {templates.length > 0 && (
-            <Section title="Шаблон" footer="Шаблоны настраиваются во вкладке «Услуги».">
+            <Section title="Шаблон" footer="Шаблоны настраиваются в Профиле, в «Услугах и блоках».">
               <Chips
                 label="Шаблон"
                 value={template}

@@ -85,7 +85,7 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
         <EmptyState
           icon="list"
           title="Пока нет услуг"
-          text="Добавьте услугу во вкладке «Услуги», и можно будет записывать клиентов."
+          text="Добавьте услугу в Профиле, в «Услугах и блоках», и можно будет записывать клиентов."
         />
       )}
       {clients !== null && clients.length === 0 && (
