@@ -5,6 +5,7 @@ import { nextBooking } from '../calendar'
 import { dateTime } from '../format'
 import { haptic } from '../telegram'
 import Icon, { type IconName } from '../ui/icons'
+import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import NextSession from '../ui/NextSession'
@@ -122,6 +123,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
         <Screen
           title={opened.display_name}
           subtitle={opened.address ?? undefined}
+          avatar={<TrainerAvatar trainer={opened} size="md" />}
           onBack={() => setOpened(null)}
         >
           <BookTrainer trainer={opened} onBooked={onBooked} />
@@ -196,7 +198,12 @@ function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabPro
     const [trainer] = trainers
     return (
       <>
-        <PageHeader title={trainer.display_name} subtitle={trainer.address ?? undefined} brand />
+        <PageHeader
+          title={trainer.display_name}
+          subtitle={trainer.address ?? undefined}
+          leading={<TrainerAvatar trainer={trainer} size="md" />}
+          brand
+        />
         {nextCard}
         <BookTrainer trainer={trainer} onBooked={onBooked} />
       </>
@@ -212,7 +219,7 @@ function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabPro
             key={trainer.id}
             title={trainer.display_name}
             subtitle={trainer.address ?? undefined}
-            icon={{ name: 'user', color: 'var(--c-accent)' }}
+            leading={<TrainerAvatar trainer={trainer} />}
             chevron
             onClick={() => onOpen(trainer)}
           />

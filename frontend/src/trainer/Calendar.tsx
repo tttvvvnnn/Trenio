@@ -23,6 +23,7 @@ import {
 import { haptic } from '../telegram'
 import { monthDays, nextBooking } from '../calendar'
 import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
+import { PersonAvatar } from '../ui/Avatar'
 import NextSession from '../ui/NextSession'
 import Screen from '../ui/Screen'
 import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
@@ -154,7 +155,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       key={item.id}
       title={dateTime(item.starts_at, timezone)}
       subtitle={`${fullName(item.client)} · ${bookingNote(item)}`}
-      icon={{ name: 'check', color: 'var(--c-violet)' }}
+      leading={<PersonAvatar person={item.client} />}
       chevron
       onClick={() => setOpened(item)}
     />
@@ -171,6 +172,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           viewer="trainer"
           timezone={timezone}
           now={now}
+          together={upcoming.filter(
+            (item) =>
+              isActive(item) &&
+              item.starts_at === next.starts_at &&
+              item.service.id === next.service.id,
+          )}
           onOpen={() => setOpened(next)}
         />
       )}
@@ -181,7 +188,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
               key={item.id}
               title={dateTime(item.starts_at, timezone)}
               subtitle={`${fullName(item.client)} · ${item.service.name}`}
-              icon={{ name: 'clock', color: 'var(--c-warning)' }}
+              leading={<PersonAvatar person={item.client} />}
               chevron
               onClick={() => setOpened(item)}
             />
@@ -225,6 +232,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
               key={item.id}
               title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
               subtitle={bookingNote(item, now)}
+              leading={<PersonAvatar person={item.client} />}
               tone={isActive(item) || item.attendance ? undefined : 'muted'}
               onClick={() => setOpened(item)}
               badge={<BookingBadge booking={item} now={now} />}

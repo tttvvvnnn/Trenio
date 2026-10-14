@@ -13,6 +13,7 @@ import {
   SwitchRow,
   TextField,
 } from '../ui/kit'
+import MyPhoto from '../ui/MyPhoto'
 import { MainButton } from '../ui/native'
 import ReminderSettings from '../ui/ReminderSettings'
 import RulesEditor from './RulesEditor'
@@ -43,15 +44,6 @@ type Props = {
 // 795 -> "13:15"
 function clock(minutes: number): string {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join('')
 }
 
 export default function ProfileForm({
@@ -122,13 +114,12 @@ export default function ProfileForm({
           subtitle="Пара вопросов, чтобы настроить профиль. Всё можно поменять позже в «Профиле»."
         />
       ) : (
-        <div className="hero">
-          <div className="avatar" aria-hidden="true">
-            {initials(displayName || trainer.display_name)}
-          </div>
-          <strong>{displayName.trim() || trainer.display_name}</strong>
-          <span>Так вас видят клиенты</span>
-        </div>
+        <MyPhoto
+          variant="hero"
+          name={displayName.trim() || trainer.display_name}
+          seed={trainer.id}
+          caption="Так вас видят клиенты"
+        />
       )}
       <TextField
         label="Имя, которое увидят клиенты"

@@ -25,6 +25,8 @@ type RowProps = {
   subtitle?: ReactNode
   // Иконка на цветной плашке слева, цвет — CSS-значение
   icon?: { name: IconName; color: string }
+  // Своё содержимое слева вместо иконки: фото человека
+  leading?: ReactNode
   value?: ReactNode
   // Бейдж или галочка справа внутри нажимаемой области
   badge?: ReactNode
@@ -41,6 +43,7 @@ export function Row({
   title,
   subtitle,
   icon,
+  leading,
   value,
   badge,
   after,
@@ -51,6 +54,7 @@ export function Row({
 }: RowProps) {
   const content = (
     <>
+      {leading}
       {icon && (
         <span className="row-icon" style={{ background: icon.color }}>
           <Icon name={icon.name} />
@@ -65,7 +69,13 @@ export function Row({
       {chevron && <Icon name="chevronRight" className="row-chevron" />}
     </>
   )
-  const className = ['row', icon && 'with-icon', tone, centered && 'row-centered']
+  const className = [
+    'row',
+    icon && 'with-icon',
+    leading && 'with-leading',
+    tone,
+    centered && 'row-centered',
+  ]
     .filter(Boolean)
     .join(' ')
   return (
@@ -390,14 +400,28 @@ type PageHeaderProps = {
   subtitle?: ReactNode
   // Надпись trenio над заголовком: на главном экране
   brand?: boolean
+  // Фото слева от заголовка: на экране человека
+  leading?: ReactNode
 }
 
-export function PageHeader({ title, subtitle, brand = false }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, brand = false, leading }: PageHeaderProps) {
+  const text = (
+    <>
+      <h1>{title}</h1>
+      {subtitle && <p>{subtitle}</p>}
+    </>
+  )
   return (
     <header className="page-header">
       {brand && <BrandWordmark height={20} />}
-      <h1>{title}</h1>
-      {subtitle && <p>{subtitle}</p>}
+      {leading ? (
+        <div className="page-header-row">
+          {leading}
+          <div>{text}</div>
+        </div>
+      ) : (
+        text
+      )}
     </header>
   )
 }

@@ -11,7 +11,7 @@ from trenio.api.deps import CurrentUser, SessionDep
 from trenio.api.routes.bookings import BookingOut, CommentIn, RescheduleIn, booking_error
 from trenio.api.routes.schedule import MAX_SLOT_DAYS, ServiceOut, SlotOut
 from trenio.db.models import Booking, Trainer, TrainerClient, User
-from trenio.services import bookings, schedule
+from trenio.services import avatars, bookings, schedule
 from trenio.services.bookings import Actor, BookingRejected
 from trenio.services.clients import accept_rules, get_my_link, get_my_trainer, list_my_links
 
@@ -32,6 +32,7 @@ class ClientTrainerOut(BaseModel):
     rules: str | None
     # Правила нужно прочитать и принять, прежде чем записываться
     rules_pending: bool
+    avatar_url: str | None = None
 
     @classmethod
     def of(cls, link: TrainerClient) -> "ClientTrainerOut":
@@ -45,6 +46,7 @@ class ClientTrainerOut(BaseModel):
             cancel_hours=trainer.cancel_hours,
             rules=trainer.rules,
             rules_pending=link.rules_pending,
+            avatar_url=avatars.avatar_url(trainer.user),
         )
 
 

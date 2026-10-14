@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     SmallInteger,
     String,
     Table,
@@ -32,6 +33,9 @@ DEFAULT_TIMEZONE = "Europe/Moscow"
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("avatar_mode IN ('telegram', 'custom', 'none')", name="avatar_mode"),
+    )
 
     # Внутренний id; telegram_id лишь один из способов входа (потом появятся телефон и т.п.)
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -40,6 +44,30 @@ class User(TimestampMixin, Base):
     last_name: Mapped[str | None] = mapped_column(String(128))
     username: Mapped[str | None] = mapped_column(String(64))
     language_code: Mapped[str | None] = mapped_column(String(16))
+    # Фото: telegram — берём из Telegram и обновляем, custom — человек загрузил своё,
+    # none — убрал фото, показываем инициалы
+    avatar_mode: Mapped[str] = mapped_column(
+        String(16), default="telegram", server_default="telegram"
+    )
+    # Случайный ключ в адресе картинки /api/avatars/<ключ>: меняется с каждым новым фото,
+    # поэтому картинку можно кэшировать навсегда. None — фото нет
+    avatar_key: Mapped[str | None] = mapped_column(String(32), unique=True)
+    # file_unique_id фото в Telegram: если не поменялось, заново не скачиваем
+    avatar_telegram_id: Mapped[str | None] = mapped_column(String(64))
+    # Когда последний раз спрашивали фото у Telegram
+    avatar_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class UserAvatar(Base):
+    """Сама картинка, отдельно от users: users читается почти в каждом запросе."""
+
+    __tablename__ = "user_avatars"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # JPEG до 512 КБ; обычно 15–40 КБ
+    data: Mapped[bytes] = mapped_column(LargeBinary)
 
 
 class Trainer(TimestampMixin, Base):
