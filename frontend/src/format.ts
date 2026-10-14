@@ -233,7 +233,12 @@ export function sessionsLeft(left: number): string {
 
 // "Персональная · прошла · занятие 3 из 10" — запись в истории клиента и в списках тренера
 export function bookingNote(booking: Booking, now = new Date()): string {
-  const parts = [booking.service.name]
+  return [booking.service.name, ...bookingState(booking, now)].join(' · ')
+}
+
+// "прошла", "занятие 3 из 10" — то же без названия услуги, для строк с листком календаря
+export function bookingState(booking: Booking, now = new Date()): string[] {
+  const parts: string[] = []
   if (booking.attendance) parts.push(ATTENDANCE_SHORT[booking.attendance])
   else if (booking.status === 'cancelled') parts.push('отменена')
   else if (booking.status === 'declined') parts.push('отклонена')
@@ -245,7 +250,7 @@ export function bookingNote(booking: Booking, now = new Date()): string {
   } else if (booking.one_off && booking.attendance) {
     parts.push('разовая')
   }
-  return parts.join(' · ')
+  return parts
 }
 
 // "пройдено 3 из 10 · внесено 10 000 ₽ из 20 000 ₽"

@@ -380,6 +380,11 @@ export function fetchMyBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/client/bookings')
 }
 
+// Прошедшие, отменённые и отклонённые записи, новые сверху; before — id последней загруженной
+export function fetchMyHistory(before?: number): Promise<Booking[]> {
+  return request<Booking[]>(`/api/client/bookings/history${before ? `?before=${before}` : ''}`)
+}
+
 // Все свои записи у тренера за период, включая прошедшие: для календаря
 export function fetchMyBookingsFor(
   trainerId: number,
