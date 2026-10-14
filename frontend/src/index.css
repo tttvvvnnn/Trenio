@@ -193,6 +193,12 @@ button {
   text-wrap: balance;
 }
 
+.page-header .brand-wordmark {
+  display: block;
+  margin-bottom: var(--s-3);
+  color: var(--c-text);
+}
+
 .page-header p {
   margin: var(--s-1) 0 0;
   font-size: 14px;
@@ -218,6 +224,57 @@ button {
   }
 }
 
+/* ===== Ближайшее занятие: фирменная карточка наверху главного экрана ===== */
+
+.next-session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  box-sizing: border-box;
+  width: calc(100% - 2 * var(--s-4));
+  margin: var(--s-2) var(--s-4) 0;
+  padding: var(--s-4);
+  border: 0;
+  border-radius: var(--r-group);
+  text-align: left;
+  color: #fff;
+  /* Тёмный край градиента нужен для контраста белого текста */
+  background: linear-gradient(135deg, #ff6a40, #e5421e 55%, #c93514);
+  box-shadow: 0 10px 24px -10px rgba(201, 53, 20, 0.6);
+  transition: transform 150ms var(--ease);
+}
+
+.next-session:active {
+  transform: scale(0.98);
+}
+
+.next-session-kicker {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.next-session-title {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.next-session-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--s-1);
+}
+
+.next-session-pills span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
 /* ===== Секции и строки, как в настройках Telegram ===== */
 
 .section {
@@ -227,10 +284,8 @@ button {
 .section-title {
   margin: 0;
   padding: var(--s-2) calc(var(--s-4) + var(--s-4)) var(--s-2);
-  font-size: 13px;
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--c-section-header);
 }
 

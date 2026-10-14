@@ -21,8 +21,9 @@ import {
   plural,
 } from '../format'
 import { haptic } from '../telegram'
-import { monthDays } from '../calendar'
+import { monthDays, nextBooking } from '../calendar'
 import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
+import NextSession from '../ui/NextSession'
 import Screen from '../ui/Screen'
 import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import BookClient from './BookClient'
@@ -31,6 +32,8 @@ import NewBooking from './NewBooking'
 
 // Сколько неотмеченных занятий показываем сразу, остальные — по кнопке
 const UNMARKED_PREVIEW = 3
+// На сколько дней вперёд ищем ближайшее занятие для карточки наверху
+const UPCOMING_DAYS = 14
 
 type Props = {
   timezone: string
@@ -41,6 +44,7 @@ type Data = {
   services: Service[]
   pending: Booking[]
   unmarked: Booking[]
+  upcoming: Booking[]
 }
 
 function isActive(booking: Booking): boolean {
@@ -67,8 +71,15 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
-    Promise.all([fetchServices(), fetchPendingBookings(), fetchUnmarkedBookings()])
-      .then(([services, pending, unmarked]) => setData({ services, pending, unmarked }))
+    Promise.all([
+      fetchServices(),
+      fetchPendingBookings(),
+      fetchUnmarkedBookings(),
+      fetchTrainerBookings(UPCOMING_DAYS),
+    ])
+      .then(([services, pending, unmarked, upcoming]) =>
+        setData({ services, pending, unmarked, upcoming }),
+      )
       .catch((err: unknown) => setError(String(err)))
   }, [reloads])
 
@@ -101,7 +112,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     setSelected(next.slice(0, 7) === today.slice(0, 7) ? today : next)
   }
 
-  const header = <PageHeader title="Записи" />
+  const header = <PageHeader title="Записи" brand />
 
   if (data === null) {
     return (
@@ -112,7 +123,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     )
   }
 
-  const { services, pending, unmarked } = data
+  const { services, pending, unmarked, upcoming } = data
   if (services.length === 0) {
     return (
       <>
@@ -134,6 +145,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     bookingsByDay.set(day, [...(bookingsByDay.get(day) ?? []), item])
   }
   const now = new Date()
+  const next = nextBooking(upcoming, now)
   const daySlots = slots?.day === selected && selected >= today ? slots.items : []
   const dayBookings = bookingsByDay.get(selected) ?? []
   const loadingMonth = monthBookings?.month !== month
@@ -153,6 +165,15 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     <>
       {header}
       {error && <ErrorText>{error}</ErrorText>}
+      {next && (
+        <NextSession
+          booking={next}
+          viewer="trainer"
+          timezone={timezone}
+          now={now}
+          onOpen={() => setOpened(next)}
+        />
+      )}
       {pending.length > 0 && (
         <Section title="Ждут подтверждения">
           {pending.map((item) => (
