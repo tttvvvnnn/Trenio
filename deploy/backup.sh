@@ -5,7 +5,7 @@
 # 1. pg_dump trenio_prod в /opt/trenio/backups/daily, храним KEEP_LOCAL последних
 # 2. проверка, что файл читается (pg_restore --list)
 # 3. копия вне сервера: файл, зашифрованный gpg, prod-бот присылает в чат админа
-# 4. пинг healthchecks.io: не было пинга сутки или пришёл /fail — придёт алерт
+# 4. пинг push-монитора Uptime Kuma: не было пинга сутки или пришёл down — придёт алерт
 #
 # Вручную: sudo /opt/trenio/bin/backup.sh
 set -euo pipefail
@@ -20,23 +20,23 @@ PASS_FILE=/opt/trenio/bin/backup.pass
 # Бот может отправить файл не больше 50 МБ
 TG_LIMIT_BYTES=$((50 * 1024 * 1024))
 
-# То, чего нет в репозитории (чат админа, адрес пинга), лежит на сервере
+# То, чего нет в репозитории (чат админа, адрес push-монитора), лежит на сервере
 CONF=/opt/trenio/bin/backup.env
 if [[ -f "$CONF" ]]; then
   source "$CONF"
 fi
 TG_CHAT_ID="${TG_CHAT_ID:-}"   # твой Telegram ID
-HC_URL="${HC_URL:-}"           # https://hc-ping.com/<uuid>
+PUSH_URL="${PUSH_URL:-}"       # http://127.0.0.1:3001/api/push/<токен монитора>
 
-ping_hc() {
-  if [[ -n "$HC_URL" ]]; then
-    curl -fsS -m 10 --retry 3 "$HC_URL$1" > /dev/null || true
+# push up|down "сообщение": отметка в push-мониторе Uptime Kuma
+push() {
+  if [[ -n "$PUSH_URL" ]]; then
+    curl -fsS -m 10 --retry 3 -G "$PUSH_URL" \
+      --data-urlencode "status=$1" --data-urlencode "msg=$2" > /dev/null || true
   fi
 }
-# Любая упавшая команда: сразу сообщаем healthchecks, алерт придёт не через сутки, а сейчас
-trap 'ping_hc /fail' ERR
-
-ping_hc /start
+# Любая упавшая команда: сразу сообщаем Kuma, алерт придёт не через сутки, а сейчас
+trap 'push down "бэкап упал на строке $LINENO"' ERR
 
 # В дампе персональные данные клиентов: каталог только для root
 install -d -m 700 "$DIR"
@@ -75,5 +75,5 @@ if [[ -n "$TG_CHAT_ID" ]]; then
   rm -f "$FILE.gpg"
 fi
 
-ping_hc ""
+push up "OK, $SIZE"
 echo "==> готово"

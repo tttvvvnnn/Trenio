@@ -1,0 +1,28 @@
+# Uptime Kuma: свой мониторинг Trenio без внешних сервисов.
+# Проверяет /health dev и prod, принимает «пульс» ночного бэкапа и шлёт алерты в Telegram.
+# На сервере: /opt/monitoring/compose.yaml, запуск: docker compose up -d
+#
+# Веб-интерфейс слушает только 127.0.0.1:3001 и снаружи не виден.
+# Заходи через SSH-туннель: ssh -L 3001:127.0.0.1:3001 <сервер>, затем http://localhost:3001
+name: monitoring
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    # Чтобы проверять порты Trenio на хосте напрямую: http://host.docker.internal:8081/health
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - kuma-data:/app/data
+    mem_limit: 256m
+    logging:
+      driver: journald
+      options:
+        tag: "{{.Name}}"
+
+volumes:
+  kuma-data:
