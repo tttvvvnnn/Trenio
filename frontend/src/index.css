@@ -33,6 +33,9 @@
   --c-accent: #e5421e;
   --c-on-accent: #ffffff;
   --c-link: #d63f1c;
+  /* Фирменная заливка карточек и плашек; тёмный край нужен для контраста белого текста */
+  --brand-gradient: linear-gradient(135deg, #ff6a40, #e5421e 55%, #c93514);
+  --brand-shadow: 0 10px 24px -10px rgba(201, 53, 20, 0.6);
   --c-destructive: var(--tg-theme-destructive-text-color, var(--fb-destructive));
   --c-separator: var(--tg-theme-section-separator-color, var(--fb-separator));
   /* Не из темы: статусы и плашки иконок одинаковы в обеих темах */
@@ -238,9 +241,8 @@ button {
   border-radius: var(--r-group);
   text-align: left;
   color: #fff;
-  /* Тёмный край градиента нужен для контраста белого текста */
-  background: linear-gradient(135deg, #ff6a40, #e5421e 55%, #c93514);
-  box-shadow: 0 10px 24px -10px rgba(201, 53, 20, 0.6);
+  background: var(--brand-gradient);
+  box-shadow: var(--brand-shadow);
   transition: transform 150ms var(--ease);
 }
 
@@ -630,17 +632,18 @@ input[type='time'].row-input {
 .segmented {
   display: flex;
   margin: var(--s-2) var(--s-4) 0;
-  padding: 2px;
-  border-radius: 9px;
-  background: var(--c-fill);
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
 }
 
 .segmented button {
   flex: 1;
-  min-height: 32px;
+  min-height: 34px;
   padding: 0 var(--s-2);
   border: 0;
-  border-radius: 7px;
+  border-radius: 999px;
   font-size: 14px;
   background: none;
   transition: background-color 150ms var(--ease);
@@ -732,6 +735,28 @@ button.time[aria-checked='true'] {
   gap: var(--s-3);
 }
 
+/* ===== Отклик на нажатие: кнопки чуть сжимаются ===== */
+
+.button,
+.chip,
+button.time,
+.month-arrow,
+.tab,
+.segmented button {
+  transition-property: transform, background-color, color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease);
+}
+
+.button:active:not(:disabled),
+.chip:active,
+button.time:active,
+.month-arrow:active,
+.tab:active,
+.segmented button:active {
+  transform: scale(0.95);
+}
+
 /* ===== Кнопки ===== */
 
 .button {
@@ -742,7 +767,6 @@ button.time[aria-checked='true'] {
   font-weight: 600;
   color: var(--c-on-accent);
   background: var(--c-accent);
-  transition: opacity 120ms var(--ease);
 }
 
 .button:active {
@@ -818,9 +842,6 @@ button.time[aria-checked='true'] {
   font-weight: 500;
   color: var(--c-hint);
   background: none;
-  transition:
-    background-color 200ms var(--ease),
-    color 200ms var(--ease);
 }
 
 .tab .icon {
@@ -880,13 +901,14 @@ button.time[aria-checked='true'] {
 
 .empty-icon {
   display: grid;
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   margin-bottom: var(--s-2);
   place-items: center;
-  border-radius: 50%;
-  color: var(--c-link);
-  background: var(--c-tint);
+  border-radius: 24px;
+  color: #fff;
+  background: var(--brand-gradient);
+  box-shadow: var(--brand-shadow);
 }
 
 .empty-icon .icon {
@@ -980,7 +1002,8 @@ button.time[aria-checked='true'] {
   font-size: 26px;
   font-weight: 600;
   color: var(--c-on-accent);
-  background: var(--c-accent);
+  background: var(--brand-gradient);
+  box-shadow: var(--brand-shadow);
 }
 
 .hero strong {
