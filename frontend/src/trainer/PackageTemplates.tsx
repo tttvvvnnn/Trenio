@@ -18,7 +18,7 @@ type Props = {
   services: Service[]
 }
 
-/** Шаблоны блоков во вкладке «Услуги»: «10 персональных за 20 000». */
+/** Шаблоны блоков в «Услугах и блоках» Профиля: «10 персональных за 20 000». */
 export default function PackageTemplates({ services }: Props) {
   const [templates, setTemplates] = useState<PackageTemplate[] | null>(null)
   const [editing, setEditing] = useState<PackageTemplate | 'new' | null>(null)

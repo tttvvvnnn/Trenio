@@ -37,6 +37,8 @@ type Props = {
   // Онбординг: короткая форма и подсказки для первого входа
   onboarding?: boolean
   onSaved: (trainer: Trainer) => void
+  // Услуги и шаблоны блоков: отдельный экран
+  onOpenServices?: () => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
 }
@@ -50,6 +52,7 @@ export default function ProfileForm({
   trainer,
   onboarding = false,
   onSaved,
+  onOpenServices,
   onSwitchToClient,
 }: Props) {
   const [displayName, setDisplayName] = useState(trainer.display_name)
@@ -211,6 +214,16 @@ export default function ProfileForm({
               </select>
             )}
           </InlineField>
+        </Section>
+      )}
+      {!onboarding && onOpenServices && (
+        <Section footer="На услуги клиенты записываются, шаблоны блоков помогают их продавать.">
+          <Row
+            title="Услуги и блоки"
+            icon={{ name: 'ticket', color: 'var(--c-violet)' }}
+            chevron
+            onClick={onOpenServices}
+          />
         </Section>
       )}
       {!onboarding && (
