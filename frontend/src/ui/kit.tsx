@@ -31,6 +31,8 @@ type RowProps = {
   after?: ReactNode
   chevron?: boolean
   tone?: 'muted' | 'accent' | 'destructive'
+  // Текст по центру, как у кнопки-действия
+  centered?: boolean
   onClick?: () => void
 }
 
@@ -43,6 +45,7 @@ export function Row({
   after,
   chevron,
   tone,
+  centered,
   onClick,
 }: RowProps) {
   const content = (
@@ -61,7 +64,9 @@ export function Row({
       {chevron && <Icon name="chevronRight" className="row-chevron" />}
     </>
   )
-  const className = ['row', icon && 'with-icon', tone].filter(Boolean).join(' ')
+  const className = ['row', icon && 'with-icon', tone, centered && 'centered']
+    .filter(Boolean)
+    .join(' ')
   return (
     <div className={className}>
       {onClick ? (

@@ -161,7 +161,7 @@ function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
       </Section>
       {booking.can_cancel && (
         <Section>
-          <Row title="Перенести" tone="accent" onClick={() => setStep('reschedule')} />
+          <Row title="Перенести" tone="accent" centered onClick={() => setStep('reschedule')} />
           <Row title="Отменить запись" tone="destructive" onClick={() => setStep('cancel')} />
         </Section>
       )}
