@@ -290,11 +290,16 @@ button.row-main:active {
 }
 
 .row.destructive .row-main {
-  justify-content: center;
   color: var(--c-destructive);
 }
 
-.row.destructive .row-text {
+.row.destructive .row-main,
+.row.centered .row-main {
+  justify-content: center;
+}
+
+.row.destructive .row-text,
+.row.centered .row-text {
   text-align: center;
 }
 

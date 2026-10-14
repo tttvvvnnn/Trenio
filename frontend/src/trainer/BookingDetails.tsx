@@ -148,6 +148,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           <Row
             title="Перенести"
             tone="accent"
+            centered
             onClick={busy ? undefined : () => setStep('reschedule')}
           />
           <Row
