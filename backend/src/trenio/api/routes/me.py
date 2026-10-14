@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
 from trenio.api.routes.trainer import TrainerOut
 from trenio.db.models import User
-from trenio.services import avatars, notifications
+from trenio.services import avatars, notifications, users
 from trenio.services.clients import list_my_trainers
 from trenio.services.notifications import Role
 from trenio.services.trainers import get_active_trainer, is_admin
@@ -20,6 +20,8 @@ class MeOut(BaseModel):
     first_name: str
     last_name: str | None
     username: str | None
+    # True — имя задано в профиле, а не взято из Telegram
+    name_custom: bool
     # Адрес фото; null — фото нет, показываем инициалы
     avatar_url: str | None
     # telegram — фото из Telegram, custom — загружено своё, none — убрано
@@ -40,6 +42,7 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         first_name=user.first_name,
         last_name=user.last_name,
         username=user.username,
+        name_custom=user.name_custom,
         avatar_url=avatars.avatar_url(user),
         avatar_mode=user.avatar_mode,
         is_trainer=trainer is not None,
@@ -47,6 +50,43 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         is_client=bool(await list_my_trainers(session, user)),
         trainer=TrainerOut.of(trainer) if trainer is not None else None,
     )
+
+
+# --- Имя ---
+
+
+class NameIn(BaseModel):
+    first_name: Annotated[str, Field(min_length=1, max_length=128)]
+    last_name: Annotated[str | None, Field(max_length=128)] = None
+
+
+class NameOut(BaseModel):
+    first_name: str
+    last_name: str | None
+    name_custom: bool
+
+    @classmethod
+    def of(cls, user: User) -> "NameOut":
+        return cls(
+            first_name=user.first_name, last_name=user.last_name, name_custom=user.name_custom
+        )
+
+
+@router.put("/me/name")
+async def set_name(body: NameIn, user: CurrentUser, session: SessionDep) -> NameOut:
+    """Своё имя, которое видят тренеры вместо имени из Telegram."""
+    first_name = body.first_name.strip()
+    if not first_name:
+        raise HTTPException(422, "Укажите имя")
+    await users.set_name(session, user, first_name, (body.last_name or "").strip() or None)
+    return NameOut.of(user)
+
+
+@router.delete("/me/name")
+async def reset_name(user: CurrentUser, session: SessionDep) -> NameOut:
+    """Вернуть имя из Telegram."""
+    await users.reset_name(session, user)
+    return NameOut.of(user)
 
 
 # --- Фото ---

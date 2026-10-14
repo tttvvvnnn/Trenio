@@ -25,6 +25,8 @@ export type Me = {
   first_name: string
   last_name: string | null
   username: string | null
+  // true — имя задано в профиле, а не взято из Telegram
+  name_custom: boolean
   // Адрес фото; null — фото нет, показываем инициалы
   avatar_url: string | null
   avatar_mode: AvatarMode
@@ -230,6 +232,17 @@ export async function loginWithTelegram(initData: string): Promise<void> {
 
 export function fetchMe(): Promise<Me> {
   return request<Me>('/api/me')
+}
+
+export type MyName = { first_name: string; last_name: string | null; name_custom: boolean }
+
+// Своё имя, которое видит тренер; Telegram его больше не перезаписывает
+export function saveMyName(firstName: string, lastName: string | null): Promise<MyName> {
+  return send<MyName>('PUT', '/api/me/name', { first_name: firstName, last_name: lastName })
+}
+
+export function resetMyName(): Promise<MyName> {
+  return send<MyName>('DELETE', '/api/me/name')
 }
 
 export type AvatarState = { avatar_url: string | null; avatar_mode: AvatarMode }
