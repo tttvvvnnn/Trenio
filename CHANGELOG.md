@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0](https://github.com/tttvvvnnn/Trenio/compare/v0.8.0...v0.9.0) (2026-10-14)
+
+
+### Новое
+
+* **miniapp:** надпись trenio в шапке и карточка ближайшего занятия ([#44](https://github.com/tttvvvnnn/Trenio/issues/44)) ([3d0a6b2](https://github.com/tttvvvnnn/Trenio/commit/3d0a6b21854667dcae02af3217d16fbcd5d2e2dc))
+* **miniapp:** фирменное стекло — фон со свечением, прозрачные карточки и плавающая панель вкладок ([#43](https://github.com/tttvvvnnn/Trenio/issues/43)) ([9a4f1d0](https://github.com/tttvvvnnn/Trenio/commit/9a4f1d08b5b1dfc8603bd32c0c8eea887132ba3f))
+* **miniapp:** фирменные пустые экраны, стеклянные переключатели и отклик на нажатия ([#45](https://github.com/tttvvvnnn/Trenio/issues/45)) ([5034a93](https://github.com/tttvvvnnn/Trenio/commit/5034a936660539cdc8496604fb791e56688851c2))
+* админ-панель — общая статистика платформы, тренеры и приглашения ([#50](https://github.com/tttvvvnnn/Trenio/issues/50)) ([feca137](https://github.com/tttvvvnnn/Trenio/commit/feca137836c2d677d48971b80da006e07c7ef4b6))
+* вкладка «Профиль» у клиента: фото, имя для тренера, тренеры ([#49](https://github.com/tttvvvnnn/Trenio/issues/49)) ([1eaebf6](https://github.com/tttvvvnnn/Trenio/commit/1eaebf6262f8ca3bff3df3323699921d353930b1))
+* записи с листком календаря и история для клиента ([#47](https://github.com/tttvvvnnn/Trenio/issues/47)) ([01dc170](https://github.com/tttvvvnnn/Trenio/commit/01dc1706cc0cb6f0a48b7a1c88ad1a3e3c192446))
+* перенос записи, комментарий к отмене и запись клиента тренером в любое время ([#39](https://github.com/tttvvvnnn/Trenio/issues/39)) ([127d60f](https://github.com/tttvvvnnn/Trenio/commit/127d60fad9c9e9ac43f6b664298751f8568da397))
+* финансы тренера — получено, отработано, долги и прогноз ([#48](https://github.com/tttvvvnnn/Trenio/issues/48)) ([dd47166](https://github.com/tttvvvnnn/Trenio/commit/dd47166181c64dfe23f5e74af6fc0ddd970d1dd1))
+* фото пользователей из Telegram с заменой и аватарки в списках ([#46](https://github.com/tttvvvnnn/Trenio/issues/46)) ([cec64d2](https://github.com/tttvvvnnn/Trenio/commit/cec64d23b5e2ddab4e53ddd3ebb515d752dadb5c))
+
+
+### Исправления
+
+* **miniapp:** avoid global .centered class on centered rows ([#42](https://github.com/tttvvvnnn/Trenio/issues/42)) ([1cc51d7](https://github.com/tttvvvnnn/Trenio/commit/1cc51d7c0466b23744d03d52a35e44dd592a9043))
+* **miniapp:** center Reschedule button in booking card ([#41](https://github.com/tttvvvnnn/Trenio/issues/41)) ([413ccb4](https://github.com/tttvvvnnn/Trenio/commit/413ccb491db39abe4e798c2c823062f43da0515c))
+
 ## [0.8.0](https://github.com/tttvvvnnn/Trenio/compare/v0.7.0...v0.8.0) (2026-10-14)
 
 
