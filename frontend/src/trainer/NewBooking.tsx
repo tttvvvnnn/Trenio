@@ -12,6 +12,7 @@ import {
 import { dateTime, duration, fullName } from '../format'
 import { haptic } from '../telegram'
 import Icon from '../ui/icons'
+import { PersonAvatar } from '../ui/Avatar'
 import { Chips, EmptyState, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
@@ -78,11 +79,7 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
   const chosen = clients?.find((item) => item.id === clientId) ?? null
 
   return (
-    <Screen
-      title="Новая запись"
-      subtitle={chosen ? fullName(chosen) : undefined}
-      onBack={onBack}
-    >
+    <Screen title="Новая запись" subtitle={chosen ? fullName(chosen) : undefined} onBack={onBack}>
       {(services === null || clients === null) && !error && <SkeletonList rows={2} />}
       {services !== null && services.length === 0 && (
         <EmptyState
@@ -104,14 +101,13 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
             <Row
               key={item.id}
               title={fullName(item)}
+              leading={<PersonAvatar person={item} />}
               subtitle={item.username ? `@${item.username}` : undefined}
               onClick={() => {
                 haptic.select()
                 setClientId(item.id)
               }}
-              badge={
-                item.id === clientId ? <Icon name="check" className="row-check" /> : undefined
-              }
+              badge={item.id === clientId ? <Icon name="check" className="row-check" /> : undefined}
             />
           ))}
         </Section>
@@ -145,9 +141,7 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
             allowCustom
             initialDay={day}
           />
-          <p className="section-footer">
-            Запись сразу подтверждена, клиенту придёт уведомление.
-          </p>
+          <p className="section-footer">Запись сразу подтверждена, клиенту придёт уведомление.</p>
         </>
       )}
       {error && <ErrorText>{error}</ErrorText>}

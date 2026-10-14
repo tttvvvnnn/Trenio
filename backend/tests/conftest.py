@@ -6,6 +6,7 @@
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -85,3 +86,23 @@ async def client(clean_db: None) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http:
         yield http
+
+
+@pytest.fixture(autouse=True)
+def telegram_photos(monkeypatch: pytest.MonkeyPatch) -> dict[int, Any]:
+    """Фото профилей «в Telegram» по telegram_id: TelegramPhoto или исключение.
+
+    Настоящий Telegram в тестах недоступен; по умолчанию фото ни у кого нет.
+    """
+    from trenio.services import avatars
+
+    photos: dict[int, Any] = {}
+
+    async def fake(telegram_id: int) -> avatars.TelegramPhoto | None:
+        photo = photos.get(telegram_id)
+        if isinstance(photo, Exception):
+            raise photo
+        return photo
+
+    monkeypatch.setattr(avatars, "telegram_photo", fake)
+    return photos

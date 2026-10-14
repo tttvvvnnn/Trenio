@@ -17,11 +17,17 @@ export type Trainer = {
   onboarded_at: string | null
 }
 
+// telegram — фото из Telegram, custom — загружено своё, none — убрано
+export type AvatarMode = 'telegram' | 'custom' | 'none'
+
 export type Me = {
   id: number
   first_name: string
   last_name: string | null
   username: string | null
+  // Адрес фото; null — фото нет, показываем инициалы
+  avatar_url: string | null
+  avatar_mode: AvatarMode
   is_trainer: boolean
   is_admin: boolean
   // Есть хотя бы один тренер, к которому можно записаться
@@ -105,6 +111,7 @@ export type ClientTrainer = {
   rules: string | null
   // Правила нужно прочитать и принять, прежде чем записываться
   rules_pending: boolean
+  avatar_url: string | null
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled'
@@ -114,6 +121,8 @@ export type Person = {
   first_name: string
   last_name: string | null
   username: string | null
+  // Адрес фото; null — фото нет, показываем инициалы
+  avatar_url: string | null
 }
 
 export type Booking = {
@@ -130,7 +139,7 @@ export type Booking = {
   rescheduled_by: 'client' | 'trainer' | null
   reschedule_comment: string | null
   service: { id: number; name: string; duration_min: number; capacity: number }
-  trainer: { id: number; display_name: string; timezone: string }
+  trainer: { id: number; display_name: string; timezone: string; avatar_url: string | null }
   client: Person
   // Адрес услуги или, если его нет, адрес тренера
   address: string | null
@@ -221,6 +230,30 @@ export async function loginWithTelegram(initData: string): Promise<void> {
 
 export function fetchMe(): Promise<Me> {
   return request<Me>('/api/me')
+}
+
+export type AvatarState = { avatar_url: string | null; avatar_mode: AvatarMode }
+
+// Своё фото: JPEG, уже обрезанный и сжатый в Mini App
+export async function uploadAvatar(photo: Blob): Promise<AvatarState> {
+  const response = await fetch(`${API_URL}/api/me/avatar`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/jpeg', Authorization: `Bearer ${accessToken ?? ''}` },
+    body: photo,
+  })
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null)
+    throw new ApiError(response.status, errorMessage(body, 'Не удалось загрузить фото'))
+  }
+  return (await response.json()) as AvatarState
+}
+
+export function removeAvatar(): Promise<AvatarState> {
+  return send<AvatarState>('DELETE', '/api/me/avatar')
+}
+
+export function restoreTelegramAvatar(): Promise<AvatarState> {
+  return send<AvatarState>('POST', '/api/me/avatar/telegram')
 }
 
 // Напоминания о занятиях: о своих записях (client) и о занятиях, которые проводишь (trainer)
@@ -627,4 +660,9 @@ export function deleteManualSession(packageId: number, sessionId: number): Promi
 
 export function fetchMyPackages(): Promise<Package[]> {
   return request<Package[]>('/api/client/packages')
+}
+
+// Адрес картинки с сервера: avatar_url приходит как путь /api/avatars/…
+export function mediaUrl(path: string): string {
+  return `${API_URL}${path}`
 }

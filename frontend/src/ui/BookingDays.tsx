@@ -15,6 +15,16 @@ export function DateLeaf({ day, muted }: { day: string | null; muted?: boolean }
   )
 }
 
+/** Маленькое фото перед именем внутри строки текста. */
+export function Named({ avatar, name }: { avatar: ReactNode; name: string }) {
+  return (
+    <span className="named">
+      {avatar}
+      {name}
+    </span>
+  )
+}
+
 type Props = {
   bookings: Booking[]
   // Часовой пояс, в котором считаем дни; по умолчанию пояс тренера записи

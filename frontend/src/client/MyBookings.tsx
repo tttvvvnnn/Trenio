@@ -9,9 +9,11 @@ import {
   type Booking,
 } from '../api'
 import { dateTime, duration, localTime, rescheduleNote } from '../format'
-import BookingDays from '../ui/BookingDays'
+import BookingDays, { Named } from '../ui/BookingDays'
 import CancelScreen from '../ui/CancelScreen'
+import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
+import MyPhoto from '../ui/MyPhoto'
 import ReminderSettings from '../ui/ReminderSettings'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
@@ -123,6 +125,7 @@ export default function MyBookings({ onBook }: Props) {
               )}
             />
           )}
+          {bookings !== null && <MyPhoto variant="section" />}
           {bookings !== null && <ReminderSettings role="client" />}
         </>
       )}
@@ -183,20 +186,23 @@ type RowProps = {
   onClick: () => void
 }
 
-// "10:00–11:00 · Тихон · перенесена"
+// "10:00–11:00 · (фото) Тихон · перенесена"
 function UpcomingRow({ booking, leaf, onClick }: RowProps) {
   const timezone = booking.trainer.timezone
   return (
     <Row
       leading={leaf}
       title={booking.service.name}
-      subtitle={[
-        `${localTime(booking.starts_at, timezone)}–${localTime(booking.ends_at, timezone)}`,
-        booking.trainer.display_name,
-        booking.rescheduled_from ? 'перенесена' : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')}
+      subtitle={
+        <>
+          {`${localTime(booking.starts_at, timezone)}–${localTime(booking.ends_at, timezone)} · `}
+          <Named
+            avatar={<TrainerAvatar trainer={booking.trainer} size="xs" />}
+            name={booking.trainer.display_name}
+          />
+          {booking.rescheduled_from ? ' · перенесена' : null}
+        </>
+      }
       onClick={onClick}
       badge={
         booking.status === 'pending' ? (

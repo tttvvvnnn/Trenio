@@ -13,8 +13,9 @@ import {
 import { bookingNote, dayTitle, duration, fullName, localDate, localTime, plural } from '../format'
 import { haptic } from '../telegram'
 import { monthDays, nextBooking } from '../calendar'
-import { DateLeaf } from '../ui/BookingDays'
+import { DateLeaf, Named } from '../ui/BookingDays'
 import MonthCalendar, { BookingBadge } from '../ui/MonthCalendar'
+import { PersonAvatar } from '../ui/Avatar'
 import NextSession from '../ui/NextSession'
 import Screen from '../ui/Screen'
 import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
@@ -145,7 +146,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     <Row
       key={item.id}
       leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
-      title={fullName(item.client)}
+      title={
+        <Named
+          avatar={<PersonAvatar person={item.client} size="xs" />}
+          name={fullName(item.client)}
+        />
+      }
       subtitle={`${localTime(item.starts_at, timezone)} · ${bookingNote(item)}`}
       chevron
       onClick={() => setOpened(item)}
@@ -163,6 +169,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
           viewer="trainer"
           timezone={timezone}
           now={now}
+          together={upcoming.filter(
+            (item) =>
+              isActive(item) &&
+              item.starts_at === next.starts_at &&
+              item.service.id === next.service.id,
+          )}
           onOpen={() => setOpened(next)}
         />
       )}
@@ -172,7 +184,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
             <Row
               key={item.id}
               leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
-              title={fullName(item.client)}
+              title={
+                <Named
+                  avatar={<PersonAvatar person={item.client} size="xs" />}
+                  name={fullName(item.client)}
+                />
+              }
               subtitle={`${localTime(item.starts_at, timezone)} · ${item.service.name}`}
               chevron
               onClick={() => setOpened(item)}
@@ -217,6 +234,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
               key={item.id}
               title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
               subtitle={bookingNote(item, now)}
+              leading={<PersonAvatar person={item.client} />}
               tone={isActive(item) || item.attendance ? undefined : 'muted'}
               onClick={() => setOpened(item)}
               badge={<BookingBadge booking={item} now={now} />}

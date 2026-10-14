@@ -208,6 +208,21 @@ button {
   color: var(--c-hint);
 }
 
+.page-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.page-header-row > div {
+  min-width: 0;
+}
+
+.page-header-row h1 {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
 .screen-overlay {
   position: fixed;
   inset: 0;
@@ -231,8 +246,8 @@ button {
 
 .next-session {
   display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
+  align-items: center;
+  gap: var(--s-3);
   box-sizing: border-box;
   width: calc(100% - 2 * var(--s-4));
   margin: var(--s-2) var(--s-4) 0;
@@ -248,6 +263,29 @@ button {
 
 .next-session:active {
   transform: scale(0.98);
+}
+
+.next-session-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+/* Фото с белой кромкой; на групповом занятии — стопкой */
+.next-session-avatars {
+  display: flex;
+  flex: none;
+  align-self: flex-start;
+}
+
+.next-session-avatars .avatar {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.next-session-avatars .avatar + .avatar {
+  margin-left: -16px;
 }
 
 .next-session-kicker {
@@ -329,6 +367,11 @@ button {
   left: calc(var(--s-4) + 30px + var(--s-3));
 }
 
+/* Фото в строке: --avatar у .avatar-sm */
+.row + .row.with-leading::before {
+  left: calc(var(--s-4) + 36px + var(--s-3));
+}
+
 /* Нажимаемая часть строки: занимает всё место, кроме элемента справа */
 .row-main {
   display: flex;
@@ -352,10 +395,6 @@ button {
 
 button.row-main:active {
   background: var(--c-pressed);
-}
-
-.row + .row.with-leaf::before {
-  left: calc(var(--s-4) + 38px + var(--s-3));
 }
 
 .row-icon {
@@ -998,23 +1037,113 @@ button.time:active,
 
 .avatar {
   display: grid;
-  width: 72px;
-  height: 72px;
-  margin-bottom: var(--s-2);
+  flex: none;
+  box-sizing: border-box;
+  width: var(--avatar);
+  height: var(--avatar);
   place-items: center;
   border-radius: 50%;
-  font-size: 26px;
+  font-size: calc(var(--avatar) * 0.38);
   font-weight: 600;
-  color: var(--c-on-accent);
-  background: var(--brand-gradient);
+  line-height: 1;
+  letter-spacing: 0;
+  color: #fff;
+  object-fit: cover;
+  background: var(--c-fill);
+}
+
+.avatar-xs {
+  --avatar: 22px;
+}
+
+.avatar-sm {
+  --avatar: 36px;
+}
+
+.avatar-md {
+  --avatar: 48px;
+}
+
+.avatar-lg {
+  --avatar: 80px;
   box-shadow: var(--brand-shadow);
+}
+
+/* Круги с инициалами: цвет по человеку, чтобы в списке людей было легко различать.
+   Белые буквы читаются на всех оттенках в обеих темах */
+.avatar-tone-0 {
+  background: var(--brand-gradient);
+}
+
+.avatar-tone-1 {
+  background: linear-gradient(135deg, #6aa5ff, #2f6fe0);
+}
+
+.avatar-tone-2 {
+  background: linear-gradient(135deg, #5fcf7c, #24873d);
+}
+
+.avatar-tone-3 {
+  background: linear-gradient(135deg, #b39bff, #6c50e6);
+}
+
+.avatar-tone-4 {
+  background: linear-gradient(135deg, #ffbe5c, #d0730f);
+}
+
+.avatar-tone-5 {
+  background: linear-gradient(135deg, #63cde0, #1a8aa6);
+}
+
+/* Фото в профиле: нажатие меняет его */
+.photo-edit {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.photo-edit button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--c-link);
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+}
+
+.photo-edit button.destructive {
+  color: var(--c-destructive);
+}
+
+.photo-edit button:active {
+  background: var(--c-pressed);
+}
+
+.photo-edit button:disabled {
+  opacity: 0.5;
+}
+
+.hero-photo {
+  margin-bottom: var(--s-2);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  transition: transform 150ms var(--ease);
+}
+
+.hero-photo:active {
+  transform: scale(0.96);
 }
 
 .hero strong {
   font-size: 20px;
 }
 
-.hero span {
+.hero > span:not(.avatar) {
   font-size: 14px;
   color: var(--c-hint);
 }
@@ -1373,10 +1502,18 @@ textarea.rules-input {
 }
 
 /* В строках с листком подзаголовок в одну строку: строка остаётся узкой, подробности по нажатию */
-.row.with-leaf .row-subtitle {
+.row-main:has(> .date-leaf) .row-subtitle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Фото перед именем в строке текста: строчное, чтобы длинная строка обрезалась по тексту */
+.named .avatar-xs {
+  --avatar: 18px;
+  display: inline-grid;
+  margin-right: 5px;
+  vertical-align: text-bottom;
 }
 
 .status-dot {
