@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 
-import { cancelMyBooking, fetchMyBookings, type Booking } from '../api'
-import { dateTime, duration } from '../format'
-import { confirmAction, haptic } from '../telegram'
+import {
+  cancelMyBooking,
+  fetchMyBookings,
+  fetchTrainerSlots,
+  rescheduleMyBooking,
+  type Booking,
+} from '../api'
+import { dateTime, duration, rescheduleNote } from '../format'
+import CancelScreen from '../ui/CancelScreen'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import ReminderSettings from '../ui/ReminderSettings'
+import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
 
@@ -28,8 +35,12 @@ export default function MyBookings({ onBook }: Props) {
   }, [])
 
   function replace(updated: Booking) {
+    // После переноса запись могла переехать в списке: сортируем по времени заново
     setBookings(
-      (current) => current?.map((item) => (item.id === updated.id ? updated : item)) ?? null,
+      (current) =>
+        current
+          ?.map((item) => (item.id === updated.id ? updated : item))
+          .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) ?? null,
     )
   }
 
@@ -70,7 +81,7 @@ export default function MyBookings({ onBook }: Props) {
           onBack={() => setOpened(null)}
           onChanged={(updated) => {
             replace(updated)
-            setOpened(null)
+            setOpened(updated)
           }}
         />
       )}
@@ -82,7 +93,13 @@ function BookingRow({ booking, onClick }: { booking: Booking; onClick: () => voi
   return (
     <Row
       title={dateTime(booking.starts_at, booking.trainer.timezone)}
-      subtitle={`${booking.service.name} · ${booking.trainer.display_name}`}
+      subtitle={[
+        booking.service.name,
+        booking.trainer.display_name,
+        isActive(booking) && booking.rescheduled_from ? 'перенесена' : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
       tone={isActive(booking) ? undefined : 'muted'}
       onClick={onClick}
       badge={<StatusBadge status={booking.status} />}
@@ -97,26 +114,9 @@ type DetailsProps = {
 }
 
 function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
-  const [cancelling, setCancelling] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Открытый поверх экран: отмена или перенос
+  const [step, setStep] = useState<'cancel' | 'reschedule' | null>(null)
   const timezone = booking.trainer.timezone
-
-  async function cancel() {
-    const ok = await confirmAction('Отменить запись? Время освободится для других.', 'Отменить')
-    if (!ok) return
-    setCancelling(true)
-    setError(null)
-    try {
-      const updated = await cancelMyBooking(booking.id)
-      haptic.success()
-      onChanged(updated)
-    } catch (err) {
-      haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setCancelling(false)
-    }
-  }
 
   let note: string | null = null
   if (booking.status === 'pending') {
@@ -126,10 +126,16 @@ function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
   } else if (booking.status === 'cancelled') {
     note = booking.cancelled_by === 'trainer' ? 'Запись отменил тренер.' : 'Вы отменили запись.'
   } else if (booking.can_cancel) {
-    note = `Отменить самому можно до ${dateTime(booking.cancel_deadline, timezone)}.`
+    note = `Отменить или перенести самому можно до ${dateTime(booking.cancel_deadline, timezone)}.`
   } else {
-    note = 'Отменить самому уже нельзя. Если не получается прийти, напишите тренеру.'
+    note = 'Отменить или перенести самому уже нельзя. Если не получается прийти, напишите тренеру.'
   }
+  const moved = rescheduleNote(booking, 'client')
+  const inactive = !isActive(booking)
+  // Без автоподтверждения перенос снова ждёт тренера; это видно по статусу после переноса
+  const rescheduleFooter =
+    'Необязательно. Тренер увидит комментарий и новое время в уведомлении. ' +
+    'Если тренер подтверждает записи сам, перенос тоже будет ждать его подтверждения.'
 
   return (
     <Screen
@@ -142,16 +148,51 @@ function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
         <Row title="Тренер" value={booking.trainer.display_name} />
         <Row title="Длительность" value={duration(booking.service.duration_min)} />
         {booking.address && <Row title="Место" subtitle={booking.address} />}
+        {moved && !inactive && (
+          <Row
+            title={moved}
+            subtitle={booking.reschedule_comment ?? undefined}
+            icon={{ name: 'clock', color: 'var(--c-accent)' }}
+          />
+        )}
+        {inactive && booking.cancel_comment && (
+          <Row title="Комментарий" subtitle={booking.cancel_comment} />
+        )}
       </Section>
-      {error && <ErrorText>{error}</ErrorText>}
       {booking.can_cancel && (
         <Section>
-          <Row
-            title={cancelling ? 'Отменяем…' : 'Отменить запись'}
-            tone="destructive"
-            onClick={cancelling ? undefined : () => void cancel()}
-          />
+          <Row title="Перенести" tone="accent" onClick={() => setStep('reschedule')} />
+          <Row title="Отменить запись" tone="destructive" onClick={() => setStep('cancel')} />
         </Section>
+      )}
+      {step === 'cancel' && (
+        <CancelScreen
+          booking={booking}
+          action="cancel"
+          recipient="Тренер"
+          onBack={() => setStep(null)}
+          onSubmit={(comment) => cancelMyBooking(booking.id, comment)}
+          onDone={(updated) => {
+            setStep(null)
+            onChanged(updated)
+          }}
+        />
+      )}
+      {step === 'reschedule' && (
+        <RescheduleScreen
+          booking={booking}
+          loadSlots={(from, count) =>
+            fetchTrainerSlots(booking.trainer.id, booking.service.id, count, from, booking.id)
+          }
+          allowCustom={false}
+          footer={rescheduleFooter}
+          onBack={() => setStep(null)}
+          onSubmit={(startsAt, comment) => rescheduleMyBooking(booking.id, startsAt, comment)}
+          onDone={(updated) => {
+            setStep(null)
+            onChanged(updated)
+          }}
+        />
       )}
     </Screen>
   )
