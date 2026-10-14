@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -348,6 +348,27 @@ async def list_client_bookings(
         .where(Booking.client_id == client.id, Booking.ends_at > now)
         .order_by(Booking.starts_at, Booking.id)
     )
+    return (await session.scalars(stmt)).all()
+
+
+async def list_client_history(
+    session: AsyncSession,
+    client: User,
+    now: datetime,
+    before: Booking | None,
+    limit: int,
+) -> Sequence[Booking]:
+    """История клиента у всех тренеров: прошедшие, отменённые и отклонённые записи.
+
+    Новые сверху. before — последняя запись предыдущей страницы, следующая начинается после неё.
+    """
+    stmt = select(Booking).where(
+        Booking.client_id == client.id,
+        or_(Booking.ends_at <= now, Booking.status.not_in(ACTIVE_BOOKING_STATUSES)),
+    )
+    if before is not None:
+        stmt = stmt.where(tuple_(Booking.starts_at, Booking.id) < (before.starts_at, before.id))
+    stmt = stmt.order_by(Booking.starts_at.desc(), Booking.id.desc()).limit(limit)
     return (await session.scalars(stmt)).all()
 
 

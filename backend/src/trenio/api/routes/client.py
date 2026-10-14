@@ -142,6 +142,26 @@ async def list_bookings(
     return [client_view(booking, now) for booking in found]
 
 
+HISTORY_PAGE = 30
+
+
+@router.get("/bookings/history")
+async def list_history(
+    user: CurrentUser,
+    session: SessionDep,
+    before: int | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = HISTORY_PAGE,
+) -> list[BookingOut]:
+    """Прошедшие, отменённые и отклонённые записи, новые сверху.
+
+    before — id последней записи с прошлой страницы: следующая страница идёт после неё.
+    """
+    cursor = await _own_booking(session, user, before) if before is not None else None
+    now = datetime.now(UTC)
+    found = await bookings.list_client_history(session, user, now, cursor, limit)
+    return [client_view(booking, now) for booking in found]
+
+
 class ClientBookingIn(BaseModel):
     trainer_id: int
     service_id: int

@@ -8,8 +8,17 @@ import {
   type ClientCard as Card,
   type Package,
 } from '../api'
-import { bookingNote, dateTime, fullName, packageLine, plural, sessionsLeft } from '../format'
+import {
+  bookingState,
+  fullName,
+  localDate,
+  localTime,
+  packageLine,
+  plural,
+  sessionsLeft,
+} from '../format'
 import { haptic } from '../telegram'
+import { DateLeaf } from '../ui/BookingDays'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
@@ -83,9 +92,10 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
     return (
       <Row
         key={item.id}
-        title={dateTime(item.starts_at, timezone)}
-        subtitle={bookingNote(item, now)}
-        tone={item.status === 'cancelled' || item.status === 'declined' ? 'muted' : undefined}
+        leading={<DateLeaf day={localDate(item.starts_at, timezone)} muted={inactive(item)} />}
+        title={item.service.name}
+        subtitle={[localTime(item.starts_at, timezone), ...bookingState(item, now)].join(' · ')}
+        tone={inactive(item) ? 'muted' : undefined}
         onClick={() => setOpenedBooking(item)}
         badge={<BookingBadge booking={item} now={now} />}
       />
@@ -215,4 +225,9 @@ function clientHint(client: Client): { text: string; tone: 'alert' | 'pending' }
     return { text: 'Блок закончился. Новые записи будут без блока.', tone: 'pending' }
   }
   return null
+}
+
+// Отменённая или отклонённая без отметки: серым
+function inactive(booking: Booking): boolean {
+  return (booking.status === 'cancelled' || booking.status === 'declined') && !booking.attendance
 }

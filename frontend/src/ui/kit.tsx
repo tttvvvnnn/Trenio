@@ -25,6 +25,8 @@ type RowProps = {
   subtitle?: ReactNode
   // Иконка на цветной плашке слева, цвет — CSS-значение
   icon?: { name: IconName; color: string }
+  // Свой элемент слева вместо иконки, например листок календаря
+  leading?: ReactNode
   value?: ReactNode
   // Бейдж или галочка справа внутри нажимаемой области
   badge?: ReactNode
@@ -41,6 +43,7 @@ export function Row({
   title,
   subtitle,
   icon,
+  leading,
   value,
   badge,
   after,
@@ -56,6 +59,7 @@ export function Row({
           <Icon name={icon.name} />
         </span>
       )}
+      {leading}
       <span className="row-text">
         <span className="row-title">{title}</span>
         {subtitle && <span className="row-subtitle">{subtitle}</span>}
@@ -65,7 +69,13 @@ export function Row({
       {chevron && <Icon name="chevronRight" className="row-chevron" />}
     </>
   )
-  const className = ['row', icon && 'with-icon', tone, centered && 'row-centered']
+  const className = [
+    'row',
+    icon && 'with-icon',
+    leading && 'with-leaf',
+    tone,
+    centered && 'row-centered',
+  ]
     .filter(Boolean)
     .join(' ')
   return (

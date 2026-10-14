@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
 import {
   cancelMyBooking,
   fetchMyBookings,
+  fetchMyHistory,
   fetchTrainerSlots,
   rescheduleMyBooking,
   type Booking,
 } from '../api'
-import { dateTime, duration, rescheduleNote } from '../format'
+import { dateTime, duration, localTime, rescheduleNote } from '../format'
+import BookingDays from '../ui/BookingDays'
 import CancelScreen from '../ui/CancelScreen'
-import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import ReminderSettings from '../ui/ReminderSettings'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
@@ -19,12 +21,22 @@ type Props = {
   onBook: () => void
 }
 
+type Tab = 'upcoming' | 'history'
+
+// Столько записей сервер отдаёт за раз; страница короче — значит, история кончилась
+const HISTORY_PAGE = 30
+
 function isActive(booking: Booking): boolean {
   return booking.status === 'pending' || booking.status === 'confirmed'
 }
 
 export default function MyBookings({ onBook }: Props) {
+  const [tab, setTab] = useState<Tab>('upcoming')
   const [bookings, setBookings] = useState<Booking[] | null>(null)
+  // null — историю ещё не грузили или её надо перечитать
+  const [history, setHistory] = useState<Booking[] | null>(null)
+  const [historyEnd, setHistoryEnd] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +46,30 @@ export default function MyBookings({ onBook }: Props) {
       .catch((err: unknown) => setError(String(err)))
   }, [])
 
+  useEffect(() => {
+    if (tab !== 'history' || history !== null) return
+    fetchMyHistory()
+      .then((page) => {
+        setHistory(page)
+        setHistoryEnd(page.length < HISTORY_PAGE)
+      })
+      .catch((err: unknown) => setError(String(err)))
+  }, [tab, history])
+
+  async function loadMore() {
+    if (!history?.length) return
+    setLoadingMore(true)
+    try {
+      const page = await fetchMyHistory(history[history.length - 1].id)
+      setHistory([...history, ...page])
+      setHistoryEnd(page.length < HISTORY_PAGE)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   function replace(updated: Booking) {
     // После переноса запись могла переехать в списке: сортируем по времени заново
     setBookings(
@@ -42,39 +78,91 @@ export default function MyBookings({ onBook }: Props) {
           ?.map((item) => (item.id === updated.id ? updated : item))
           .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) ?? null,
     )
+    // Отменённая запись уходит в историю: перечитаем её, когда откроют
+    setHistory(null)
   }
 
   const active = bookings?.filter(isActive) ?? []
-  const inactive = bookings?.filter((booking) => !isActive(booking)) ?? []
+  // Имя тренера в истории нужно, только если тренеров несколько
+  const manyTrainers = new Set(history?.map((booking) => booking.trainer.id)).size > 1
 
   return (
     <>
       <PageHeader title="Мои записи" />
-      {bookings === null && !error && <SkeletonList rows={2} />}
+      <Segmented
+        label="Какие записи показать"
+        value={tab}
+        options={[
+          ['upcoming', 'Предстоящие'],
+          ['history', 'История'],
+        ]}
+        onChange={setTab}
+      />
       {error && <ErrorText>{error}</ErrorText>}
-      {bookings !== null && active.length === 0 && (
-        <EmptyState
-          icon="calendar"
-          title="Записей пока нет"
-          text="Выберите свободное время у тренера, и запись появится здесь."
-          action={{ label: 'Записаться', onClick: onBook }}
-        />
+      {tab === 'upcoming' && (
+        <>
+          {bookings === null && !error && <SkeletonList rows={2} />}
+          {bookings !== null && active.length === 0 && (
+            <EmptyState
+              icon="calendar"
+              title="Записей пока нет"
+              text="Выберите свободное время у тренера, и запись появится здесь."
+              action={{ label: 'Записаться', onClick: onBook }}
+            />
+          )}
+          {active.length > 0 && (
+            <BookingDays
+              bookings={active}
+              row={(booking, leaf) => (
+                <UpcomingRow
+                  key={booking.id}
+                  booking={booking}
+                  leaf={leaf}
+                  onClick={() => setOpened(booking)}
+                />
+              )}
+            />
+          )}
+          {bookings !== null && <ReminderSettings role="client" />}
+        </>
       )}
-      {active.length > 0 && (
-        <Section title="Предстоящие">
-          {active.map((booking) => (
-            <BookingRow key={booking.id} booking={booking} onClick={() => setOpened(booking)} />
-          ))}
-        </Section>
+      {tab === 'history' && (
+        <>
+          {history === null && !error && <SkeletonList rows={3} />}
+          {history !== null && history.length === 0 && (
+            <EmptyState
+              icon="calendar"
+              title="Прошедших записей пока нет"
+              text="Здесь будут прошедшие и отменённые занятия."
+            />
+          )}
+          {history !== null && history.length > 0 && (
+            <BookingDays
+              bookings={history}
+              months
+              row={(booking, leaf) => (
+                <HistoryRow
+                  key={booking.id}
+                  booking={booking}
+                  leaf={leaf}
+                  withTrainer={manyTrainers}
+                  onClick={() => setOpened(booking)}
+                />
+              )}
+            />
+          )}
+          {history !== null && !historyEnd && (
+            <button
+              type="button"
+              className="load-more"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+            >
+              {loadingMore ? 'Загружаем…' : 'Показать ещё'}
+            </button>
+          )}
+        </>
       )}
-      {inactive.length > 0 && (
-        <Section title="Отменённые">
-          {inactive.map((booking) => (
-            <BookingRow key={booking.id} booking={booking} onClick={() => setOpened(booking)} />
-          ))}
-        </Section>
-      )}
-      {bookings !== null && <ReminderSettings role="client" />}
       {opened && (
         <BookingDetails
           booking={opened}
@@ -89,22 +177,71 @@ export default function MyBookings({ onBook }: Props) {
   )
 }
 
-function BookingRow({ booking, onClick }: { booking: Booking; onClick: () => void }) {
+type RowProps = {
+  booking: Booking
+  leaf: ReactNode
+  onClick: () => void
+}
+
+// "10:00–11:00 · Тихон · перенесена"
+function UpcomingRow({ booking, leaf, onClick }: RowProps) {
+  const timezone = booking.trainer.timezone
   return (
     <Row
-      title={dateTime(booking.starts_at, booking.trainer.timezone)}
+      leading={leaf}
+      title={booking.service.name}
       subtitle={[
-        booking.service.name,
+        `${localTime(booking.starts_at, timezone)}–${localTime(booking.ends_at, timezone)}`,
         booking.trainer.display_name,
-        isActive(booking) && booking.rescheduled_from ? 'перенесена' : null,
+        booking.rescheduled_from ? 'перенесена' : null,
       ]
         .filter(Boolean)
         .join(' · ')}
-      tone={isActive(booking) ? undefined : 'muted'}
       onClick={onClick}
-      badge={<StatusBadge status={booking.status} />}
+      badge={
+        booking.status === 'pending' ? (
+          <span className="badge pending">ждёт</span>
+        ) : (
+          <span className="status-dot" role="img" aria-label="Подтверждена" />
+        )
+      }
     />
   )
+}
+
+// "10:00 · занятие 3 из 10" и итог занятия плашкой; тренер в конце, его не жалко обрезать
+function HistoryRow({ booking, leaf, withTrainer, onClick }: RowProps & { withTrainer: boolean }) {
+  const charge = booking.charge
+  let detail: string | null = null
+  if (charge) detail = `занятие ${charge.number} из ${charge.sessions_count}`
+  else if (booking.one_off && booking.attendance) detail = 'разовая'
+  else if (booking.status === 'cancelled')
+    detail = booking.cancelled_by === 'trainer' ? 'отменил тренер' : 'вы отменили'
+  return (
+    <Row
+      leading={leaf}
+      title={booking.service.name}
+      subtitle={[
+        localTime(booking.starts_at, booking.trainer.timezone),
+        detail,
+        withTrainer ? booking.trainer.display_name : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      tone={isActive(booking) || booking.attendance ? undefined : 'muted'}
+      onClick={onClick}
+      badge={<HistoryBadge booking={booking} />}
+    />
+  )
+}
+
+function HistoryBadge({ booking }: { booking: Booking }) {
+  if (booking.attendance === 'attended') return <span className="badge success">прошла</span>
+  if (booking.attendance === 'missed_charged') return <span className="badge alert">пропуск</span>
+  if (booking.attendance === 'missed_free') return <span className="badge">пропуск</span>
+  if (booking.status === 'cancelled') return <span className="badge">отменена</span>
+  if (booking.status === 'declined') return <span className="badge">отклонена</span>
+  return <span className="badge">не отмечена</span>
 }
 
 type DetailsProps = {
