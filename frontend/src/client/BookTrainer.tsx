@@ -32,7 +32,7 @@ import { MainButton } from '../ui/native'
 
 // Цвет плашки своей записи в списке дня
 const TONE_COLOR: Record<Tone, string> = {
-  planned: 'var(--c-accent)',
+  planned: 'var(--c-planned)',
   pending: 'var(--c-warning)',
   alert: 'var(--c-alert)',
   done: 'var(--c-success)',

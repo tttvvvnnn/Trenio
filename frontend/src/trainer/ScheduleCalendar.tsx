@@ -156,7 +156,7 @@ export default function ScheduleCalendar({ timezone }: Props) {
         legend={
           <>
             <span>
-              <i className="month-dot planned" />
+              <i className="month-dot custom-hours" />
               свои часы на дату
             </span>
             <span>

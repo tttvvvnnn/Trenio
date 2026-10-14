@@ -5,6 +5,7 @@ import {
   hapticFeedback,
   init,
   isTMA,
+  isThemeParamsDark,
   mainButton,
   miniAppReady,
   mountBackButton,
@@ -26,7 +27,23 @@ import {
  */
 let initialized = false
 
+// Цвета нижней кнопки Telegram: фирменный коралл вместо цвета кнопки из темы
+const ACCENT = '#e5421e'
+const ON_ACCENT = '#ffffff'
+
+/*
+ * Telegram для Android пишет в User-Agent класс производительности устройства:
+ * «Telegram-Android/11.2.3 (Samsung SM-A115F; Android 12; SDK 31; LOW)».
+ * На слабых телефонах размытие тормозит прокрутку, поэтому стекло там выключаем.
+ */
+function isLowEndAndroid(): boolean {
+  return /Telegram-Android\/[^(]*\([^)]*;\s*LOW\)/.test(navigator.userAgent)
+}
+
 export function setupTelegram(): string | null {
+  if (isLowEndAndroid()) {
+    document.documentElement.classList.add('no-glass')
+  }
   if (!isTMA()) {
     return null
   }
@@ -39,6 +56,12 @@ export function setupTelegram(): string | null {
   // Цвета темы Telegram становятся CSS-переменными --tg-theme-*
   mountThemeParamsSync.ifAvailable()
   bindThemeParamsCssVars.ifAvailable()
+  // Светлая или тёмная тема Telegram: от неё зависят свои цвета стекла и коралла
+  const applyScheme = () => {
+    document.documentElement.dataset.scheme = isThemeParamsDark() ? 'dark' : 'light'
+  }
+  applyScheme()
+  isThemeParamsDark.sub(applyScheme)
   mountMiniAppSync.ifAvailable()
   // Шапка и фон Telegram в цвет фона приложения, чтобы не было полосы на стыке
   setMiniAppHeaderColor.ifAvailable('secondary_bg_color')
@@ -103,6 +126,8 @@ export function showMainButton({ text, visible, enabled, loading }: MainButtonPa
     isVisible: visible,
     isEnabled: enabled,
     isLoaderVisible: loading,
+    backgroundColor: ACCENT,
+    textColor: ON_ACCENT,
   })
 }
 
