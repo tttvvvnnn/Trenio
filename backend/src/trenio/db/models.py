@@ -222,6 +222,10 @@ class Booking(TimestampMixin, Base):
             "attendance IS NULL OR attendance IN ('attended', 'missed_charged', 'missed_free')",
             name="attendance",
         ),
+        CheckConstraint(
+            "rescheduled_by IS NULL OR rescheduled_by IN ('client', 'trainer')",
+            name="rescheduled_by",
+        ),
         Index("ix_bookings_trainer_starts", "trainer_id", "starts_at"),
         Index("ix_bookings_client_starts", "client_id", "starts_at"),
         # Последний рубеж от двойной записи одного клиента на одно занятие.
@@ -252,6 +256,14 @@ class Booking(TimestampMixin, Base):
     created_by: Mapped[str] = mapped_column(String(16))
     cancelled_by: Mapped[str | None] = mapped_column(String(16))
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Необязательный комментарий того, кто отменил или отклонил запись: «заболел»
+    cancel_comment: Mapped[str | None] = mapped_column(Text)
+    # Последний перенос: прежнее время начала, кто и когда перенёс, с каким комментарием.
+    # Перенос меняет время этой же записи, поэтому блоки и история не теряют связь с ней
+    rescheduled_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rescheduled_by: Mapped[str | None] = mapped_column(String(16))
+    rescheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reschedule_comment: Mapped[str | None] = mapped_column(Text)
     # Отметка тренера после занятия: attended — прошла, missed_charged — пропуск со списанием,
     # missed_free — пропуск без списания. None — ещё не отмечено
     attendance: Mapped[str | None] = mapped_column(String(16))

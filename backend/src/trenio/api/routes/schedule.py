@@ -296,10 +296,15 @@ async def list_slots(
     start: Annotated[date | None, Query(alias="from")] = None,
     days: Annotated[int, Query(ge=1, le=MAX_SLOT_DAYS)] = 14,
     service_id: int | None = None,
+    reschedule: int | None = None,
 ) -> list[SlotOut]:
-    """Свободные окошки на days дней с учётом записей. По умолчанию с сегодняшнего дня тренера."""
+    """Свободные окошки на days дней с учётом записей. По умолчанию с сегодняшнего дня тренера.
+
+    reschedule — запись, которую переносят: её нынешнее время тоже считается свободным.
+    Чужой id ничего не освободит: исключаются только записи этого тренера.
+    """
     now = datetime.now(UTC)
     if start is None:
         start = now.astimezone(ZoneInfo(trainer.timezone)).date()
-    slots = await schedule.trainer_slots(session, trainer, start, days, now, service_id)
+    slots = await schedule.trainer_slots(session, trainer, start, days, now, service_id, reschedule)
     return [SlotOut.of(slot) for slot in slots]

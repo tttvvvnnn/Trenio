@@ -348,9 +348,16 @@ async def copy_week(session: AsyncSession, trainer: Trainer, week_start: date, w
 
 
 async def active_bookings(
-    session: AsyncSession, trainer: Trainer, start: datetime, end: datetime
+    session: AsyncSession,
+    trainer: Trainer,
+    start: datetime,
+    end: datetime,
+    exclude_id: int | None = None,
 ) -> Sequence[Booking]:
-    """Записи, которые занимают время тренера и пересекаются с [start, end)."""
+    """Записи, которые занимают время тренера и пересекаются с [start, end).
+
+    exclude_id — запись, которую переносят: её нынешнее время для неё самой свободно.
+    """
     stmt = (
         select(Booking)
         .where(
@@ -361,6 +368,8 @@ async def active_bookings(
         )
         .order_by(Booking.starts_at, Booking.id)
     )
+    if exclude_id is not None:
+        stmt = stmt.where(Booking.id != exclude_id)
     return (await session.scalars(stmt)).all()
 
 
@@ -371,7 +380,9 @@ async def trainer_slots(
     days: int,
     now: datetime,
     service_id: int | None = None,
+    exclude_id: int | None = None,
 ) -> list[Slot]:
+    """Свободные окошки. exclude_id — переносимая запись: её время считается свободным."""
     services = await list_services(session, trainer)
     if service_id is not None:
         services = [service for service in services if service.id == service_id]
@@ -385,6 +396,7 @@ async def trainer_slots(
         trainer,
         datetime.combine(start_day - timedelta(days=1), time(), UTC),
         datetime.combine(start_day + timedelta(days=days + 1), time(), UTC),
+        exclude_id,
     )
     return free_slots(
         start_day=start_day,

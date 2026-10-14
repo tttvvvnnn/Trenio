@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import AwareDatetime, BaseModel
 
 from trenio.api.deps import CurrentUser, SessionDep
-from trenio.api.routes.bookings import BookingOut, booking_error
+from trenio.api.routes.bookings import BookingOut, CommentIn, RescheduleIn, booking_error
 from trenio.api.routes.schedule import MAX_SLOT_DAYS, ServiceOut, SlotOut
 from trenio.db.models import Booking, Trainer, TrainerClient, User
 from trenio.services import bookings, schedule
@@ -98,13 +98,19 @@ async def list_slots(
     start: Annotated[date | None, Query(alias="from")] = None,
     days: Annotated[int, Query(ge=1, le=MAX_SLOT_DAYS)] = 14,
     service_id: int | None = None,
+    reschedule: int | None = None,
 ) -> list[SlotOut]:
-    """Свободные окошки тренера. Даты — по часовому поясу тренера."""
+    """Свободные окошки тренера. Даты — по часовому поясу тренера.
+
+    reschedule — своя запись, которую переносят: её нынешнее время тоже считается свободным.
+    """
     trainer = await _my_trainer(session, user, trainer_id)
+    if reschedule is not None:
+        await _own_booking(session, user, reschedule)
     now = datetime.now(UTC)
     if start is None:
         start = now.astimezone(ZoneInfo(trainer.timezone)).date()
-    slots = await schedule.trainer_slots(session, trainer, start, days, now, service_id)
+    slots = await schedule.trainer_slots(session, trainer, start, days, now, service_id, reschedule)
     return [SlotOut.of(slot) for slot in slots]
 
 
@@ -167,15 +173,38 @@ async def create_booking(
     return client_view(booking, now)
 
 
-@router.post("/bookings/{booking_id}/cancel")
-async def cancel_booking(booking_id: int, user: CurrentUser, session: SessionDep) -> BookingOut:
+async def _own_booking(session: SessionDep, user: User, booking_id: int) -> Booking:
     try:
-        booking = await bookings.get_client_booking(session, user, booking_id)
+        return await bookings.get_client_booking(session, user, booking_id)
     except LookupError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Запись не найдена") from None
+
+
+@router.post("/bookings/{booking_id}/cancel")
+async def cancel_booking(
+    booking_id: int, user: CurrentUser, session: SessionDep, body: CommentIn | None = None
+) -> BookingOut:
+    booking = await _own_booking(session, user, booking_id)
+    now = datetime.now(UTC)
+    comment = body.comment if body else None
+    try:
+        booking = await bookings.cancel_booking(session, booking, Actor.CLIENT, now, comment)
+    except BookingRejected as rejected:
+        raise booking_error(rejected) from None
+    return client_view(booking, now)
+
+
+@router.post("/bookings/{booking_id}/reschedule")
+async def reschedule_booking(
+    booking_id: int, body: RescheduleIn, user: CurrentUser, session: SessionDep
+) -> BookingOut:
+    """Перенос в свободное окошко той же услуги, пока клиент ещё может отменить сам."""
+    booking = await _own_booking(session, user, booking_id)
     now = datetime.now(UTC)
     try:
-        booking = await bookings.cancel_booking(session, booking, Actor.CLIENT, now)
+        booking = await bookings.reschedule_booking(
+            session, booking, body.starts_at.astimezone(UTC), Actor.CLIENT, now, body.comment
+        )
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
     return client_view(booking, now)
