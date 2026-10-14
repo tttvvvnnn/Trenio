@@ -26,7 +26,7 @@ if [[ -f "$CONF" ]]; then
   source "$CONF"
 fi
 TG_CHAT_ID="${TG_CHAT_ID:-}"   # твой Telegram ID
-PUSH_URL="${PUSH_URL:-}"       # https://<домен Kuma>/api/push/<токен монитора>
+PUSH_URL="${PUSH_URL:-}"       # https://status.tvpngate.cc/api/push/<токен push-монитора в Kuma>
 
 # push up|down "сообщение": отметка в push-мониторе Uptime Kuma
 push() {
