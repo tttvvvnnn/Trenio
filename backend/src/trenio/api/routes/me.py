@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
 from trenio.api.routes.trainer import TrainerOut
-from trenio.services import notifications
+from trenio.db.models import User
+from trenio.services import avatars, notifications
 from trenio.services.clients import list_my_trainers
 from trenio.services.notifications import Role
 from trenio.services.trainers import get_active_trainer, is_admin
@@ -19,6 +20,10 @@ class MeOut(BaseModel):
     first_name: str
     last_name: str | None
     username: str | None
+    # Адрес фото; null — фото нет, показываем инициалы
+    avatar_url: str | None
+    # telegram — фото из Telegram, custom — загружено своё, none — убрано
+    avatar_mode: str
     is_trainer: bool
     is_admin: bool
     # Есть хотя бы один тренер, к которому можно записаться
@@ -35,11 +40,53 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         first_name=user.first_name,
         last_name=user.last_name,
         username=user.username,
+        avatar_url=avatars.avatar_url(user),
+        avatar_mode=user.avatar_mode,
         is_trainer=trainer is not None,
         is_admin=is_admin(user, settings.admin_telegram_ids),
         is_client=bool(await list_my_trainers(session, user)),
         trainer=TrainerOut.of(trainer) if trainer is not None else None,
     )
+
+
+# --- Фото ---
+
+
+class AvatarOut(BaseModel):
+    avatar_url: str | None
+    avatar_mode: str
+
+    @classmethod
+    def of(cls, user: User) -> "AvatarOut":
+        return cls(avatar_url=avatars.avatar_url(user), avatar_mode=user.avatar_mode)
+
+
+@router.put("/me/avatar")
+async def upload_avatar(request: Request, user: CurrentUser, session: SessionDep) -> AvatarOut:
+    """Своё фото: тело запроса — JPEG, который Mini App уже обрезала и сжала."""
+    length = int(request.headers.get("content-length") or 0)
+    if length > avatars.MAX_BYTES:
+        raise HTTPException(413, "Фото слишком большое")
+    data = await request.body()
+    if len(data) > avatars.MAX_BYTES:
+        raise HTTPException(413, "Фото слишком большое")
+    if not avatars.is_jpeg(data):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Нужна картинка JPEG")
+    await avatars.set_custom(session, user, data)
+    return AvatarOut.of(user)
+
+
+@router.delete("/me/avatar")
+async def remove_avatar(user: CurrentUser, session: SessionDep) -> AvatarOut:
+    await avatars.remove(session, user)
+    return AvatarOut.of(user)
+
+
+@router.post("/me/avatar/telegram")
+async def use_telegram_avatar(user: CurrentUser, session: SessionDep) -> AvatarOut:
+    """Вернуть фото из Telegram; если там его нет или оно скрыто, будут инициалы."""
+    await avatars.use_telegram(session, user, datetime.now(UTC))
+    return AvatarOut.of(user)
 
 
 # --- Напоминания ---

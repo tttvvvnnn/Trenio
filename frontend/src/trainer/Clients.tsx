@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { fetchClients, fetchInviteLink, type Client } from '../api'
 import { fullName, rubles } from '../format'
 import { haptic, shareLink } from '../telegram'
+import { PersonAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import ClientCard from './ClientCard'
 
@@ -109,6 +110,7 @@ export default function Clients({ timezone }: Props) {
             <Row
               key={client.id}
               title={fullName(client)}
+              leading={<PersonAvatar person={client} />}
               subtitle={
                 client.username
                   ? `@${client.username} · с ${since(client.since)}`

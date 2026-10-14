@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import Booking, TrainerClient, User
-from trenio.services import bookings, packages
+from trenio.services import avatars, bookings, packages
 from trenio.services.bookings import Actor, BookingError, BookingRejected, BookingStatus
 from trenio.services.clients import client_invite_link, list_clients
 from trenio.services.users import get_user
@@ -51,6 +51,8 @@ class PersonOut(BaseModel):
     first_name: str
     last_name: str | None
     username: str | None
+    # Адрес фото; null — фото нет, показываем инициалы
+    avatar_url: str | None = None
 
     @classmethod
     def of(cls, user: User) -> "PersonOut":
@@ -59,6 +61,7 @@ class PersonOut(BaseModel):
             first_name=user.first_name,
             last_name=user.last_name,
             username=user.username,
+            avatar_url=avatars.avatar_url(user),
         )
 
 
@@ -73,6 +76,7 @@ class BookingTrainerOut(BaseModel):
     id: int
     display_name: str
     timezone: str
+    avatar_url: str | None = None
 
 
 class BookingChargeOut(BaseModel):
@@ -147,7 +151,10 @@ class BookingOut(BaseModel):
                 capacity=service.capacity,
             ),
             trainer=BookingTrainerOut(
-                id=trainer.id, display_name=trainer.display_name, timezone=trainer.timezone
+                id=trainer.id,
+                display_name=trainer.display_name,
+                timezone=trainer.timezone,
+                avatar_url=avatars.avatar_url(trainer.user),
             ),
             client=PersonOut.of(booking.client),
             address=service.address or trainer.address,

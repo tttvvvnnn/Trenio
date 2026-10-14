@@ -10,6 +10,7 @@ import {
 } from '../api'
 import { bookingNote, dateTime, fullName, packageLine, plural, sessionsLeft } from '../format'
 import { haptic } from '../telegram'
+import { PersonAvatar } from '../ui/Avatar'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
@@ -96,6 +97,7 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
     <Screen
       title={name}
       subtitle={client.username ? `@${client.username}` : undefined}
+      avatar={<PersonAvatar person={client} size="md" />}
       onBack={onBack}
     >
       {error && <ErrorText>{error}</ErrorText>}

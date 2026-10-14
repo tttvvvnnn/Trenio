@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from aiogram import Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
@@ -7,6 +9,7 @@ from trenio.auth.telegram import TelegramUser
 from trenio.config import get_settings
 from trenio.db.models import Trainer
 from trenio.db.session import get_sessionmaker
+from trenio.services import avatars
 from trenio.services.clients import (
     CLIENT_INVITE_PREFIX,
     LinkError,
@@ -93,6 +96,7 @@ async def on_start(message: Message, command: CommandObject) -> None:
     payload = command.args or ""
     async with get_sessionmaker()() as session:
         user = await upsert_telegram_user(session, tg_user)
+        await avatars.refresh_from_telegram(session, user, datetime.now(UTC))
         if payload.startswith(CLIENT_INVITE_PREFIX):
             try:
                 linked = await link_client(

@@ -4,6 +4,7 @@ import { createTrainerBooking, fetchClients, type Booking, type Client, type Slo
 import { dateTime, fullName } from '../format'
 import { haptic } from '../telegram'
 import Icon from '../ui/icons'
+import { PersonAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
@@ -69,6 +70,7 @@ export default function BookClient({ slot, serviceName, timezone, onBack, onBook
             <Row
               key={client.id}
               title={fullName(client)}
+              leading={<PersonAvatar person={client} />}
               subtitle={client.username ? `@${client.username}` : undefined}
               onClick={() => {
                 haptic.select()

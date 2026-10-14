@@ -9,7 +9,9 @@ import {
 } from '../api'
 import { dateTime, duration, rescheduleNote } from '../format'
 import CancelScreen from '../ui/CancelScreen'
+import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import MyPhoto from '../ui/MyPhoto'
 import ReminderSettings from '../ui/ReminderSettings'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
@@ -74,6 +76,7 @@ export default function MyBookings({ onBook }: Props) {
           ))}
         </Section>
       )}
+      {bookings !== null && <MyPhoto variant="section" />}
       {bookings !== null && <ReminderSettings role="client" />}
       {opened && (
         <BookingDetails
@@ -100,6 +103,7 @@ function BookingRow({ booking, onClick }: { booking: Booking; onClick: () => voi
       ]
         .filter(Boolean)
         .join(' · ')}
+      leading={<TrainerAvatar trainer={booking.trainer} />}
       tone={isActive(booking) ? undefined : 'muted'}
       onClick={onClick}
       badge={<StatusBadge status={booking.status} />}

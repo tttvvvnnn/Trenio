@@ -14,6 +14,7 @@ import { haptic } from '../telegram'
 import CancelScreen from '../ui/CancelScreen'
 import Icon from '../ui/icons'
 import RescheduleScreen from '../ui/RescheduleScreen'
+import { PersonAvatar } from '../ui/Avatar'
 import { ErrorText, Row, Section } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
@@ -83,6 +84,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
     <Screen
       title={fullName(client)}
       subtitle={client.username ? `@${client.username}` : undefined}
+      avatar={<PersonAvatar person={client} size="md" />}
       onBack={onBack}
     >
       <Section footer={note}>

@@ -1,6 +1,7 @@
 import type { Booking } from '../api'
 import { dayTitle, fullName, localDate, localTime } from '../format'
 import { haptic } from '../telegram'
+import { PersonAvatar, TrainerAvatar } from './Avatar'
 
 // «идёт сейчас», «через 40 мин», «сегодня», «завтра» или «чт, 16 октября»
 function when(booking: Booking, now: Date, timezone: string): string {
@@ -20,14 +21,29 @@ type Props = {
   viewer: 'trainer' | 'client'
   timezone: string
   now: Date
+  // Групповое занятие: все записи на это же время и услугу, включая booking
+  together?: Booking[]
   onOpen: () => void
 }
 
+// Сколько фото показываем стопкой на групповом занятии
+const STACK = 3
+
 /** Фирменная карточка ближайшего занятия наверху главного экрана. */
-export default function NextSession({ booking, viewer, timezone, now, onOpen }: Props) {
+export default function NextSession({
+  booking,
+  viewer,
+  timezone,
+  now,
+  together = [booking],
+  onOpen,
+}: Props) {
   // Тренеру важно, кто придёт; клиент и так знает своего тренера, ему важна услуга
   const trainer = viewer === 'trainer'
-  const title = trainer ? fullName(booking.client) : booking.service.name
+  const others = together.length - 1
+  const title = trainer
+    ? fullName(booking.client) + (others > 0 ? ` и ещё ${others}` : '')
+    : booking.service.name
   const block = booking.charge ?? booking.planned
   const pills = [trainer ? booking.service.name : booking.trainer.display_name]
   if (booking.status === 'pending') pills.push('ждёт подтверждения')
@@ -42,16 +58,27 @@ export default function NextSession({ booking, viewer, timezone, now, onOpen }: 
         onOpen()
       }}
     >
-      <span className="next-session-kicker">
-        Следующее занятие · {when(booking, now, timezone)}
+      <span className="next-session-text">
+        <span className="next-session-kicker">
+          Следующее занятие · {when(booking, now, timezone)}
+        </span>
+        <span className="next-session-title">
+          {localTime(booking.starts_at, timezone)} · {title}
+        </span>
+        <span className="next-session-pills">
+          {pills.map((pill) => (
+            <span key={pill}>{pill}</span>
+          ))}
+        </span>
       </span>
-      <span className="next-session-title">
-        {localTime(booking.starts_at, timezone)} · {title}
-      </span>
-      <span className="next-session-pills">
-        {pills.map((pill) => (
-          <span key={pill}>{pill}</span>
-        ))}
+      <span className="next-session-avatars">
+        {trainer ? (
+          together
+            .slice(0, STACK)
+            .map((item) => <PersonAvatar key={item.id} person={item.client} size="md" />)
+        ) : (
+          <TrainerAvatar trainer={booking.trainer} size="md" />
+        )}
       </span>
     </button>
   )
