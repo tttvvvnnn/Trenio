@@ -44,7 +44,7 @@ class MonthSummaryOut(BaseModel):
     chart: list[MonthPointOut]
 
 
-def _month(trainer: CurrentTrainer, month: str | None) -> str:
+def month_or_current(trainer: CurrentTrainer, month: str | None) -> str:
     if month is not None:
         return month
     return finance.month_key(packages.trainer_today(trainer, datetime.now(UTC)))
@@ -59,7 +59,7 @@ async def get_summary(
     trainer: CurrentTrainer, session: SessionDep, month: MonthQuery = None
 ) -> MonthSummaryOut:
     books = await finance.load(session, trainer, datetime.now(UTC))
-    summary = finance.month_summary(books, _month(trainer, month))
+    summary = finance.month_summary(books, month_or_current(trainer, month))
     return MonthSummaryOut(
         month=summary.month,
         received=summary.received,
@@ -131,7 +131,7 @@ class MonthDetailsOut(BaseModel):
 async def get_month(
     trainer: CurrentTrainer, session: SessionDep, month: MonthQuery = None
 ) -> MonthDetailsOut:
-    key = _month(trainer, month)
+    key = month_or_current(trainer, month)
     books = await finance.load(session, trainer, datetime.now(UTC))
     incomes = finance.month_incomes(books, key)
     clients = finance.month_clients(books, key)

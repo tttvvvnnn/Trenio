@@ -269,3 +269,10 @@ export function packageLine(pkg: Package): string {
   const money = pkg.due > 0 ? `внесено ${rubles(pkg.paid)} из ${rubles(pkg.price)}` : 'оплачен'
   return `пройдено ${pkg.used} из ${pkg.sessions_count} · ${money}`
 }
+
+// "2026-10", -1 -> "2026-09"
+export function shiftMonth(month: string, by: number): string {
+  const [year, number] = month.split('-').map(Number)
+  const index = year * 12 + number - 1 + by
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
+}

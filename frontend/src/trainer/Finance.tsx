@@ -11,25 +11,19 @@ import {
   type FinanceYear,
   type MonthPoint,
 } from '../api'
-import { fullName, localDate, monthTitle, plural, rubles } from '../format'
+import { fullName, localDate, monthTitle, plural, rubles, shiftMonth } from '../format'
 import { haptic } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
 import Icon from '../ui/icons'
 import { ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import Screen from '../ui/Screen'
+import Stats from './Stats'
 
 type Props = {
   timezone: string
 }
 
 type View = 'month' | 'year'
-
-// "2026-10", -1 -> "2026-09"
-function shiftMonth(month: string, by: number): string {
-  const [year, number] = month.split('-').map(Number)
-  const index = year * 12 + number - 1 + by
-  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
-}
 
 // "2026-10" -> "окт"; три буквы, чтобы 12 месяцев года помещались в ряд
 function monthShort(month: string): string {
@@ -59,7 +53,7 @@ export default function Finance({ timezone }: Props) {
   const [year, setYear] = useState(Number(today.slice(0, 4)))
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
   const [yearData, setYearData] = useState<FinanceYear | null>(null)
-  const [opened, setOpened] = useState<'details' | 'forecast' | null>(null)
+  const [opened, setOpened] = useState<'details' | 'forecast' | 'stats' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -115,6 +109,7 @@ export default function Finance({ timezone }: Props) {
               onMonth={openMonth}
               onDetails={() => setOpened('details')}
               onForecast={() => setOpened('forecast')}
+              onStats={() => setOpened('stats')}
             />
           )}
         </>
@@ -132,11 +127,14 @@ export default function Finance({ timezone }: Props) {
       )}
       {opened === 'details' && <MonthDetails month={month} onBack={() => setOpened(null)} />}
       {opened === 'forecast' && <Forecast onBack={() => setOpened(null)} />}
+      {opened === 'stats' && (
+        <Stats timezone={timezone} month={month} onBack={() => setOpened(null)} />
+      )}
     </>
   )
 }
 
-function PeriodSwitch({
+export function PeriodSwitch({
   title,
   onPrev,
   onNext,
@@ -164,9 +162,10 @@ type MonthViewProps = {
   onMonth: (month: string) => void
   onDetails: () => void
   onForecast: () => void
+  onStats: () => void
 }
 
-function MonthView({ summary, current, onMonth, onDetails, onForecast }: MonthViewProps) {
+function MonthView({ summary, current, onMonth, onDetails, onForecast, onStats }: MonthViewProps) {
   const pills = [
     change(summary.received, summary.received_prev),
     summary.incomes_count > 0
@@ -228,6 +227,13 @@ function MonthView({ summary, current, onMonth, onDetails, onForecast }: MonthVi
       )}
       <Section footer="Разовое занятие считается оплаченным по цене услуги, когда вы отмечаете его.">
         <Row
+          title="Статистика занятий"
+          subtitle="Посещаемость, загрузка, клиенты"
+          icon={{ name: 'users', color: 'var(--c-success)' }}
+          chevron
+          onClick={onStats}
+        />
+        <Row
           title="Подробности месяца"
           subtitle="Поступления и клиенты"
           icon={{ name: 'list', color: 'var(--c-violet)' }}
@@ -282,7 +288,7 @@ function YearView({ data, onMonth }: { data: FinanceYear; onMonth: (month: strin
   )
 }
 
-type StatProps = {
+export type StatProps = {
   label: string
   value: string
   note?: string
@@ -290,7 +296,7 @@ type StatProps = {
   onClick?: () => void
 }
 
-function Stat({ label, value, note, tone, onClick }: StatProps) {
+export function Stat({ label, value, note, tone, onClick }: StatProps) {
   const content = (
     <>
       <span className="stat-label">{label}</span>

@@ -861,6 +861,34 @@ export function fetchFinanceForecast(): Promise<FinanceForecast> {
   return request<FinanceForecast>('/api/trainer/finance/forecast')
 }
 
+// --- Статистика тренера ---
+
+export type TrainerStats = {
+  month: string
+  visits: {
+    attended: number
+    missed_charged: number
+    missed_free: number
+    // Прошли, но не отмечены
+    unmarked: number
+    // Ещё впереди в этом месяце
+    upcoming: number
+    cancelled_by_client: number
+    cancelled_by_trainer: number
+  }
+  // 0 — понедельник: минуты в расписании и сколько из них занято записями
+  load: { weekday: number; open_minutes: number; booked_minutes: number }[]
+  new_clients: number
+  // Больше всего занятий в этом месяце
+  top: { client: Person; sessions: number }[]
+  // Сейчас: давно не были и не записаны
+  lapsed: { client: Person; last_at: string }[]
+}
+
+export function fetchTrainerStats(month: string): Promise<TrainerStats> {
+  return request<TrainerStats>(`/api/trainer/stats?month=${month}`)
+}
+
 // --- Админ-панель ---
 
 export type AdminOverview = {

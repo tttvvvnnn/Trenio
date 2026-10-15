@@ -56,6 +56,8 @@ type Props = {
   onOpenServices?: () => void
   // Есть только у админа
   onOpenAdmin?: () => void
+  // Статистика занятий за месяц
+  onOpenStats?: () => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
   // Запустить вводный тур заново
@@ -73,6 +75,7 @@ export default function ProfileForm({
   onSaved,
   onOpenServices,
   onOpenAdmin,
+  onOpenStats,
   onSwitchToClient,
   onStartTour,
 }: Props) {
@@ -267,6 +270,16 @@ export default function ProfileForm({
             icon={{ name: 'users', color: 'var(--c-planned)' }}
             chevron
             onClick={onOpenAdmin}
+          />
+        </Section>
+      )}
+      {!onboarding && onOpenStats && (
+        <Section footer="Посещаемость, загрузка по дням недели и клиенты, которые давно не были.">
+          <Row
+            title="Статистика"
+            icon={{ name: 'users', color: 'var(--c-success)' }}
+            chevron
+            onClick={onOpenStats}
           />
         </Section>
       )}
