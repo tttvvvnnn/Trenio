@@ -179,6 +179,7 @@ class TrainerProfileUpdate:
     auto_confirm: bool | None = None
     cancel_hours: int | None = None
     slot_step_min: int | None = None
+    one_off_mode: str | None = None
     # Пустая строка убирает правила
     rules: str | None = None
 
@@ -199,6 +200,8 @@ async def update_profile(
         trainer.cancel_hours = changes.cancel_hours
     if changes.slot_step_min is not None:
         trainer.slot_step_min = changes.slot_step_min
+    if changes.one_off_mode is not None:
+        trainer.one_off_mode = changes.one_off_mode
     if changes.rules is not None and (changes.rules or None) != trainer.rules:
         # Новая редакция: клиенты подтвердят её при следующем открытии
         trainer.rules = changes.rules or None

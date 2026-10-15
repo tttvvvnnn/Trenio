@@ -29,6 +29,8 @@ class ClientTrainerOut(BaseModel):
     address: str | None
     auto_confirm: bool
     cancel_hours: int
+    # Запись без блока: allow — можно, confirm — с подтверждением тренера, forbid — нельзя
+    one_off_mode: str
     rules: str | None
     # Правила нужно прочитать и принять, прежде чем записываться
     rules_pending: bool
@@ -46,6 +48,7 @@ class ClientTrainerOut(BaseModel):
             address=trainer.address,
             auto_confirm=trainer.auto_confirm,
             cancel_hours=trainer.cancel_hours,
+            one_off_mode=trainer.one_off_mode,
             rules=trainer.rules,
             rules_pending=link.rules_pending,
             avatar_url=avatars.avatar_url(trainer.user),

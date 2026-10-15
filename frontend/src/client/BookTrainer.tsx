@@ -177,6 +177,9 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
   const daySlots = byDay.get(current) ?? []
   const dayMine = mineByDay.get(current) ?? []
 
+  // Выбранное время не покрыто блоком: запись будет разовой
+  const oneOff =
+    selected !== null && !covered(packages, service.id, localDate(selected.starts_at, timezone))
   const rules = [
     trainer.auto_confirm ? 'Запись подтверждается сразу.' : 'Запись подтверждает тренер.',
     trainer.cancel_hours > 0
@@ -321,7 +324,18 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
         </section>
       )}
       {error && <ErrorText>{error}</ErrorText>}
-      {selected && !covered(packages, service.id, localDate(selected.starts_at, timezone)) && (
+      {selected && oneOff && trainer.one_off_mode === 'forbid' && (
+        <p className="section-footer hint-alert">
+          Тренер записывает только по блоку, а свободного занятия в блоке на этот день у вас нет.
+          Купите блок у тренера, чтобы записаться.
+        </p>
+      )}
+      {selected && oneOff && trainer.one_off_mode === 'confirm' && (
+        <p className="section-footer hint-alert">
+          Эта запись будет без блока, поэтому её подтвердит тренер. Об оплате договоритесь с ним.
+        </p>
+      )}
+      {selected && oneOff && trainer.one_off_mode === 'allow' && packages.length > 0 && (
         <p className="section-footer hint-alert">
           Занятия в вашем блоке закончились или уже заняты записями. Эта запись будет без блока: об
           оплате договоритесь с тренером.
@@ -332,15 +346,15 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
         text={selected ? `Записаться: ${dateTime(selected.starts_at, timezone)}` : 'Записаться'}
         onClick={() => void book()}
         visible={selected !== null}
+        disabled={oneOff && trainer.one_off_mode === 'forbid'}
         loading={saving}
       />
     </>
   )
 }
 
-// Хватит ли блока на ещё одну запись. Если блоков у тренера не было, не предупреждаем
+// Хватит ли блока на ещё одну запись
 function covered(packages: Package[], serviceId: number, day: string): boolean {
-  if (packages.length === 0) return true
   return packages.some(
     (pkg) =>
       pkg.status === 'active' &&

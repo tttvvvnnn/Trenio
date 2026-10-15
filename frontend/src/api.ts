@@ -10,6 +10,7 @@ export type Trainer = {
   cancel_hours: number
   // Шаг времени начала записи в минутах; 0 — равен длительности услуги
   slot_step_min: number
+  one_off_mode: OneOffMode
   // Правила занятий: клиенты подтверждают их перед записью; null — правил нет
   rules: string | null
   rules_updated_at: string | null
@@ -19,6 +20,9 @@ export type Trainer = {
 
 // telegram — фото из Telegram, custom — загружено своё, none — убрано
 export type AvatarMode = 'telegram' | 'custom' | 'none'
+
+// Запись клиента без блока: allow — можно, confirm — с подтверждением тренера, forbid — нельзя
+export type OneOffMode = 'allow' | 'confirm' | 'forbid'
 
 export type Me = {
   id: number
@@ -51,6 +55,7 @@ export type TrainerProfileInput = Partial<
     | 'auto_confirm'
     | 'cancel_hours'
     | 'slot_step_min'
+    | 'one_off_mode'
     | 'rules'
   >
 >
@@ -115,6 +120,7 @@ export type ClientTrainer = {
   address: string | null
   auto_confirm: boolean
   cancel_hours: number
+  one_off_mode: OneOffMode
   rules: string | null
   // Правила нужно прочитать и принять, прежде чем записываться
   rules_pending: boolean
