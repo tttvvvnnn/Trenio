@@ -100,6 +100,18 @@ class UserAvatar(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary)
 
 
+class UserActivityDay(Base):
+    """День, когда человек открывал приложение: для активности тренеров в админке."""
+
+    __tablename__ = "user_activity_days"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # День по Москве, как и вся статистика админки
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
 class Trainer(TimestampMixin, Base):
     """Профиль тренера. Есть строка и is_active — значит, у пользователя есть бета-доступ."""
 

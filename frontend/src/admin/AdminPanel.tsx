@@ -79,6 +79,12 @@ export default function AdminPanel({ onBack }: Props) {
         <>
           <div className="stat-grid">
             <Tile
+              wide
+              label="Пользуются Trenio"
+              value={`${overview.trainers_engaged} из ${overview.trainers_active}`}
+              note="тренеров заходили хотя бы 10 из последних 14 дней"
+            />
+            <Tile
               label="Тренеры"
               value={String(overview.trainers)}
               note={`активны: ${overview.trainers_active}`}
@@ -91,7 +97,7 @@ export default function AdminPanel({ onBack }: Props) {
             <Tile
               label="Пользователи"
               value={String(overview.users)}
-              note={`заходили за 7 дн: ${overview.users_seen_week}`}
+              note={`сегодня ${overview.users_active_today}, за 7 дн ${overview.users_seen_week}`}
             />
             <Tile
               label="Записи за 7 дн"
@@ -135,7 +141,7 @@ export default function AdminPanel({ onBack }: Props) {
                   key={trainer.id}
                   leading={<TrainerAvatar trainer={trainer} />}
                   title={trainer.display_name}
-                  subtitle={`${plural(trainer.clients, 'клиент', 'клиента', 'клиентов')} · ${trainer.bookings_month} зап. за 30 дн · ${ago(trainer.last_seen_at)}`}
+                  subtitle={`${plural(trainer.clients, 'клиент', 'клиента', 'клиентов')} · заходил ${activeCount(trainer)} из 14 дн · ${ago(trainer.last_seen_at)}`}
                   badge={<span className={`badge ${tone}`}>{label}</span>}
                   onClick={() => setOpened(trainer)}
                 />
@@ -192,9 +198,15 @@ export default function AdminPanel({ onBack }: Props) {
   )
 }
 
-function Tile({ label, value, note }: { label: string; value: string; note?: string }) {
+function activeCount(trainer: AdminTrainer): number {
+  return trainer.active_days.filter(Boolean).length
+}
+
+type TileProps = { label: string; value: string; note?: string; wide?: boolean }
+
+function Tile({ label, value, note, wide = false }: TileProps) {
   return (
-    <div className="stat-tile">
+    <div className={wide ? 'stat-tile wide' : 'stat-tile'}>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
       {note && <span className="stat-note">{note}</span>}
@@ -313,6 +325,19 @@ function TrainerScreen({ trainer, onBack, onChanged }: TrainerScreenProps) {
         <Tile label="Услуги" value={String(trainer.services)} />
         <Tile label="Статус" value={STATE[trainer.state][0]} />
       </div>
+      <Section
+        title="Активность за 14 дней"
+        footer="Каждая клетка — день, справа сегодня. Закрашена, если тренер открывал приложение."
+      >
+        <div className="activity-strip" aria-label={`Заходил ${activeCount(trainer)} из 14 дней`}>
+          {trainer.active_days.map((active, index) => (
+            <i key={index} className={active ? 'on' : undefined} />
+          ))}
+        </div>
+        <Row title="Дней подряд" value={String(trainer.streak)} />
+        <Row title="Поставил записей сам" value={String(trainer.bookings_created)} />
+        <Row title="Отметил занятий" value={String(trainer.marks)} />
+      </Section>
       <Section>
         <Row title="Заходил в приложение" value={ago(trainer.last_seen_at)} />
         <Row

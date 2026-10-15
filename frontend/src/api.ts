@@ -866,6 +866,9 @@ export function fetchFinanceForecast(): Promise<FinanceForecast> {
 export type AdminOverview = {
   users: number
   users_seen_week: number
+  users_active_today: number
+  // Тренеры, которые заходили 10 из последних 14 дней
+  trainers_engaged: number
   trainers: number
   trainers_active: number
   trainers_disabled: number
@@ -915,6 +918,13 @@ export type AdminTrainer = {
   services: number
   last_booking_at: string | null
   last_seen_at: string | null
+  // Заходил ли в каждый из последних 14 дней, от старого к сегодняшнему
+  active_days: boolean[]
+  // Дней подряд
+  streak: number
+  // За 14 дней: записей поставил сам, занятий отметил
+  bookings_created: number
+  marks: number
 }
 
 export function fetchAdminOverview(): Promise<AdminOverview> {

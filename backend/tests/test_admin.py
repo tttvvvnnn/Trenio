@@ -110,3 +110,33 @@ async def test_admin_only(client: AsyncClient, session: AsyncSession) -> None:
     other = await second_trainer(client, session)
     for path in ("overview", "trainers", "invites"):
         assert (await client.get(f"/api/admin/{path}", headers=other)).status_code == 403
+
+
+async def test_trainer_activity_days(client: AsyncClient, session: AsyncSession) -> None:
+    from sqlalchemy import select
+
+    from trenio.db.models import User, UserActivityDay
+    from trenio.services.admin_stats import streak
+
+    headers, _, _ = await setup_trainer(client)
+    admin_user = await session.scalar(select(User).where(User.telegram_id == 1001))
+    assert admin_user is not None
+    today = datetime.now(ADMIN_TIMEZONE).date()
+    # Вход сегодня уже отмечен; добавим ещё 9 дней подряд до него и один давний
+    for offset in [*range(1, 10), 12]:
+        session.add(UserActivityDay(user_id=admin_user.id, day=today - timedelta(days=offset)))
+    await session.commit()
+
+    trainers = await get(client, headers, "trainers")
+    row = trainers[0]
+    assert len(row["active_days"]) == 14
+    assert row["active_days"][-10:] == [True] * 10
+    assert row["active_days"][-11:-10] == [False]
+    assert row["streak"] == 10
+    overview = await get(client, headers, "overview")
+    assert overview["trainers_engaged"] == 1
+    assert overview["users_active_today"] == 1
+
+    # Сегодня ещё не заходил: серия считается со вчера
+    assert streak({today - timedelta(days=1), today - timedelta(days=2)}, today) == 2
+    assert streak({today - timedelta(days=3)}, today) == 0
