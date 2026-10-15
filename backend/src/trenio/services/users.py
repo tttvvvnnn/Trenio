@@ -1,9 +1,12 @@
+from datetime import datetime
+
 from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.auth.telegram import TelegramUser
 from trenio.db.models import User
+from trenio.services.notifications import Role
 
 
 async def upsert_telegram_user(session: AsyncSession, tg_user: TelegramUser) -> User:
@@ -58,3 +61,12 @@ async def reset_name(session: AsyncSession, user: User) -> None:
 
 async def get_user(session: AsyncSession, user_id: int) -> User | None:
     return await session.scalar(select(User).where(User.id == user_id))
+
+
+async def finish_tour(session: AsyncSession, user: User, role: Role, now: datetime) -> None:
+    """Отмечает вводный тур роли пройденным; повторный проход время не меняет."""
+    if role is Role.TRAINER:
+        user.trainer_tour_at = user.trainer_tour_at or now
+    else:
+        user.client_tour_at = user.client_tour_at or now
+    await session.commit()

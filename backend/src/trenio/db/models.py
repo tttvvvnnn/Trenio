@@ -64,6 +64,10 @@ class User(TimestampMixin, Base):
     avatar_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Когда человек последний раз открывал Mini App: для активности в админ-панели
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Когда человек прошёл или пропустил вводный тур; None — показать при входе.
+    # У тренера и клиента туры свои: тренер может ещё и записываться к другому тренеру
+    trainer_tour_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    client_tour_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class UserAvatar(Base):

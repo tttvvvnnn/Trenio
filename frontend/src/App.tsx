@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, loginWithTelegram, type Me, type Trainer } from './api'
+import { fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
 import ClientHome from './client/ClientHome'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
@@ -33,6 +33,14 @@ export default function App() {
       .catch((error: unknown) => setState({ kind: 'error', message: String(error) }))
   }, [])
 
+  function setTourDone(role: TourRole) {
+    setState((current) =>
+      current.kind === 'ready'
+        ? { kind: 'ready', me: { ...current.me, [`${role}_tour_done`]: true } }
+        : current,
+    )
+  }
+
   function setTrainer(trainer: Trainer) {
     setState((current) =>
       current.kind === 'ready' ? { kind: 'ready', me: { ...current.me, trainer } } : current,
@@ -43,7 +51,7 @@ export default function App() {
   const withTabbar = view === 'client' || view === 'trainer'
   return (
     <main className={withTabbar ? 'app with-tabbar' : 'app'}>
-      {render(state, view, setTrainer, setClientMode)}
+      {render(state, view, setTrainer, setClientMode, setTourDone)}
     </main>
   )
 }
@@ -63,6 +71,7 @@ function render(
   view: View | null,
   setTrainer: (trainer: Trainer) => void,
   setClientMode: (clientMode: boolean) => void,
+  setTourDone: (role: TourRole) => void,
 ) {
   switch (state.kind) {
     case 'loading':
@@ -82,7 +91,11 @@ function render(
       }
       if (view === 'client') {
         return (
-          <ClientHome onSwitchToTrainer={me.trainer ? () => setClientMode(false) : undefined} />
+          <ClientHome
+            onSwitchToTrainer={me.trainer ? () => setClientMode(false) : undefined}
+            tourDone={me.client_tour_done}
+            onTourDone={() => setTourDone('client')}
+          />
         )
       }
       if (me.trainer === null) {
@@ -103,6 +116,8 @@ function render(
           isAdmin={me.is_admin}
           onTrainerChange={setTrainer}
           onSwitchToClient={me.is_client ? () => setClientMode(true) : undefined}
+          tourDone={me.trainer_tour_done}
+          onTourDone={() => setTourDone('trainer')}
         />
       )
     }
