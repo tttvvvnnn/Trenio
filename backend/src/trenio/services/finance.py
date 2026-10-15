@@ -95,7 +95,7 @@ def build_ledger(trainer_packages: Iterable[Package], one_offs: Iterable[Booking
             ledger.work.append(Work(package_session.day, package.client_id, unit_price(package)))
     for booking in one_offs:
         day = packages.booking_day(booking)
-        price = booking.service.price or 0
+        price = booking.price or 0
         name = booking.service.name
         ledger.incomes.append(Income(day, booking.client_id, "one_off", name, price))
         ledger.work.append(Work(day, booking.client_id, price))
@@ -147,7 +147,7 @@ def planned_value(books: Books, booking: Booking) -> int:
     charge = books.forecast.plan.get(booking.id)
     if charge is not None:
         return round(unit_price(charge.package))
-    return booking.service.price or 0
+    return booking.price or 0
 
 
 def upcoming(books: Books, until: date) -> list[Booking]:
@@ -305,7 +305,7 @@ class MoneyForecast:
 def money_forecast(books: Books) -> MoneyForecast:
     until = books.today + timedelta(days=FORECAST_DAYS)
     one_offs = [b for b in upcoming(books, until) if books.forecast.plan.get(b.id) is None]
-    one_off = sum(b.service.price or 0 for b in one_offs)
+    one_off = sum(b.price or 0 for b in one_offs)
     dues = [
         Due(p, packages.due(p))
         for p in books.packages

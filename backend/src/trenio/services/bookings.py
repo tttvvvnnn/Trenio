@@ -11,6 +11,7 @@
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
@@ -57,6 +58,22 @@ class BookingError(StrEnum):
     IN_PAST = "in_past"
     # Перенос на то же время
     SAME_TIME = "same_time"
+    # Длительность группового занятия общая, у одного участника её не поменять
+    GROUP_DURATION = "group_duration"
+
+
+@dataclass(frozen=True)
+class Terms:
+    """Условия одного занятия, которые тренер задаёт при записи. None — как у услуги."""
+
+    duration_min: int | None = None
+    price: int | None = None
+    # Не списывать из блока: занятие оплачивается отдельно
+    no_package: bool = False
+
+
+def duration_of(booking: Booking) -> timedelta:
+    return booking.ends_at - booking.starts_at
 
 
 # Комментарий к отмене или переносу: пара фраз, а не письмо
@@ -120,11 +137,15 @@ async def create_booking(
     starts_at: datetime,
     actor: Actor,
     now: datetime,
+    terms: Terms | None = None,
 ) -> Booking:
-    """Записывает клиента в окошко. Клиент записывается сам, тренер может записать его."""
+    """Записывает клиента в окошко. Клиент записывается сам, тренер может записать его.
+
+    Свои условия занятия (terms) ставит только тренер.
+    """
     try:
         booking_id = await _create_booking(
-            session, trainer, client, service_id, starts_at, actor, now
+            session, trainer, client, service_id, starts_at, actor, now, terms or Terms()
         )
     except BookingRejected:
         # Изменений нет; commit снимает блокировку и, в отличие от rollback,
@@ -150,14 +171,18 @@ async def _check_time(
     actor: Actor,
     now: datetime,
     exclude_id: int | None = None,
+    duration: timedelta | None = None,
 ) -> None:
     """Можно ли поставить запись клиента на это время. Вызывать под блокировкой тренера.
 
     exclude_id — переносимая запись: она не мешает сама себе.
+    duration — своя длительность занятия, если тренер поменял её; None — как у услуги.
     """
     if starts_at <= now:
         raise BookingRejected(BookingError.IN_PAST)
-    ends_at = starts_at + timedelta(minutes=service.duration_min)
+    standard = timedelta(minutes=service.duration_min)
+    duration = duration or standard
+    ends_at = starts_at + duration
 
     # Клиент не может быть в двух местах сразу, даже у разных тренеров
     overlap = select(Booking.id).where(
@@ -174,13 +199,15 @@ async def _check_time(
     # Свободное окошко расписания подходит всем
     day = starts_at.astimezone(ZoneInfo(trainer.timezone)).date()
     slots = await trainer_slots(session, trainer, day, 1, now, service.id, exclude_id)
-    if any(slot.starts_at == starts_at for slot in slots):
+    in_slot = any(slot.starts_at == starts_at for slot in slots)
+    if in_slot and duration == standard:
         return
-    if actor is Actor.CLIENT:
+    if actor is Actor.CLIENT and not in_slot:
         raise BookingRejected(BookingError.SLOT_UNAVAILABLE)
 
     # Тренер ставит и вне расписания, лишь бы сам был свободен. Групповое занятие,
-    # которое уже идёт в это время, можно дополнить, пока есть места
+    # которое уже идёт в это время, можно дополнить, пока есть места.
+    # Занятие своей длительности проверяем так же: окошко считалось по длительности услуги
     busy = await active_bookings(session, trainer, starts_at, ends_at, exclude_id)
     if any(b.service_id != service.id or b.starts_at != starts_at for b in busy):
         raise BookingRejected(BookingError.TRAINER_BUSY)
@@ -201,6 +228,7 @@ async def _create_booking(
     starts_at: datetime,
     actor: Actor,
     now: datetime,
+    terms: Terms,
 ) -> int:
     await _lock_trainer(session, trainer.id)
 
@@ -215,7 +243,10 @@ async def _create_booking(
     )
     if service is None:
         raise BookingRejected(BookingError.SERVICE_NOT_FOUND)
-    await _check_time(session, trainer, client.id, service, starts_at, actor, now)
+    duration = timedelta(minutes=terms.duration_min or service.duration_min)
+    if service.capacity > 1 and duration != timedelta(minutes=service.duration_min):
+        raise BookingRejected(BookingError.GROUP_DURATION)
+    await _check_time(session, trainer, client.id, service, starts_at, actor, now, None, duration)
 
     confirmed = actor is Actor.TRAINER or trainer.auto_confirm
     booking = Booking(
@@ -223,9 +254,11 @@ async def _create_booking(
         client_id=client.id,
         service_id=service.id,
         starts_at=starts_at,
-        ends_at=starts_at + timedelta(minutes=service.duration_min),
+        ends_at=starts_at + duration,
         status=BookingStatus.CONFIRMED if confirmed else BookingStatus.PENDING,
         created_by=actor.value,
+        price=terms.price if terms.price is not None else service.price,
+        no_package=terms.no_package,
     )
     session.add(booking)
     await session.flush()
@@ -318,13 +351,15 @@ async def reschedule_booking(
             actor,
             now,
             exclude_id=booking.id,
+            duration=duration_of(booking),
         )
     except BookingRejected:
         await session.commit()
         raise
     previous = booking.starts_at
+    duration = duration_of(booking)
     booking.starts_at = starts_at
-    booking.ends_at = starts_at + timedelta(minutes=booking.service.duration_min)
+    booking.ends_at = starts_at + duration
     confirmed = actor is Actor.TRAINER or booking.trainer.auto_confirm
     booking.status = BookingStatus.CONFIRMED if confirmed else BookingStatus.PENDING
     booking.rescheduled_from = previous
@@ -337,6 +372,39 @@ async def reschedule_booking(
     await session.commit()
     kick()
     return booking
+
+
+async def change_duration(
+    session: AsyncSession, booking: Booking, duration: timedelta, now: datetime
+) -> None:
+    """Тренер меняет длительность будущего индивидуального занятия. Коммит — за вызывающим."""
+    if duration == duration_of(booking):
+        return
+    await _lock_trainer(session, booking.trainer_id)
+    try:
+        await session.refresh(booking)
+        if not is_active(booking):
+            raise BookingRejected(BookingError.WRONG_STATUS)
+        if booking.starts_at <= now:
+            raise BookingRejected(BookingError.STARTED)
+        if booking.service.capacity > 1:
+            raise BookingRejected(BookingError.GROUP_DURATION)
+        await _check_time(
+            session,
+            booking.trainer,
+            booking.client_id,
+            booking.service,
+            booking.starts_at,
+            Actor.TRAINER,
+            now,
+            exclude_id=booking.id,
+            duration=duration,
+        )
+    except BookingRejected:
+        await session.commit()
+        raise
+    booking.ends_at = booking.starts_at + duration
+    await notifications.booking_retimed(session, booking, now)
 
 
 async def list_client_bookings(

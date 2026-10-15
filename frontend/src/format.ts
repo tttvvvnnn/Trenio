@@ -109,6 +109,17 @@ export function duration(minutes: number): string {
   return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`
 }
 
+// Длительность записи в минутах: тренер может сделать её не такой, как у услуги
+export function bookingMinutes(booking: { starts_at: string; ends_at: string }): number {
+  return Math.round((Date.parse(booking.ends_at) - Date.parse(booking.starts_at)) / 60000)
+}
+
+// Сумма в рублях, как её вводят: «20 000»; пусто — null
+export function parsePrice(price: string): number | null {
+  const digits = price.replace(/\D/g, '')
+  return digits === '' ? null : Number(digits)
+}
+
 export function rubles(amount: number): string {
   return `${amount.toLocaleString('ru-RU')} ₽`
 }

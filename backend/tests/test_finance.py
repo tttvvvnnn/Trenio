@@ -4,12 +4,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.test_bookings import new_client, setup_trainer
 from tests.test_packages import client_id_of, mark, sell
 from tests.test_schedule_api import Headers
-from trenio.db.models import Booking
+from trenio.db.models import Booking, Service
 
 
 async def booking_at(
@@ -23,6 +24,8 @@ async def booking_at(
         ends_at=starts_at + timedelta(hours=1),
         status="confirmed",
         created_by="client",
+        # Как при записи: цена разового занятия копируется из услуги
+        price=await session.scalar(select(Service.price).where(Service.id == service_id)),
     )
     session.add(booking)
     await session.commit()

@@ -9,7 +9,7 @@ import {
   type Client,
   type Service,
 } from '../api'
-import { dateTime, duration, fullName } from '../format'
+import { dateTime, duration, fullName, parsePrice } from '../format'
 import { haptic } from '../telegram'
 import Icon from '../ui/icons'
 import { PersonAvatar } from '../ui/Avatar'
@@ -17,6 +17,7 @@ import { Chips, EmptyState, ErrorText, Row, Section, SkeletonList } from '../ui/
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import SlotPicker from '../ui/SlotPicker'
+import TermsFields, { type TermsValue } from './TermsFields'
 
 type Props = {
   timezone: string
@@ -38,6 +39,8 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloads, setReloads] = useState(0)
+  // Свои условия занятия; null — как у услуги
+  const [terms, setTerms] = useState<TermsValue | null>(null)
 
   useEffect(() => {
     fetchServices()
@@ -58,10 +61,17 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
     setSaving(true)
     setError(null)
     try {
+      const price = terms ? parsePrice(terms.price) : null
       const booking = await createTrainerBooking({
         client_id: clientId,
         service_id: serviceId,
         starts_at: startsAt,
+        duration_min:
+          terms && service && terms.durationMin !== service.duration_min
+            ? terms.durationMin
+            : undefined,
+        price: price ?? undefined,
+        no_package: terms?.noPackage || undefined,
       })
       haptic.success()
       onBooked(booking)
@@ -124,6 +134,7 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
                 onChange={(id) => {
                   setStartsAt(null)
                   setServiceId(id)
+                  setTerms(null)
                 }}
               />
             </section>
@@ -141,6 +152,29 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
             allowCustom
             initialDay={day}
           />
+          {terms ? (
+            <TermsFields
+              value={terms}
+              onChange={setTerms}
+              group={service.capacity > 1}
+              footer="Меняется только это занятие. Своя длительность может не совпасть с окошками: проверим, что вы свободны."
+            />
+          ) : (
+            <Section>
+              <Row
+                title="Свои условия занятия"
+                subtitle="Длительность, цена, не списывать из блока"
+                chevron
+                onClick={() =>
+                  setTerms({
+                    durationMin: service.duration_min,
+                    price: service.price === null ? '' : String(service.price),
+                    noPackage: false,
+                  })
+                }
+              />
+            </Section>
+          )}
           <p className="section-footer">Запись сразу подтверждена, клиенту придёт уведомление.</p>
         </>
       )}

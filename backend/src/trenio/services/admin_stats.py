@@ -128,9 +128,8 @@ async def _received(session: AsyncSession, first: date, last: date) -> int:
         )
     )
     one_offs = await session.scalar(
-        select(func.coalesce(func.sum(Service.price), 0))
+        select(func.coalesce(func.sum(Booking.price), 0))
         .select_from(Booking)
-        .join(Service, Service.id == Booking.service_id)
         .outerjoin(PackageSession, PackageSession.booking_id == Booking.id)
         .where(
             Booking.attendance.in_(CHARGED),

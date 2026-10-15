@@ -161,6 +161,10 @@ export type Booking = {
   charge: BookingCharge | null
   // Неотмеченная запись: из какого блока спишется, если пройдёт
   planned: BookingCharge | null
+  // Только тренеру: цена занятия, если оно разовое; null — цены нет
+  price: number | null
+  // Только тренеру: тренер решил не списывать занятие из блока
+  no_package: boolean
 }
 
 export type BookingCharge = {
@@ -462,12 +466,21 @@ export function fetchPendingBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/trainer/bookings/pending')
 }
 
-export function createTrainerBooking(booking: {
-  client_id: number
-  service_id: number
-  starts_at: string
-}): Promise<Booking> {
+// Свои условия одного занятия; не переданное — как у услуги или как было
+export type BookingTermsInput = {
+  duration_min?: number
+  price?: number
+  no_package?: boolean
+}
+
+export function createTrainerBooking(
+  booking: { client_id: number; service_id: number; starts_at: string } & BookingTermsInput,
+): Promise<Booking> {
   return send<Booking>('POST', '/api/trainer/bookings', booking)
+}
+
+export function setBookingTerms(bookingId: number, terms: BookingTermsInput): Promise<Booking> {
+  return send<Booking>('PATCH', `/api/trainer/bookings/${bookingId}/terms`, terms)
 }
 
 export type BookingAction = 'confirm' | 'decline' | 'cancel'

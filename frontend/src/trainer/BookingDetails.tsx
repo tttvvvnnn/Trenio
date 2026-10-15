@@ -9,7 +9,15 @@ import {
   type Booking,
   type BookingAction,
 } from '../api'
-import { ATTENDANCE, dateTime, duration, fullName, rescheduleNote } from '../format'
+import {
+  ATTENDANCE,
+  bookingMinutes,
+  dateTime,
+  duration,
+  fullName,
+  rescheduleNote,
+  rubles,
+} from '../format'
 import { haptic } from '../telegram'
 import CancelScreen from '../ui/CancelScreen'
 import Icon from '../ui/icons'
@@ -19,6 +27,7 @@ import { ErrorText, Row, Section } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
+import BookingTerms from './BookingTerms'
 
 type Props = {
   booking: Booking
@@ -31,7 +40,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
   const [busy, setBusy] = useState<BookingAction | 'mark' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Открытый поверх экран: отмена, отклонение или перенос
-  const [step, setStep] = useState<'cancel' | 'decline' | 'reschedule' | null>(null)
+  const [step, setStep] = useState<'cancel' | 'decline' | 'reschedule' | 'terms' | null>(null)
   const { client } = booking
   const timezone = booking.trainer.timezone
 
@@ -90,10 +99,8 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
       <Section footer={note}>
         <Row title="Статус" after={<StatusBadge status={booking.status} />} />
         <Row title="Когда" subtitle={dateTime(booking.starts_at, timezone)} />
-        <Row
-          title="Услуга"
-          value={`${booking.service.name}, ${duration(booking.service.duration_min)}`}
-        />
+        <Row title="Услуга" value={booking.service.name} />
+        <Row title="Длительность" value={duration(bookingMinutes(booking))} />
         {booking.address && <Row title="Место" subtitle={booking.address} />}
         {moved && !inactive && (
           <Row
@@ -129,10 +136,13 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           )}
         </Section>
       )}
-      {!booking.can_mark && booking.one_off && !booking.out_of_block && (
+      {!booking.can_mark && booking.no_package && (
+        <p className="section-footer">Не списывается из блока: разовое занятие, оплата отдельно.</p>
+      )}
+      {!booking.can_mark && !booking.no_package && booking.one_off && !booking.out_of_block && (
         <p className="section-footer">У клиента нет блоков: занятие разовое.</p>
       )}
-      {!booking.can_mark && booking.out_of_block && (
+      {!booking.can_mark && !booking.no_package && booking.out_of_block && (
         <p className="section-footer hint-alert">
           Без блока: подходящего блока нет или его занятия уже заняты более ранними записями.
           Занятие будет разовым, если не продать клиенту новый блок.
@@ -144,6 +154,14 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           {booking.planned.sessions_count}.
         </p>
       )}
+      <Section>
+        <Row
+          title="Условия занятия"
+          subtitle={termsLine(booking)}
+          chevron
+          onClick={busy ? undefined : () => setStep('terms')}
+        />
+      </Section>
       {error && <ErrorText>{error}</ErrorText>}
       {booking.can_cancel && (
         <Section>
@@ -187,6 +205,16 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           }}
         />
       )}
+      {step === 'terms' && (
+        <BookingTerms
+          booking={booking}
+          onBack={() => setStep(null)}
+          onSaved={(updated) => {
+            setStep(null)
+            onChanged(updated)
+          }}
+        />
+      )}
       <MainButton
         text="Подтвердить запись"
         onClick={() => void act('confirm')}
@@ -198,7 +226,23 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
   )
 }
 
+// Что особенного в условиях: своя длительность, цена разового, не из блока
+function termsLine(booking: Booking): string {
+  const parts = []
+  if (bookingMinutes(booking) !== booking.service.duration_min) {
+    parts.push(`своя длительность ${duration(bookingMinutes(booking))}`)
+  }
+  if (booking.no_package) parts.push('не из блока')
+  if (booking.price !== null && (booking.one_off || booking.no_package)) {
+    parts.push(`разовое ${rubles(booking.price)}`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'Как у услуги'
+}
+
 function chargeNote(booking: Booking): string {
+  if (booking.no_package && !booking.charge && booking.attendance !== 'missed_free') {
+    return 'Не списывается из блока: разовое занятие, оплата отдельно.'
+  }
   if (booking.charge) {
     const { package_name, number, sessions_count } = booking.charge
     return `Списано из блока «${package_name}»: занятие ${number} из ${sessions_count}.`
