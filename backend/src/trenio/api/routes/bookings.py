@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import Booking, TrainerClient, User
-from trenio.services import avatars, bookings, clients, packages
+from trenio.services import avatars, bookings, clients, packages, progress
 from trenio.services.bookings import Actor, BookingError, BookingRejected, BookingStatus
 from trenio.services.clients import LinkError, LinkRejected, client_invite_link, list_clients
 from trenio.services.users import get_user
@@ -132,6 +132,10 @@ class BookingOut(BaseModel):
     price: int | None = None
     # Только тренеру: тренер решил не списывать занятие из блока
     no_package: bool = False
+    # Заметка тренера к занятию. Клиенту приходит, только если она не «только для меня»
+    note: str | None = None
+    # Только тренеру: заметку видит только он
+    note_private: bool = False
 
     @classmethod
     def of(
@@ -176,6 +180,7 @@ class BookingOut(BaseModel):
             out_of_block=billing is not None and booking.id in billing.out_of_block,
             charge=_charge_out(billing.charges.get(booking.id)) if billing else None,
             planned=_charge_out(billing.planned.get(booking.id)) if billing else None,
+            note=None if booking.trainer_note_private else booking.trainer_note,
         )
 
 
@@ -200,6 +205,8 @@ async def trainer_views(
         view = BookingOut.of(booking, trainer_can_cancel(booking, now), now, billing)
         view.price = booking.price
         view.no_package = booking.no_package
+        view.note = booking.trainer_note
+        view.note_private = booking.trainer_note_private
         views.append(view)
     return views
 
@@ -332,6 +339,22 @@ async def set_terms(
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
     return await trainer_view(session, booking, now)
+
+
+class NoteIn(BaseModel):
+    note: str | None = Field(default=None, max_length=progress.MAX_NOTE)
+    # Только для тренера: клиент заметку не увидит
+    private: bool = False
+
+
+@router.put("/bookings/{booking_id}/note")
+async def set_note(
+    booking_id: int, body: NoteIn, trainer: CurrentTrainer, session: SessionDep
+) -> BookingOut:
+    """Заметка к занятию: что делали, как прошло."""
+    booking = await own_booking(session, trainer, booking_id)
+    booking = await progress.set_note(session, booking, body.note, body.private)
+    return await trainer_view(session, booking, datetime.now(UTC))
 
 
 @router.post("/bookings/{booking_id}/confirm")

@@ -1,6 +1,7 @@
 """Модели таблиц. Добавляются по этапам вместе с миграциями."""
 
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     SmallInteger,
     String,
     Table,
@@ -281,6 +283,28 @@ class TrainerClient(TimestampMixin, Base):
         return self.rules_accepted_at is None or self.rules_accepted_at < updated
 
 
+class ClientMeasurement(TimestampMixin, Base):
+    """Замер клиента у тренера: вес, обхваты или свой вид. Один замер вида в день."""
+
+    __tablename__ = "client_measurements"
+    __table_args__ = (
+        CheckConstraint("value > 0", name="value"),
+        Index("ix_client_measurements_link_day", "trainer_client_id", "day"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Замеры принадлежат паре тренер–клиент: у другого тренера клиент их не увидит
+    trainer_client_id: Mapped[int] = mapped_column(
+        ForeignKey("trainer_clients.id", ondelete="CASCADE")
+    )
+    day: Mapped[date] = mapped_column(Date)
+    # weight, waist, chest, hips или custom — свой вид с названием и единицей
+    kind: Mapped[str] = mapped_column(String(16))
+    label: Mapped[str | None] = mapped_column(String(48))
+    unit: Mapped[str | None] = mapped_column(String(16))
+    value: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+
+
 # Записи, которые занимают время тренера. Отменённые и отклонённые остаются для истории
 ACTIVE_BOOKING_STATUSES = ("pending", "confirmed")
 
@@ -354,6 +378,11 @@ class Booking(TimestampMixin, Base):
     price: Mapped[int | None] = mapped_column(Integer)
     # Тренер решил: не списывать из блока, занятие оплачивается отдельно
     no_package: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # Заметка тренера к занятию: что делали. Клиент её видит, если она не «только для меня»
+    trainer_note: Mapped[str | None] = mapped_column(Text)
+    trainer_note_private: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
     # Длительность не храним отдельно: это ends_at - starts_at. Тренер может сделать
     # её не такой, как у услуги
 

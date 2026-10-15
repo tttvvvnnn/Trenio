@@ -21,12 +21,13 @@ import {
 import { haptic, shareLink } from '../telegram'
 import { DateLeaf } from '../ui/BookingDays'
 import { PersonAvatar } from '../ui/Avatar'
-import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
+import { AddRow, ErrorText, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
 import { BookingBadge } from '../ui/MonthCalendar'
 import BookingDetails from './BookingDetails'
 import ClientForm from './ClientForm'
+import ClientProgress from './ClientProgress'
 import MergeClient from './MergeClient'
 import NewBooking from './NewBooking'
 import PackageDetails from './PackageDetails'
@@ -41,7 +42,7 @@ type Props = {
   onChanged: () => void
 }
 
-/** Карточка клиента: блоки, заметки и история записей. */
+/** Карточка клиента: блоки, заметки и история записей, на второй вкладке — прогресс. */
 export default function ClientCard({ client: initial, timezone, onBack, onChanged }: Props) {
   const [card, setCard] = useState<Card | null>(null)
   const [notes, setNotes] = useState('')
@@ -56,6 +57,7 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
   const [merging, setMerging] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [editingPhone, setEditingPhone] = useState(false)
+  const [tab, setTab] = useState<'card' | 'progress'>('card')
 
   // Имя клиента без Telegram тренер может поменять: свежие данные берём из карточки
   const client = card?.client ?? initial
@@ -146,7 +148,27 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
     >
       {error && <ErrorText>{error}</ErrorText>}
       {card === null && !error && <SkeletonList rows={3} />}
-      {card !== null && (
+      {card !== null && !client.deleted && (
+        <Segmented
+          label="Что показать"
+          value={tab}
+          options={[
+            ['card', 'Карточка'],
+            ['progress', 'Прогресс'],
+          ]}
+          onChange={setTab}
+        />
+      )}
+      {card !== null && tab === 'progress' && !client.deleted && (
+        <ClientProgress
+          clientId={client.id}
+          clientName={name}
+          timezone={timezone}
+          history={card.history}
+          onOpenBooking={setOpenedBooking}
+        />
+      )}
+      {card !== null && (tab === 'card' || client.deleted) && (
         <>
           {client.deleted && (
             <p className="card-hint missed">

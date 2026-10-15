@@ -1902,3 +1902,52 @@ button.stat-tile:active {
   min-height: 44px;
   min-width: 120px;
 }
+
+/* ===== Прогресс клиента ===== */
+
+.progress-head {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    border-bottom: 0.5px solid var(--c-card-line);
+}
+
+.progress-now {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.progress-now strong {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.progress-now span {
+    font-size: 13px;
+    color: var(--c-hint);
+}
+
+.sparkline {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    overflow: visible;
+}
+
+.sparkline polyline {
+    fill: none;
+    stroke: var(--c-accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.sparkline circle {
+    fill: var(--c-accent);
+}

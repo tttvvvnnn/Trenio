@@ -160,6 +160,11 @@ async def test_existing_client_claims_and_cards_merge(
     await trainer_books(client, headers, offline["id"], service_id)
     await trainer_books(client, headers, real, service_id, ELEVEN)
     await trainer_books(client, headers, offline["id"], service_id, "2030-01-14T07:00:00Z")
+    await client.post(
+        f"/api/trainer/clients/{offline['id']}/measurements",
+        headers=headers,
+        json={"day": "2030-01-01", "kind": "weight", "value": 80},
+    )
     code = await claim_code(client, headers, offline["id"])
 
     user = await session.get(User, real)
@@ -179,6 +184,9 @@ async def test_existing_client_claims_and_cards_merge(
         "2030-01-07T08:00:00Z",
         "2030-01-14T07:00:00Z",
     ]
+    # Замеры старой карточки не потерялись
+    progress = (await client.get("/api/client/progress", headers=real_headers)).json()
+    assert [p["value"] for p in progress[0]["series"][0]["points"]] == [80]
 
 
 async def test_duplicate_booking_is_cancelled_on_merge(

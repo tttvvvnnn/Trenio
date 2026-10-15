@@ -17,6 +17,7 @@ from sqlalchemy.orm import aliased
 from trenio.db.models import (
     ACTIVE_BOOKING_STATUSES,
     Booking,
+    ClientMeasurement,
     Notification,
     Package,
     ReminderSetting,
@@ -195,6 +196,12 @@ async def merge_clients(session: AsyncSession, source: User, target: User, now: 
             continue
         notes = [n for n in (existing.notes, link.notes) if n]
         existing.notes = "\n\n".join(notes) or None
+        # Замеры тоже переходят к оставшейся связи, иначе уйдут каскадом вместе с этой
+        await session.execute(
+            update(ClientMeasurement)
+            .where(ClientMeasurement.trainer_client_id == link.id)
+            .values(trainer_client_id=existing.id)
+        )
         await session.delete(link)
     await session.flush()
 
