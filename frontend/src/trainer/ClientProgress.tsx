@@ -9,11 +9,12 @@ import {
   type ProgressSeries,
 } from '../api'
 import { dateTime, longDate, measure } from '../format'
-import { confirmAction, haptic } from '../telegram'
+import { haptic } from '../telegram'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import ProgressList from '../ui/Progress'
 import MeasurementForm from './MeasurementForm'
 import { useRefreshKey } from '../sync'
+import { withUndo } from '../undo'
 
 type Props = {
   clientId: number
@@ -46,16 +47,24 @@ export default function ClientProgress({
       .catch((err: unknown) => setError(errorText(err)))
   }, [clientId, refreshKey])
 
-  async function remove(point: ProgressPoint, item: ProgressSeries) {
-    const text = `Удалить замер «${item.label}» ${measure(point.value, item.unit)} за ${longDate(point.day)}?`
-    if (!(await confirmAction(text, 'Удалить'))) return
-    try {
-      setSeries(await deleteMeasurement(clientId, point.id))
-      haptic.success()
-    } catch (err) {
-      haptic.error()
-      setError(errorText(err))
-    }
+  function remove(point: ProgressPoint, item: ProgressSeries) {
+    if (series === null) return
+    const before = series
+    haptic.success()
+    setSeries(
+      before
+        .map((one) =>
+          one.key === item.key
+            ? { ...one, points: one.points.filter((p) => p.id !== point.id) }
+            : one,
+        )
+        .filter((one) => one.points.length > 0),
+    )
+    withUndo({
+      text: `Замер удалён: ${item.label} ${measure(point.value, item.unit)}, ${longDate(point.day)}`,
+      commit: () => deleteMeasurement(clientId, point.id).then(setSeries),
+      undo: () => setSeries(before),
+    })
   }
 
   const notes = history.filter((booking) => booking.note).slice(0, NOTES_SHOWN)
@@ -75,7 +84,7 @@ export default function ClientProgress({
           >
             <AddRow title="Добавить замер" onClick={() => setAdding(true)} />
           </Section>
-          <ProgressList series={series} onPick={(point, item) => void remove(point, item)} />
+          <ProgressList series={series} onPick={remove} />
         </>
       )}
       {notes.length > 0 && (

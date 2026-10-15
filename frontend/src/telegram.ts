@@ -1,5 +1,7 @@
 import {
+  addToHomeScreen,
   backButton,
+  checkHomeScreenStatus,
   bindThemeParamsCssVars,
   closeMiniApp,
   disableVerticalSwipes,
@@ -173,4 +175,26 @@ export function openTelegram(url: string): void {
 /** Закрыть Mini App; вне Telegram ничего не делает. */
 export function closeApp(): void {
   if (closeMiniApp.isAvailable()) closeMiniApp()
+}
+
+/*
+ * Значок Trenio на экране телефона. Telegram умеет это с версии 8.0 и не везде:
+ * на десктопе и в старых версиях функции нет, тогда строку и плашку не показываем.
+ */
+export const homeScreen = {
+  supported(): boolean {
+    return addToHomeScreen.isAvailable()
+  },
+  // true — значок уже есть, false — нет или Telegram не знает
+  async added(): Promise<boolean> {
+    if (!checkHomeScreenStatus.isAvailable()) return false
+    try {
+      return (await checkHomeScreenStatus()) === 'added'
+    } catch {
+      return false
+    }
+  },
+  add() {
+    addToHomeScreen.ifAvailable()
+  },
 }

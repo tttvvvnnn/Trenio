@@ -101,6 +101,13 @@ const PATHS = {
       <path d="M13 5v2M13 17v2M13 11v2" />
     </>
   ),
+  // Смартфон: «Trenio на экране телефона»
+  smartphone: (
+    <>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M12 18h.01" />
+    </>
+  ),
 } as const
 
 export type IconName = keyof typeof PATHS

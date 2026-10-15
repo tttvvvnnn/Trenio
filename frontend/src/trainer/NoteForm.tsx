@@ -2,10 +2,11 @@ import { useId, useState } from 'react'
 
 import { errorText, saveBookingNote, type Booking } from '../api'
 import { dateTime } from '../format'
-import { confirmAction, haptic } from '../telegram'
+import { haptic } from '../telegram'
 import { ErrorText, Row, Section, SwitchRow } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
+import { withUndo } from '../undo'
 
 type Props = {
   booking: Booking
@@ -39,8 +40,15 @@ export default function NoteForm({ booking, onBack, onSaved }: Props) {
     }
   }
 
-  async function remove() {
-    if (await confirmAction('Удалить заметку к занятию?', 'Удалить')) void save(null)
+  // Заметка пропадает сразу, на сервер удаление уходит, если не нажали «Отменить»
+  function remove() {
+    haptic.success()
+    onSaved({ ...booking, note: null })
+    withUndo({
+      text: 'Заметка удалена',
+      commit: () => saveBookingNote(booking.id, null, booking.note_private),
+      undo: () => onSaved(booking),
+    })
   }
 
   return (
@@ -80,11 +88,7 @@ export default function NoteForm({ booking, onBack, onSaved }: Props) {
       </Section>
       {booking.note !== null && (
         <Section>
-          <Row
-            title="Удалить заметку"
-            tone="destructive"
-            onClick={saving ? undefined : () => void remove()}
-          />
+          <Row title="Удалить заметку" tone="destructive" onClick={saving ? undefined : remove} />
         </Section>
       )}
       {error && <ErrorText>{error}</ErrorText>}

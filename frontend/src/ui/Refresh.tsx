@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { emitRefresh, invalidate, pendingCount, subscribePending, useOnline } from '../sync'
 import { haptic } from '../telegram'
+import { flushUndo } from '../undo'
 import BrandMark from './BrandMark'
 import Icon from './icons'
 
@@ -15,6 +16,7 @@ const MIN_SPIN_MS = 700
 const MAX_SPIN_MS = 8000
 
 function refreshAll() {
+  flushUndo()
   invalidate()
   emitRefresh()
 }

@@ -7,19 +7,9 @@ import {
   type ReminderPrefs,
   type ReminderRole,
 } from '../api'
+import { REMINDER_OFFSETS } from '../settings'
 import { haptic } from '../telegram'
 import { ErrorText, MultiChips, Section, SkeletonList, SwitchRow } from './kit'
-
-// За сколько минут до начала можно напомнить
-const OFFSETS = [
-  [15, 'за 15 мин'],
-  [30, 'за 30 мин'],
-  [60, 'за 1 ч'],
-  [120, 'за 2 ч'],
-  [180, 'за 3 ч'],
-  [1440, 'за сутки'],
-  [2880, 'за 2 дня'],
-] as const satisfies readonly (readonly [number, string])[]
 
 // Столько напоминаний об одном занятии принимает сервер
 const MAX_OFFSETS = 4
@@ -90,7 +80,7 @@ export default function ReminderSettings({ role }: Props) {
               <MultiChips
                 label="Когда напомнить"
                 values={selected}
-                options={OFFSETS}
+                options={REMINDER_OFFSETS}
                 onToggle={toggleOffset}
               />
             )}

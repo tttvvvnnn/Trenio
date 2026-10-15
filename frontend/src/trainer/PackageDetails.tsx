@@ -17,6 +17,7 @@ import {
 } from '../api'
 import { localDate, longDate, rubles, shortDate } from '../format'
 import { confirmAction, haptic } from '../telegram'
+import { withUndo } from '../undo'
 import { AddRow, Chips, ErrorText, InlineField, Row, Section } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import PackageSummary from '../ui/PackageSummary'
@@ -28,8 +29,8 @@ type Props = {
   clientName: string
   timezone: string
   onBack: () => void
-  // null — блок удалён
-  onChanged: (pkg: Package | null) => void
+  // null — блок удалён. local — изменение пока только на экране, сервер о нём не знает
+  onChanged: (pkg: Package | null, local?: boolean) => void
 }
 
 /** Блок глазами тренера: деньги, занятия и действия с ними. */
@@ -69,12 +70,26 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
     else void openBooking(session.booking_id)
   }
 
-  async function removePayment(payment: Payment) {
-    const ok = await confirmAction(
-      `Удалить платёж ${rubles(payment.amount)} от ${shortDate(payment.paid_on)}?`,
-      'Удалить',
-    )
-    if (ok) void run(() => deletePayment(pkg.id, payment.id))
+  // Удаление сразу видно на экране, на сервер уходит, если не нажали «Отменить»
+  function removePayment(payment: Payment) {
+    haptic.success()
+    onChanged(withoutPayment(pkg, payment), true)
+    withUndo({
+      text: `Платёж ${rubles(payment.amount)} от ${shortDate(payment.paid_on)} удалён`,
+      commit: () => deletePayment(pkg.id, payment.id).then((updated) => onChanged(updated)),
+      undo: () => onChanged(pkg, true),
+    })
+  }
+
+  function removeSession(session: PackageSession) {
+    haptic.success()
+    setForm(null)
+    onChanged(withoutSession(pkg, session), true)
+    withUndo({
+      text: `Занятие ${session.number} снято, оно вернулось в блок`,
+      commit: () => deleteManualSession(pkg.id, session.id).then((updated) => onChanged(updated)),
+      undo: () => onChanged(pkg, true),
+    })
   }
 
   async function remove() {
@@ -98,7 +113,7 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
             title={rubles(payment.amount)}
             subtitle={payment.comment ?? undefined}
             value={longDate(payment.paid_on)}
-            onClick={busy ? undefined : () => void removePayment(payment)}
+            onClick={busy ? undefined : () => removePayment(payment)}
           />
         ))}
         <AddRow title="Внести платёж" onClick={() => setForm('payment')} />
@@ -143,6 +158,7 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
             setForm(null)
             onChanged(updated)
           }}
+          onRemove={removeSession}
         />
       )}
       {booking && (
@@ -247,7 +263,8 @@ function SessionForm({
   today,
   onBack,
   onSaved,
-}: FormProps & { session: PackageSession | null }) {
+  onRemove,
+}: FormProps & { session: PackageSession | null; onRemove: (session: PackageSession) => void }) {
   const [day, setDay] = useState(session?.day ?? today)
   const [attendance, setAttendance] = useState<'attended' | 'missed_charged'>(
     session?.status ?? 'attended',
@@ -276,15 +293,6 @@ function SessionForm({
         ? addManualSession(pkg.id, { day, attendance })
         : updateManualSession(pkg.id, session.id, { day, attendance }),
     )
-  }
-
-  async function remove() {
-    if (session === null) return
-    const ok = await confirmAction(
-      `Снять занятие ${session.number} от ${shortDate(session.day)}? Оно вернётся в блок.`,
-      'Снять',
-    )
-    if (ok) void save(() => deleteManualSession(pkg.id, session.id))
   }
 
   return (
@@ -326,7 +334,7 @@ function SessionForm({
           <Row
             title="Снять занятие"
             tone="destructive"
-            onClick={saving ? undefined : () => void remove()}
+            onClick={saving ? undefined : () => onRemove(session)}
           />
         </Section>
       )}
@@ -339,4 +347,28 @@ function SessionForm({
       />
     </Screen>
   )
+}
+
+// Блок без платежа: как его покажет сервер после удаления
+function withoutPayment(pkg: Package, payment: Payment): Package {
+  const paid = pkg.paid - payment.amount
+  return {
+    ...pkg,
+    paid,
+    due: Math.max(pkg.price - paid, 0),
+    payments: pkg.payments.filter((item) => item.id !== payment.id),
+  }
+}
+
+// Блок без занятия: номера остальных сдвигаются, занятие возвращается в остаток
+function withoutSession(pkg: Package, session: PackageSession): Package {
+  return {
+    ...pkg,
+    used: pkg.used - 1,
+    left: pkg.left + 1,
+    sessions: pkg.sessions
+      .filter((item) => item.id !== session.id)
+      .map((item, index) => ({ ...item, number: index + 1 })),
+    planned: pkg.planned.map((item) => ({ ...item, number: item.number - 1 })),
+  }
 }
