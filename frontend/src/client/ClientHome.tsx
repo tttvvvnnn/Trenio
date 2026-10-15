@@ -22,14 +22,12 @@ import Screen from '../ui/Screen'
 import Tour from '../ui/Tour'
 import BookTrainer from './BookTrainer'
 import ClientProfile from './ClientProfile'
-import MyBookings from './MyBookings'
-import MyPackages from './MyPackages'
+import MySessions from './MySessions'
 import { useRefreshKey } from '../sync'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['book', 'Запись', 'calendar'],
-  ['bookings', 'Мои записи', 'list'],
-  ['packages', 'Блоки', 'ticket'],
+  ['sessions', 'Мои занятия', 'list'],
   ['profile', 'Профиль', 'user'],
 ]
 
@@ -113,13 +111,12 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
           trainers={trainers}
           error={error}
           next={next}
-          onNext={() => open('bookings')}
+          onNext={() => open('sessions')}
           onOpen={setOpened}
           onBooked={onBooked}
         />
       )}
-      {tab === 'bookings' && <MyBookings onBook={() => open('book')} />}
-      {tab === 'packages' && <MyPackages />}
+      {tab === 'sessions' && <MySessions onBook={() => open('book')} />}
       {tab === 'profile' && (
         <ClientProfile
           trainers={trainers}
@@ -142,7 +139,7 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
           booking={booked}
           onDone={() => {
             setBooked(null)
-            open('bookings')
+            open('sessions')
           }}
         />
       )}
@@ -258,7 +255,7 @@ function BookedScreen({ booking, onDone }: { booking: Booking; onDone: () => voi
         title={pending ? 'Заявка отправлена' : 'Вы записаны'}
         text={
           pending
-            ? `${booking.service.name}, ${when}. Тренер подтвердит запись, статус будет в «Моих записях».`
+            ? `${booking.service.name}, ${when}. Тренер подтвердит запись, статус будет в «Моих занятиях».`
             : `${booking.service.name}, ${when}${booking.address ? `, ${booking.address}` : ''}.`
         }
       />

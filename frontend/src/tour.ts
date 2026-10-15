@@ -6,7 +6,7 @@ import type { TourStep } from './ui/Tour'
  */
 
 export type TrainerTab = 'calendar' | 'clients' | 'schedule' | 'finance' | 'profile'
-export type ClientTab = 'book' | 'bookings' | 'packages' | 'profile'
+export type ClientTab = 'book' | 'sessions' | 'profile'
 
 // Строка «Как пользоваться» в Профиле, последний шаг обоих туров
 export const TOUR_REPLAY = 'tour-replay'
@@ -68,16 +68,10 @@ export const CLIENT_TOUR: readonly TourStep<ClientTab>[] = [
     text: 'Выберите день и свободное время. Если тренер подтверждает записи сам, придёт уведомление.',
   },
   {
-    tab: 'bookings',
-    target: 'tab-bookings',
-    title: 'Мои записи',
-    text: 'Ближайшие занятия: их можно перенести или отменить. Прошедшие на вкладке «История».',
-  },
-  {
-    tab: 'packages',
-    target: 'tab-packages',
-    title: 'Блоки',
-    text: 'Купленные блоки занятий: сколько оплачено и сколько занятий осталось.',
+    tab: 'sessions',
+    target: 'tab-sessions',
+    title: 'Мои занятия',
+    text: 'Ближайшие занятия и блоки: сколько пройдено и оплачено. Записи можно перенести или отменить, прошедшие и замеры во вкладках «История» и «Прогресс».',
   },
   {
     tab: 'profile',

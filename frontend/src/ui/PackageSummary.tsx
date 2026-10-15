@@ -5,6 +5,7 @@ import {
   dateTime,
   dayTitle,
   longDate,
+  packageLine,
   plural,
   rubles,
   sessionsLeft,
@@ -118,5 +119,31 @@ export function PackageBadge({ pkg }: { pkg: Package }) {
     <span className={pkg.status === 'active' ? 'badge success' : 'badge'}>
       {PACKAGE_STATUS[pkg.status]}
     </span>
+  )
+}
+
+/** Действующий блок: сколько пройдено полоской, оплата и срок. */
+export function BlockCard({
+  pkg,
+  title,
+  onClick,
+}: {
+  pkg: Package
+  // По умолчанию название блока
+  title?: string
+  onClick: () => void
+}) {
+  const done = Math.min(pkg.used / pkg.sessions_count, 1)
+  return (
+    <button type="button" className="block-card" onClick={onClick}>
+      <span className="block-card-top">
+        <strong>{title ?? pkg.name}</strong>
+        <PackageBadge pkg={pkg} />
+      </span>
+      <span className="block-card-line">{packageLine(pkg)}</span>
+      <span className="block-bar" aria-hidden="true">
+        <i style={{ width: `${Math.max(done * 100, 2)}%` }} />
+      </span>
+    </button>
   )
 }

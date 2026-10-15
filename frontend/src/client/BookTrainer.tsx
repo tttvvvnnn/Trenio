@@ -31,6 +31,7 @@ import { Chips, EmptyState, ErrorText, Row, SkeletonList } from '../ui/kit'
 import MonthGrid from '../ui/MonthGrid'
 import { MainButton } from '../ui/native'
 import { useRefreshKey } from '../sync'
+import RepeatCard from './RepeatCard'
 
 // Цвет плашки своей записи в списке дня
 const TONE_COLOR: Record<Tone, string> = {
@@ -168,7 +169,7 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
     byDay.set(day, [...(byDay.get(day) ?? []), slot])
   }
   const mineByDay = new Map<string, Booking[]>()
-  // Отменённые и отклонённые в календаре не показываем, они есть в «Моих записях»
+  // Отменённые и отклонённые в календаре не показываем, они есть в «Моих занятиях»
   for (const booking of mine?.month === month ? mine.items : []) {
     if (booking.attendance === null && !['pending', 'confirmed'].includes(booking.status)) continue
     const day = localDate(booking.starts_at, timezone)
@@ -199,6 +200,7 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
 
   return (
     <>
+      <RepeatCard key={reloads} trainer={trainer} onBooked={onBooked} />
       {services.length > 1 && (
         <section className="section">
           <h2 className="section-title">Услуга</h2>

@@ -8,79 +8,48 @@ import {
   type TrainerProgress,
 } from '../api'
 import { packageLine } from '../format'
-import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
-import PackageSummary, { PackageBadge } from '../ui/PackageSummary'
+import { EmptyState, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
+import PackageSummary, { BlockCard, PackageBadge } from '../ui/PackageSummary'
 import ProgressList from '../ui/Progress'
 import Screen from '../ui/Screen'
 import { useRefreshKey } from '../sync'
 
-type Tab = 'packages' | 'progress'
-
-/** Блоки клиента и, на второй вкладке, замеры, которые записал тренер. */
-export default function MyPackages() {
-  const [tab, setTab] = useState<Tab>('packages')
-  return (
-    <>
-      <PageHeader title="Блоки" subtitle="Занятия и оплаты по вашим блокам." />
-      <Segmented
-        label="Что показать"
-        value={tab}
-        options={[
-          ['packages', 'Блоки'],
-          ['progress', 'Прогресс'],
-        ]}
-        onChange={setTab}
-      />
-      {tab === 'packages' ? <Packages /> : <MyProgress />}
-    </>
-  )
-}
-
-/** Блоки клиента: сколько занятий пройдено и осталось, сколько оплачено. */
-function Packages() {
+function usePackages(): [Package[] | null, string | null] {
   const [packages, setPackages] = useState<Package[] | null>(null)
-  const [opened, setOpened] = useState<Package | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refreshKey = useRefreshKey()
-
   useEffect(() => {
     fetchMyPackages()
       .then(setPackages)
       .catch((err: unknown) => setError(errorText(err)))
   }, [refreshKey])
+  return [packages, error]
+}
 
-  if (packages === null) {
-    return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />
-  }
-  if (packages.length === 0) {
-    return (
-      <EmptyState
-        icon="ticket"
-        title="Пока нет блоков"
-        text="Когда тренер оформит вам блок занятий, здесь будет видно, сколько пройдено и оплачено."
-      />
-    )
-  }
+// Имя тренера рядом с блоком нужно, только если тренеров несколько
+function blockTitle(pkg: Package, packages: Package[]): string {
+  const many = new Set(packages.map((item) => item.trainer.id)).size > 1
+  return many ? `${pkg.name} · ${pkg.trainer.display_name}` : pkg.name
+}
 
+function PackageScreen({ pkg, onBack }: { pkg: Package; onBack: () => void }) {
+  return (
+    <Screen title={pkg.name} subtitle={pkg.trainer.display_name} onBack={onBack}>
+      <PackageSummary pkg={pkg} />
+    </Screen>
+  )
+}
+
+/** Действующие блоки карточками с полоской: сколько пройдено и оплачено. */
+export function ActiveBlocks() {
+  const [packages] = usePackages()
+  const [opened, setOpened] = useState<Package | null>(null)
+  if (packages === null) return null
   const current = packages.filter((pkg) => pkg.status === 'active')
-  // По тренерам, у которых блок закончился и нового нет
+  // Тренеры, у которых блок закончился и нового нет
   const ended = [...new Set(packages.map((pkg) => pkg.trainer.id))].filter(
     (id) => !current.some((pkg) => pkg.trainer.id === id),
   )
-  const past = packages.filter((pkg) => pkg.status !== 'active')
-  // Имя тренера показываем, только если тренеров несколько
-  const manyTrainers = new Set(packages.map((pkg) => pkg.trainer.id)).size > 1
-  const row = (pkg: Package) => (
-    <Row
-      key={pkg.id}
-      title={manyTrainers ? `${pkg.name} · ${pkg.trainer.display_name}` : pkg.name}
-      subtitle={packageLine(pkg)}
-      tone={pkg.status === 'active' ? undefined : 'muted'}
-      onClick={() => setOpened(pkg)}
-      badge={<PackageBadge pkg={pkg} />}
-    />
-  )
-
   return (
     <>
       {ended.length > 0 && (
@@ -89,23 +58,51 @@ function Packages() {
           договоритесь с тренером.
         </p>
       )}
-      {current.length > 0 && <Section title="Действующие">{current.map(row)}</Section>}
-      {past.length > 0 && <Section title="Завершённые">{past.map(row)}</Section>}
-      {opened && (
-        <Screen
-          title={opened.name}
-          subtitle={opened.trainer.display_name}
-          onBack={() => setOpened(null)}
-        >
-          <PackageSummary pkg={opened} />
-        </Screen>
+      {current.length > 0 && (
+        <Section>
+          {current.map((pkg) => (
+            <BlockCard
+              key={pkg.id}
+              pkg={pkg}
+              title={blockTitle(pkg, packages)}
+              onClick={() => setOpened(pkg)}
+            />
+          ))}
+        </Section>
       )}
+      {opened && <PackageScreen pkg={opened} onBack={() => setOpened(null)} />}
+    </>
+  )
+}
+
+/** Закончившиеся блоки: внизу «Истории». */
+export function PastBlocks() {
+  const [packages, error] = usePackages()
+  const [opened, setOpened] = useState<Package | null>(null)
+  if (packages === null) return error ? <ErrorText>{error}</ErrorText> : null
+  const past = packages.filter((pkg) => pkg.status !== 'active')
+  if (past.length === 0) return null
+  return (
+    <>
+      <Section title="Прошлые блоки">
+        {past.map((pkg) => (
+          <Row
+            key={pkg.id}
+            title={blockTitle(pkg, packages)}
+            subtitle={packageLine(pkg)}
+            tone="muted"
+            onClick={() => setOpened(pkg)}
+            badge={<PackageBadge pkg={pkg} />}
+          />
+        ))}
+      </Section>
+      {opened && <PackageScreen pkg={opened} onBack={() => setOpened(null)} />}
     </>
   )
 }
 
 /** Замеры у каждого тренера, только чтение. */
-function MyProgress() {
+export function MyProgress() {
   const [progress, setProgress] = useState<TrainerProgress[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refreshKey = useRefreshKey()
