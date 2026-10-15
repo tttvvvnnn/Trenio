@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMyPackages, fetchMyProgress, type Package, type TrainerProgress } from '../api'
+import {
+  errorText,
+  fetchMyPackages,
+  fetchMyProgress,
+  type Package,
+  type TrainerProgress,
+} from '../api'
 import { packageLine } from '../format'
 import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import PackageSummary, { PackageBadge } from '../ui/PackageSummary'
 import ProgressList from '../ui/Progress'
 import Screen from '../ui/Screen'
+import { useRefreshKey } from '../sync'
 
 type Tab = 'packages' | 'progress'
 
@@ -34,12 +41,13 @@ function Packages() {
   const [packages, setPackages] = useState<Package[] | null>(null)
   const [opened, setOpened] = useState<Package | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchMyPackages()
       .then(setPackages)
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   if (packages === null) {
     return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />
@@ -100,12 +108,13 @@ function Packages() {
 function MyProgress() {
   const [progress, setProgress] = useState<TrainerProgress[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchMyProgress()
       .then(setProgress)
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   if (progress === null) {
     return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />

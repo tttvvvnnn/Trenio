@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { fetchTrainerStats, type TrainerStats } from '../api'
+import { errorText, fetchTrainerStats, type TrainerStats } from '../api'
 import { fullName, localDate, monthTitle, plural, shiftMonth } from '../format'
 import { openTelegram } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
 import { ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import Screen from '../ui/Screen'
 import { PeriodSwitch, Stat } from './Finance'
+import { useRefreshKey } from '../sync'
 
 const WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье']
 
@@ -27,12 +28,13 @@ export default function Stats({ timezone, month: initial, onBack }: Props) {
   const [month, setMonth] = useState(initial)
   const [data, setData] = useState<TrainerStats | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchTrainerStats(month)
       .then(setData)
-      .catch((err: unknown) => setError(String(err)))
-  }, [month])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [month, refreshKey])
 
   const ready = data?.month === month ? data : null
 

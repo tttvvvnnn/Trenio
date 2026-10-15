@@ -136,6 +136,10 @@
 }
 
 :root[data-scheme='light'] {
+  /* Серый из темы Telegram на розоватом стекле читается плохо (около 2,6:1):
+     свой, потемнее, даёт не меньше 4,5:1 */
+  --c-hint: #66605e;
+  --c-subtitle: #66605e;
   color-scheme: light;
 }
 
@@ -997,7 +1001,16 @@ button.time:active,
   height: 14px;
   border-radius: 7px;
   background: var(--c-fill);
-  animation: pulse 1.2s ease-in-out infinite;
+  /* Заглушка появляется с задержкой: данные из кэша приходят раньше, и она не мелькает */
+  animation:
+    appear 0.2s 0.15s both,
+    pulse 1.2s 0.35s ease-in-out infinite;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes pulse {
@@ -1037,6 +1050,122 @@ button.time:active,
 .brand-mark.spinning .brand-mark-sector {
   transform-origin: 50px 62px;
   animation: sweep 1.6s linear infinite;
+}
+
+/* В надписи trenio крутится сектор секундомера в «o» */
+.brand-wordmark.spinning .brand-wordmark-sector {
+  transform-origin: 2792.6px -275.6px;
+  animation: sweep 1.6s linear infinite;
+}
+
+/* ===== Обновление жестом и плашка «нет связи» ===== */
+
+.refresher {
+  position: fixed;
+  z-index: 60;
+  top: calc(env(safe-area-inset-top, 0px) + var(--s-2));
+  left: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  place-items: center;
+  border: 1px solid var(--c-card-line);
+  border-radius: 50%;
+  background: var(--c-glass);
+  box-shadow: 0 6px 18px var(--c-glass-shadow);
+  color: var(--c-text);
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+}
+
+.offline-banner {
+  position: sticky;
+  z-index: 40;
+  top: env(safe-area-inset-top, 0px);
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  margin: var(--s-2) var(--s-4) 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--c-card-line);
+  border-radius: var(--r-control);
+  background: var(--c-glass);
+  box-shadow: 0 6px 18px var(--c-glass-shadow);
+  font-size: 14px;
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(16px) saturate(1.6);
+}
+
+.offline-banner .icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--c-warning);
+}
+
+.offline-banner span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.offline-banner small {
+  font-size: 12px;
+  color: var(--c-hint);
+}
+
+.offline-banner button {
+  flex: none;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--c-tint);
+  color: var(--c-link);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ===== Экран ошибки ===== */
+
+.crash {
+  display: grid;
+  min-height: 80vh;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  text-align: center;
+}
+
+.crash .brand-wordmark {
+  margin-bottom: var(--s-3);
+  color: var(--c-text);
+}
+
+.crash h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.crash p {
+  max-width: 280px;
+  margin: 0;
+  color: var(--c-hint);
+}
+
+.crash-button {
+  margin-top: var(--s-3);
+  padding: 12px 32px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+  box-shadow: var(--brand-shadow);
+  color: var(--c-on-accent);
+  font: inherit;
+  font-weight: 600;
 }
 
 @keyframes sweep {
@@ -1906,48 +2035,48 @@ button.stat-tile:active {
 /* ===== Прогресс клиента ===== */
 
 .progress-head {
-    display: flex;
-    align-items: center;
-    gap: var(--s-3);
-    padding: var(--s-3) var(--s-4);
-    border-bottom: 0.5px solid var(--c-card-line);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 0.5px solid var(--c-card-line);
 }
 
 .progress-now {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .progress-now strong {
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    white-space: nowrap;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .progress-now span {
-    font-size: 13px;
-    color: var(--c-hint);
+  font-size: 13px;
+  color: var(--c-hint);
 }
 
 .sparkline {
-    flex: 1;
-    min-width: 0;
-    height: 40px;
-    overflow: visible;
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  overflow: visible;
 }
 
 .sparkline polyline {
-    fill: none;
-    stroke: var(--c-accent);
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
+  fill: none;
+  stroke: var(--c-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .sparkline circle {
-    fill: var(--c-accent);
+  fill: var(--c-accent);
 }

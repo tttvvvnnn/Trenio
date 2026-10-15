@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { createService, fetchServices, updateService, type Service } from '../api'
+import { errorText, createService, fetchServices, updateService, type Service } from '../api'
 import { duration, rubles } from '../format'
 import { haptic } from '../telegram'
 import {
@@ -35,7 +35,7 @@ export default function Services({ embedded = false }: Props) {
     try {
       setServices(await fetchServices(true))
     } catch (err) {
-      setError(String(err))
+      setError(errorText(err))
     }
   }
 
@@ -55,7 +55,7 @@ export default function Services({ embedded = false }: Props) {
       await updateService(service.id, { is_active: isActive })
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       await reload()
     }
   }
@@ -173,7 +173,7 @@ function ServiceForm({ service, onDone, onCancel }: FormProps) {
       onDone()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

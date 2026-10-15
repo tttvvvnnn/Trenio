@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { createClient, renameClient, type Client } from '../api'
+import { errorText, createClient, renameClient, type Client } from '../api'
 import { haptic } from '../telegram'
 import { ErrorText, TextField } from '../ui/kit'
 import { MainButton } from '../ui/native'
@@ -36,7 +36,7 @@ export default function ClientForm({ client, onBack, onSaved }: Props) {
       onSaved(saved)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

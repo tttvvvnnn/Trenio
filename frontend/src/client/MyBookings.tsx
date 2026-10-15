@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 
 import {
+  errorText,
   cancelMyBooking,
   fetchMyBookings,
   fetchMyHistory,
@@ -16,6 +17,7 @@ import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonLis
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
+import { useRefreshKey } from '../sync'
 
 type Props = {
   onBook: () => void
@@ -39,12 +41,13 @@ export default function MyBookings({ onBook }: Props) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [opened, setOpened] = useState<Booking | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchMyBookings()
       .then(setBookings)
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   useEffect(() => {
     if (tab !== 'history' || history !== null) return
@@ -53,7 +56,7 @@ export default function MyBookings({ onBook }: Props) {
         setHistory(page)
         setHistoryEnd(page.length < HISTORY_PAGE)
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [tab, history])
 
   async function loadMore() {
@@ -64,7 +67,7 @@ export default function MyBookings({ onBook }: Props) {
       setHistory([...history, ...page])
       setHistoryEnd(page.length < HISTORY_PAGE)
     } catch (err) {
-      setError(String(err))
+      setError(errorText(err))
     } finally {
       setLoadingMore(false)
     }

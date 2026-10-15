@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import {
+  errorText,
   addManualSession,
   addPayment,
   deleteManualSession,
@@ -47,7 +48,7 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
       onChanged(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }
@@ -59,7 +60,7 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
       setBooking(await fetchTrainerBooking(id))
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 
@@ -188,7 +189,7 @@ function PaymentForm({ pkg, today, onBack, onSaved }: FormProps) {
       onSaved(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
@@ -263,7 +264,7 @@ function SessionForm({
       onSaved(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

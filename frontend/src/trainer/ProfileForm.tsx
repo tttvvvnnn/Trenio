@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { updateTrainer, type OneOffMode, type Trainer } from '../api'
+import { errorText, updateTrainer, type OneOffMode, type Trainer } from '../api'
 import { deviceTimezone, timezoneOptions } from '../format'
 import { haptic } from '../telegram'
 import {
@@ -125,7 +125,7 @@ export default function ProfileForm({
       onSaved(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setSaving(false)
     }

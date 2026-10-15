@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import {
+  errorText,
   changeTrainerBooking,
   fetchSlots,
   markAttendance,
@@ -56,7 +57,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
       onChanged(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(null)
     }
@@ -72,7 +73,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
       onChanged(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(null)
     }

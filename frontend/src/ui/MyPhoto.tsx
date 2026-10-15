@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import {
+  errorText,
   fetchMe,
   removeAvatar,
   restoreTelegramAvatar,
@@ -90,7 +91,7 @@ export default function MyPhoto({ name, seed, variant, caption }: Props) {
       haptic.success()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   fetchMe,
   removeMyPhone,
   resetMyName,
@@ -45,7 +46,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
         setFirstName(loaded.first_name)
         setLastName(loaded.last_name ?? '')
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [])
 
   async function save(action: () => Promise<MyName>) {
@@ -60,7 +61,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
       haptic.success()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setSaving(false)
     }
@@ -92,7 +93,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
       setPhonesRemoved((ids) => [...ids, trainer.id])
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

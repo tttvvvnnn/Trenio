@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { acceptTrainerRules, type ClientTrainer } from '../api'
+import { errorText, acceptTrainerRules, type ClientTrainer } from '../api'
 import { haptic } from '../telegram'
 import { ErrorText, PageHeader, Section } from './kit'
 import { MainButton } from './native'
@@ -44,7 +44,7 @@ export function RulesGate({ trainer, onAccepted }: GateProps) {
       onAccepted(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createRule,
   deleteRule,
   fetchRules,
@@ -29,7 +30,7 @@ export default function WeekTemplate() {
       setRules(loadedRules)
       setServices(loadedServices)
     } catch (err) {
-      setError(String(err))
+      setError(errorText(err))
     }
   }
 
@@ -162,7 +163,7 @@ function RuleForm({ rule, weekday, services, onDone, onCancel }: FormProps) {
       onDone()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
@@ -180,7 +181,7 @@ function RuleForm({ rule, weekday, services, onDone, onCancel }: FormProps) {
       onDone()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

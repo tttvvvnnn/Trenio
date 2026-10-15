@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createTrainerInvite,
   fetchAdminOverview,
   fetchAdminTrainers,
@@ -56,7 +57,7 @@ export default function AdminPanel({ onBack }: Props) {
         setTrainers(list)
         setInvites(open)
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [reloads])
 
   async function newInvite() {
@@ -67,7 +68,7 @@ export default function AdminPanel({ onBack }: Props) {
       setReloads((count) => count + 1)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 
@@ -299,7 +300,7 @@ function TrainerScreen({ trainer, onBack, onChanged }: TrainerScreenProps) {
       onChanged()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setBusy(false)
     }
   }

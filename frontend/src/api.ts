@@ -1,3 +1,5 @@
+import { cachedGet, invalidate, setOnline, trackPending } from './sync'
+
 // В проде Mini App и API живут на одном домене, поэтому по умолчанию адрес пустой
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -200,6 +202,7 @@ export class ApiError extends Error {
 
   constructor(status: number, message: string) {
     super(message)
+    this.name = 'ApiError'
     this.status = status
   }
 }
@@ -220,13 +223,21 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set('Content-Type', 'application/json')
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`)
   }
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers })
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}${path}`, { ...init, headers })
+  } catch {
+    // Запрос не дошёл до сервера: нет интернета или сервер недоступен
+    setOnline(false)
+    throw new ApiError(0, NETWORK_ERROR)
+  }
+  setOnline(true)
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     throw new ApiError(
@@ -238,6 +249,33 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return undefined as T
   }
   return (await response.json()) as T
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  if (method === 'GET') {
+    return cachedGet(path, () => rawRequest<T>(path, init))
+  }
+  try {
+    return await trackPending(rawRequest<T>(path, init))
+  } finally {
+    // Изменение могло задеть любые списки: следующие чтения пойдут на сервер
+    invalidate()
+  }
+}
+
+const NETWORK_ERROR = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'
+
+// Текст ошибки для человека: без «Error:» и без кодов сервера
+export function errorText(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 0) return NETWORK_ERROR
+    if (error.status === 401) return 'Вход устарел. Закройте Trenio и откройте снова из бота.'
+    if (error.status >= 500) return 'Сервер не ответил. Попробуйте ещё раз через минуту.'
+    return error.message
+  }
+  if (error instanceof Error) return error.message
+  return String(error)
 }
 
 function send<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -312,6 +350,7 @@ export async function uploadAvatar(photo: Blob): Promise<AvatarState> {
     headers: { 'Content-Type': 'image/jpeg', Authorization: `Bearer ${accessToken ?? ''}` },
     body: photo,
   })
+  invalidate()
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     throw new ApiError(response.status, errorMessage(body, 'Не удалось загрузить фото'))
@@ -1044,4 +1083,16 @@ export type TrainerProgress = {
 
 export function fetchMyProgress(): Promise<TrainerProgress[]> {
   return request<TrainerProgress[]>('/api/client/progress')
+}
+
+export type ClientErrorReport = {
+  message: string
+  stack?: string
+  screen?: string
+}
+
+// Ошибка в Mini App уходит админам в Telegram. Без входа отправлять некуда, молча пропускаем
+export async function reportClientError(report: ClientErrorReport): Promise<void> {
+  if (!accessToken) return
+  await rawRequest<void>('/api/client-errors', { method: 'POST', body: JSON.stringify(report) })
 }

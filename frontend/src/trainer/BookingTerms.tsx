@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { setBookingTerms, type Booking } from '../api'
+import { errorText, setBookingTerms, type Booking } from '../api'
 import { bookingMinutes, parsePrice } from '../format'
 import { haptic } from '../telegram'
 import { ErrorText } from '../ui/kit'
@@ -47,7 +47,7 @@ export default function BookingTerms({ booking, onBack, onSaved }: Props) {
       onSaved(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

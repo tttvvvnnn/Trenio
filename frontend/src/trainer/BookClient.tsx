@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { createTrainerBooking, fetchClients, type Booking, type Client, type Slot } from '../api'
+import {
+  errorText,
+  createTrainerBooking,
+  fetchClients,
+  type Booking,
+  type Client,
+  type Slot,
+} from '../api'
 import { dateTime, fullName } from '../format'
 import { haptic } from '../telegram'
 import Icon from '../ui/icons'
@@ -27,7 +34,7 @@ export default function BookClient({ slot, serviceName, timezone, onBack, onBook
   useEffect(() => {
     fetchClients()
       .then(setClients)
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [])
 
   async function book() {
@@ -44,7 +51,7 @@ export default function BookClient({ slot, serviceName, timezone, onBack, onBook
       onBooked(booking)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setSaving(false)
     }

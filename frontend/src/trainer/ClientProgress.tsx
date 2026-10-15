@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   deleteMeasurement,
   fetchClientProgress,
   type Booking,
@@ -12,6 +13,7 @@ import { confirmAction, haptic } from '../telegram'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import ProgressList from '../ui/Progress'
 import MeasurementForm from './MeasurementForm'
+import { useRefreshKey } from '../sync'
 
 type Props = {
   clientId: number
@@ -36,12 +38,13 @@ export default function ClientProgress({
   const [series, setSeries] = useState<ProgressSeries[] | null>(null)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchClientProgress(clientId)
       .then(setSeries)
-      .catch((err: unknown) => setError(String(err)))
-  }, [clientId])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [clientId, refreshKey])
 
   async function remove(point: ProgressPoint, item: ProgressSeries) {
     const text = `Удалить замер «${item.label}» ${measure(point.value, item.unit)} за ${longDate(point.day)}?`
@@ -51,7 +54,7 @@ export default function ClientProgress({
       haptic.success()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

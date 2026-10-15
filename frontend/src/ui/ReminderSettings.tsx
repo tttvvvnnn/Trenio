@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 
-import { fetchReminders, saveReminders, type ReminderPrefs, type ReminderRole } from '../api'
+import {
+  errorText,
+  fetchReminders,
+  saveReminders,
+  type ReminderPrefs,
+  type ReminderRole,
+} from '../api'
 import { haptic } from '../telegram'
 import { ErrorText, MultiChips, Section, SkeletonList, SwitchRow } from './kit'
 
@@ -36,7 +42,7 @@ export default function ReminderSettings({ role }: Props) {
   useEffect(() => {
     fetchReminders()
       .then((all) => setPrefs(role === 'trainer' ? all.trainer : all.client))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [role])
 
   async function update(next: ReminderPrefs) {
@@ -49,7 +55,7 @@ export default function ReminderSettings({ role }: Props) {
     } catch (err) {
       haptic.error()
       setPrefs(previous)
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

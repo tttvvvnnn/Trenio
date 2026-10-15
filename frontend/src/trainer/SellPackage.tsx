@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createPackage,
   fetchPackageTemplates,
   fetchServices,
@@ -47,7 +48,7 @@ export default function SellPackage({ clientId, clientName, timezone, onBack, on
         setServices(loadedServices)
         if (loadedTemplates.length > 0) apply(loadedTemplates[0], today)
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
     // Шаблоны грузим один раз при открытии
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -94,7 +95,7 @@ export default function SellPackage({ clientId, clientName, timezone, onBack, on
       onSold(pkg)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

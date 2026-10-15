@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { errorText } from '../api'
 
 import type { Slot } from '../api'
 import { monthDays } from '../calendar'
@@ -59,7 +60,7 @@ export default function SlotPicker({
       .then((loaded) => {
         if (!stale) setSlots({ key, items: loaded })
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
     return () => {
       stale = true
     }

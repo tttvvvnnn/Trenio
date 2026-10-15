@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { fetchClients, fetchInviteLink, type Client } from '../api'
+import { errorText, fetchClients, fetchInviteLink, type Client } from '../api'
 import { fullName, rubles } from '../format'
 import { haptic, shareLink } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
 import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import ClientCard from './ClientCard'
 import ClientForm from './ClientForm'
+import { useRefreshKey } from '../sync'
 
 const SHARE_TEXT = 'Записывайтесь ко мне на тренировки в Trenio'
 
@@ -51,11 +52,12 @@ export default function Clients({ timezone }: Props) {
   const [link, setLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   function reloadClients() {
     fetchClients()
       .then(setClients)
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }
 
   useEffect(() => {
@@ -64,8 +66,8 @@ export default function Clients({ timezone }: Props) {
         setClients(loadedClients)
         setLink(loadedLink)
       })
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   async function copy() {
     if (!link) return
