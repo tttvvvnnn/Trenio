@@ -490,6 +490,11 @@ export function fetchMyBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/client/bookings')
 }
 
+// Одна своя запись: на неё ведёт кнопка в уведомлении
+export function fetchMyBooking(id: number): Promise<Booking> {
+  return request<Booking>(`/api/client/bookings/${id}`)
+}
+
 // Прошедшие, отменённые и отклонённые записи, новые сверху; before — id последней загруженной
 export function fetchMyHistory(before?: number): Promise<Booking[]> {
   return request<Booking[]>(`/api/client/bookings/history${before ? `?before=${before}` : ''}`)

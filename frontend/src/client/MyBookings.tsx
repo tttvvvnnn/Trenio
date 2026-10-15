@@ -246,7 +246,7 @@ type DetailsProps = {
   onChanged: (booking: Booking) => void
 }
 
-function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
+export function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
   // Открытый поверх экран: отмена или перенос
   const [step, setStep] = useState<'cancel' | 'reschedule' | null>(null)
   const timezone = booking.trainer.timezone

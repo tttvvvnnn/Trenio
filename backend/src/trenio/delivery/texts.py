@@ -6,6 +6,7 @@ None вместо сообщения — уведомление больше н�
 """
 
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -53,12 +54,31 @@ def address(booking: Booking) -> str | None:
     return booking.service.address or booking.trainer.address
 
 
-def open_app() -> list[list[Button]]:
+def open_app(text: str = "Открыть Trenio", **target: str | int) -> list[list[Button]]:
+    """Кнопка Mini App. target — куда сразу открыть: role и booking, client или tab."""
     url = get_settings().webapp_url
     # Telegram принимает кнопку Mini App только с https-адресом
     if not url.startswith("https://"):
         return []
-    return [[Button("Открыть Trenio", webapp_url=url)]]
+    if target:
+        url += ("&" if "?" in url else "?") + urlencode(target)
+    return [[Button(text, webapp_url=url)]]
+
+
+def open_booking(booking: Booking, role: Role) -> list[list[Button]]:
+    """Сразу на экран записи: тренеру заявку или запись, клиенту его запись."""
+    pending = role is Role.TRAINER and booking.status == "pending"
+    text = "Открыть заявку" if pending else "Открыть запись"
+    return open_app(text, role=role.value, booking=booking.id)
+
+
+def open_client(client_id: int) -> list[list[Button]]:
+    return open_app("Открыть клиента", role=Role.TRAINER.value, client=client_id)
+
+
+def open_tab(text: str, tab: str) -> list[list[Button]]:
+    """Вкладка клиента: book — записаться, sessions — мои занятия и блоки."""
+    return open_app(text, role=Role.CLIENT.value, tab=tab)
 
 
 def action(text: str, act: Action, booking: Booking) -> Button:
@@ -126,9 +146,10 @@ def _rescheduled(booking: Booking, row: Notification, now: datetime) -> OutMessa
             *times,
             comment,
         )
+        link = open_booking(booking, Role.TRAINER)
         if pending and booking.starts_at > now:
-            return OutMessage(text, _confirm_buttons(booking) + open_app())
-        return OutMessage(text, open_app())
+            return OutMessage(text, _confirm_buttons(booking) + link)
+        return OutMessage(text, link)
     text = _lines(
         f"🔁 Тренер {booking.trainer.display_name} перенёс запись",
         booking.service.name,
@@ -136,7 +157,7 @@ def _rescheduled(booking: Booking, row: Notification, now: datetime) -> OutMessa
         address(booking),
         comment,
     )
-    return OutMessage(text, client_cancel(booking, now) + open_app())
+    return OutMessage(text, client_cancel(booking, now) + open_booking(booking, Role.CLIENT))
 
 
 async def _superseded(session: AsyncSession, row: Notification, now: datetime) -> bool:
@@ -167,12 +188,12 @@ def _reminder(booking: Booking, role: Role, now: datetime) -> OutMessage | None:
             f"{booking.service.name}, тренер {booking.trainer.display_name}",
             address(booking),
         )
-        return OutMessage(text, client_cancel(booking, now) + open_app())
+        return OutMessage(text, client_cancel(booking, now) + open_booking(booking, Role.CLIENT))
     text = _lines(
         f"⏰ {soon.capitalize()}: {person(booking.client)}",
         booking.service.name,
     )
-    return OutMessage(text, open_app())
+    return OutMessage(text, open_booking(booking, Role.TRAINER))
 
 
 def _attendance_prompt(booking: Booking) -> OutMessage | None:
@@ -203,7 +224,8 @@ async def _package_left(session: AsyncSession, row: Notification) -> OutMessage 
     assert client is not None
     name = f"«{package.name}»"
     debt = due(package)
-    if Role(row.payload["role"]) is Role.CLIENT:
+    role = Role(row.payload["role"])
+    if role is Role.CLIENT:
         if expected == 0:
             head = f"Блок {name} закончился. Договоритесь с тренером о новом"
         else:
@@ -218,7 +240,8 @@ async def _package_left(session: AsyncSession, row: Notification) -> OutMessage 
                 f"{expected} {sessions_word(expected)}"
             )
         tail = f"Долг по блоку: {rubles(debt)}" if debt else None
-    return OutMessage(_lines(f"📦 {head}", tail), open_app())
+    link = open_tab("Мои занятия", "sessions") if role is Role.CLIENT else open_client(client.id)
+    return OutMessage(_lines(f"📦 {head}", tail), link)
 
 
 def day_month(day: date) -> str:
@@ -266,7 +289,8 @@ async def _package_expiring(
     else:
         when_ends = f"кончается {in_days(days)}, {day_month(package.valid_until)}"
     debt = due(package)
-    if Role(row.payload["role"]) is Role.CLIENT:
+    role = Role(row.payload["role"])
+    if role is Role.CLIENT:
         head = f"Срок блока {name} {when_ends}, а в нём ещё {sessions}"
         body = "Успейте их пройти или договоритесь с тренером о продлении"
         tail = f"Осталось доплатить {rubles(debt)}" if debt else None
@@ -274,7 +298,8 @@ async def _package_expiring(
         head = f"У клиента {person(client)} срок блока {name} {when_ends}, осталось {sessions}"
         body = "Продлить срок можно в карточке блока"
         tail = f"Долг по блоку: {rubles(debt)}" if debt else None
-    return OutMessage(_lines(f"⏳ {head}", body, tail), open_app())
+    link = open_tab("Мои занятия", "sessions") if role is Role.CLIENT else open_client(client.id)
+    return OutMessage(_lines(f"⏳ {head}", body, tail), link)
 
 
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
@@ -308,8 +333,9 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 client,
                 _session_line(booking),
             )
+            link = open_booking(booking, Role.TRAINER)
             if pending and booking.starts_at > now:
-                return OutMessage(text, _confirm_buttons(booking) + open_app())
+                return OutMessage(text, _confirm_buttons(booking) + link)
         case Kind.TRAINER_BOOKED:
             if not active:
                 return None
@@ -318,7 +344,9 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _session_line(booking),
                 address(booking),
             )
-            return OutMessage(text, client_cancel(booking, now) + open_app())
+            return OutMessage(
+                text, client_cancel(booking, now) + open_booking(booking, Role.CLIENT)
+            )
         case Kind.BOOKING_CONFIRMED:
             if not active:
                 return None
@@ -327,6 +355,7 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _session_line(booking),
                 address(booking),
             )
+            link = open_booking(booking, Role.CLIENT)
         case Kind.BOOKING_RESCHEDULED:
             return _rescheduled(booking, row, now)
         case Kind.BOOKING_DECLINED:
@@ -336,16 +365,19 @@ async def render(session: AsyncSession, row: Notification, now: datetime) -> Out
                 _comment(booking.cancel_comment),
                 "Выберите другое окошко в приложении.",
             )
+            link = open_tab("Выбрать другое время", "book")
         case Kind.CLIENT_CANCELLED:
             text = _lines(
                 f"❌ {client} отменил(а) запись",
                 _session_line(booking),
                 _comment(booking.cancel_comment),
             )
+            link = open_client(booking.client_id)
         case Kind.TRAINER_CANCELLED:
             text = _lines(
                 f"❌ Тренер {trainer} отменил запись",
                 _session_line(booking),
                 _comment(booking.cancel_comment),
             )
-    return OutMessage(text, open_app())
+            link = open_tab("Записаться снова", "book")
+    return OutMessage(text, link)

@@ -1132,6 +1132,78 @@ button.time:active,
   font-weight: 600;
 }
 
+/* Кнопка из уведомления вела на то, чего уже нет */
+.link-notice {
+  position: fixed;
+  right: 0;
+  left: 0;
+  top: calc(env(safe-area-inset-top, 0px) + var(--s-2));
+  margin: 0 var(--s-4);
+  z-index: 60;
+}
+
+/* Разовая подсказка «Trenio на экране телефона» */
+.home-tip {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  margin: 0 var(--s-4) var(--s-4);
+  padding: var(--s-3);
+  border: 1px solid var(--c-card-line);
+  border-radius: var(--r-group);
+  background: var(--c-card);
+}
+
+.home-tip > .icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--c-accent);
+}
+
+.home-tip span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.home-tip small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--c-hint);
+}
+
+.home-tip-add {
+  flex: none;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--c-tint);
+  color: var(--c-link);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-tip-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c-hint);
+}
+
+.home-tip-close .icon {
+  width: 18px;
+  height: 18px;
+}
+
 /* ===== Экран ошибки ===== */
 
 .crash {

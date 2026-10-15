@@ -170,6 +170,13 @@ async def list_history(
     return [client_view(booking, now) for booking in found]
 
 
+@router.get("/bookings/{booking_id:int}")
+async def get_booking(booking_id: int, user: CurrentUser, session: SessionDep) -> BookingOut:
+    """Одна своя запись: на неё ведёт кнопка в уведомлении."""
+    booking = await _own_booking(session, user, booking_id)
+    return client_view(booking, datetime.now(UTC))
+
+
 class ClientBookingIn(BaseModel):
     trainer_id: int
     service_id: int
