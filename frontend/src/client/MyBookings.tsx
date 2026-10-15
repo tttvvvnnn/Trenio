@@ -8,7 +8,7 @@ import {
   rescheduleMyBooking,
   type Booking,
 } from '../api'
-import { dateTime, duration, localTime, rescheduleNote } from '../format'
+import { bookingMinutes, dateTime, duration, localTime, rescheduleNote } from '../format'
 import BookingDays, { Named } from '../ui/BookingDays'
 import CancelScreen from '../ui/CancelScreen'
 import { TrainerAvatar } from '../ui/Avatar'
@@ -285,7 +285,7 @@ function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
       <Section footer={note}>
         <Row title="Статус" after={<StatusBadge status={booking.status} />} />
         <Row title="Тренер" value={booking.trainer.display_name} />
-        <Row title="Длительность" value={duration(booking.service.duration_min)} />
+        <Row title="Длительность" value={duration(bookingMinutes(booking))} />
         {booking.address && <Row title="Место" subtitle={booking.address} />}
         {moved && !inactive && (
           <Row

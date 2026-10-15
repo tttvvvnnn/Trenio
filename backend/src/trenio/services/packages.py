@@ -31,7 +31,7 @@ from trenio.db.models import (
 )
 from trenio.delivery.kick import kick
 from trenio.services import notifications
-from trenio.services.bookings import BookingStatus
+from trenio.services.bookings import BookingStatus, change_duration
 from trenio.services.clients import is_client
 
 # Сколько оставшихся занятий считается «блок заканчивается, предложите новый»
@@ -444,6 +444,8 @@ async def delete_manual_session(
 
 async def _pick_package(session: AsyncSession, booking: Booking) -> Package | None:
     """Самый старый блок, из которого можно списать это занятие."""
+    if booking.no_package:
+        return None
     day = booking_day(booking)
     candidates = await _load_packages(
         session,
@@ -508,6 +510,62 @@ async def mark_attendance(
     return booking
 
 
+@dataclass(frozen=True)
+class TermsUpdate:
+    """Что тренер меняет в условиях занятия. None — не трогать."""
+
+    duration_min: int | None = None
+    price: int | None = None
+    no_package: bool | None = None
+
+
+async def set_terms(
+    session: AsyncSession, booking: Booking, changes: TermsUpdate, now: datetime
+) -> Booking:
+    """Свои условия одного занятия: длительность, цена разового, списывать ли из блока."""
+    if changes.duration_min is not None:
+        await change_duration(session, booking, timedelta(minutes=changes.duration_min), now)
+    if changes.price is not None:
+        booking.price = changes.price
+    if changes.no_package is not None and changes.no_package != booking.no_package:
+        booking.no_package = changes.no_package
+        await _rebill(session, booking, now)
+    await session.commit()
+    kick()
+    return booking
+
+
+async def _rebill(session: AsyncSession, booking: Booking, now: datetime) -> None:
+    """Отмеченное занятие заново раскладывается по блокам: например, его вынули из блока."""
+    await session.execute(
+        select(Package.id)
+        .where(Package.trainer_id == booking.trainer_id, Package.client_id == booking.client_id)
+        .order_by(Package.id)
+        .with_for_update()
+    )
+    existing = await session.scalar(
+        select(PackageSession).where(PackageSession.booking_id == booking.id)
+    )
+    if existing is not None:
+        await session.delete(existing)
+        await session.flush()
+    if booking.attendance not in CHARGED:
+        return
+    package = await _pick_package(session, booking)
+    if package is None:
+        return
+    assert booking.attendance is not None
+    session.add(
+        PackageSession(
+            package_id=package.id,
+            booking_id=booking.id,
+            day=booking_day(booking),
+            status=booking.attendance,
+        )
+    )
+    await notifications.package_left(session, package, left(package) - 1, now)
+
+
 def number_of(package: Package, package_session: PackageSession) -> int:
     """Порядковый номер занятия в блоке, 1…N, по датам."""
     return next(i for i, s in enumerate(package.sessions, 1) if s.id == package_session.id)
@@ -543,6 +601,9 @@ def simulate(packages: Sequence[Package], bookings: Sequence[Booking]) -> dict[i
     taken = {p.id: used(p) for p in packages}
     result: dict[int, Charge | None] = {}
     for booking in sorted(bookings, key=lambda b: (b.starts_at, b.id)):
+        if booking.no_package:
+            result[booking.id] = None
+            continue
         day = booking_day(booking)
         target = next(
             (
@@ -584,11 +645,17 @@ class Forecast:
         return result
 
     def one_off_after(self, client_id: int, now: datetime) -> int:
-        """Сколько будущих записей клиента не покрыто блоками."""
+        """Сколько будущих записей клиента не покрыто блоками, хотя могли бы.
+
+        Записи «не из блока» тренер сделал разовыми сам: о них не напоминаем.
+        """
         return sum(
             1
             for b in self.bookings
-            if b.client_id == client_id and b.starts_at > now and self.plan.get(b.id) is None
+            if b.client_id == client_id
+            and b.starts_at > now
+            and not b.no_package
+            and self.plan.get(b.id) is None
         )
 
 
@@ -666,7 +733,8 @@ async def billing(session: AsyncSession, bookings: Iterable[Booking]) -> Billing
                 planned[booking.id] = charge
     out_of_block: set[int] = set()
     if one_off:
-        flagged = [b for b in bookings if b.id in one_off]
+        # Разовое по решению тренера («не из блока») тревогой не подсвечиваем
+        flagged = [b for b in bookings if b.id in one_off and not b.no_package]
         buyers = {
             (trainer_id, client_id)
             for trainer_id, client_id in (

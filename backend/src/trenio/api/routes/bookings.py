@@ -38,6 +38,7 @@ _ERRORS = {
     BookingError.TRAINER_BUSY: (409, "В это время у вас другое занятие."),
     BookingError.IN_PAST: (409, "Это время уже прошло."),
     BookingError.SAME_TIME: (409, "Запись уже стоит на это время."),
+    BookingError.GROUP_DURATION: (409, "У группового занятия длительность общая для всех."),
 }
 
 
@@ -122,6 +123,10 @@ class BookingOut(BaseModel):
     charge: BookingChargeOut | None = None
     # Неотмеченная запись: из какого блока спишется, если пройдёт
     planned: BookingChargeOut | None = None
+    # Только тренеру: цена занятия, если оно разовое (null — цены нет)
+    price: int | None = None
+    # Только тренеру: тренер решил не списывать занятие из блока
+    no_package: bool = False
 
     @classmethod
     def of(
@@ -185,9 +190,13 @@ async def trainer_views(
 ) -> list[BookingOut]:
     """Записи глазами тренера: с отметками, разовыми и списаниями из блоков."""
     billing = await packages.billing(session, found)
-    return [
-        BookingOut.of(booking, trainer_can_cancel(booking, now), now, billing) for booking in found
-    ]
+    views = []
+    for booking in found:
+        view = BookingOut.of(booking, trainer_can_cancel(booking, now), now, billing)
+        view.price = booking.price
+        view.no_package = booking.no_package
+        views.append(view)
+    return views
 
 
 def trainer_can_cancel(booking: Booking, now: datetime) -> bool:
@@ -230,10 +239,26 @@ async def list_pending(trainer: CurrentTrainer, session: SessionDep) -> list[Boo
     return await trainer_views(session, found, now)
 
 
+# Своя длительность занятия: от 5 минут до 10 часов, шагом 5 минут
+Duration = Annotated[int, Field(ge=5, le=600, multiple_of=5)]
+Price = Annotated[int, Field(ge=0, le=1_000_000)]
+
+
 class TrainerBookingIn(BaseModel):
     client_id: int
     service_id: int
     starts_at: AwareDatetime
+    # Свои условия этого занятия; пусто — как у услуги
+    duration_min: Duration | None = None
+    price: Price | None = None
+    no_package: bool = False
+
+
+class TermsIn(BaseModel):
+    # Что не передано — не меняется
+    duration_min: Duration | None = None
+    price: Price | None = None
+    no_package: bool | None = None
 
 
 class CommentIn(BaseModel):
@@ -265,6 +290,7 @@ async def create_booking(
             body.starts_at.astimezone(UTC),
             Actor.TRAINER,
             now,
+            bookings.Terms(body.duration_min, body.price, body.no_package),
         )
     except BookingRejected as rejected:
         raise booking_error(rejected) from None
@@ -282,6 +308,25 @@ async def own_booking(session: SessionDep, trainer: CurrentTrainer, booking_id: 
 async def get_booking(booking_id: int, trainer: CurrentTrainer, session: SessionDep) -> BookingOut:
     booking = await own_booking(session, trainer, booking_id)
     return await trainer_view(session, booking, datetime.now(UTC))
+
+
+@router.patch("/bookings/{booking_id}/terms")
+async def set_terms(
+    booking_id: int, body: TermsIn, trainer: CurrentTrainer, session: SessionDep
+) -> BookingOut:
+    """Свои условия одного занятия: длительность, цена разового, не списывать из блока."""
+    booking = await own_booking(session, trainer, booking_id)
+    now = datetime.now(UTC)
+    try:
+        booking = await packages.set_terms(
+            session,
+            booking,
+            packages.TermsUpdate(body.duration_min, body.price, body.no_package),
+            now,
+        )
+    except BookingRejected as rejected:
+        raise booking_error(rejected) from None
+    return await trainer_view(session, booking, now)
 
 
 @router.post("/bookings/{booking_id}/confirm")
