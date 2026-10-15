@@ -30,6 +30,7 @@ import ClientForm from './ClientForm'
 import MergeClient from './MergeClient'
 import NewBooking from './NewBooking'
 import PackageDetails from './PackageDetails'
+import PhoneForm from './PhoneForm'
 import SellPackage from './SellPackage'
 
 type Props = {
@@ -54,6 +55,7 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
   const [renaming, setRenaming] = useState(false)
   const [merging, setMerging] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [editingPhone, setEditingPhone] = useState(false)
 
   // Имя клиента без Telegram тренер может поменять: свежие данные берём из карточки
   const client = card?.client ?? initial
@@ -131,7 +133,13 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
     <Screen
       title={name}
       subtitle={
-        client.offline ? 'без Telegram' : client.username ? `@${client.username}` : undefined
+        client.deleted
+          ? 'удалил аккаунт'
+          : client.offline
+            ? 'без Telegram'
+            : client.username
+              ? `@${client.username}`
+              : undefined
       }
       avatar={<PersonAvatar person={client} size="md" />}
       onBack={onBack}
@@ -140,7 +148,25 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
       {card === null && !error && <SkeletonList rows={3} />}
       {card !== null && (
         <>
-          {hint && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+          {client.deleted && (
+            <p className="card-hint missed">
+              Клиент удалил аккаунт. Его прошедшие занятия и оплаты остались для учёта, записать его
+              больше нельзя.
+            </p>
+          )}
+          {hint && !client.deleted && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+          {!client.deleted && (
+            <Section>
+              <Row
+                title={card.phone ?? 'Добавить телефон'}
+                subtitle={card.phone ? 'Телефон, видите только вы' : undefined}
+                tone={card.phone ? undefined : 'accent'}
+                icon={{ name: 'phone', color: 'var(--c-success)' }}
+                chevron
+                onClick={() => setEditingPhone(true)}
+              />
+            </Section>
+          )}
           {client.offline && (
             <Section
               title="Без Telegram"
@@ -175,36 +201,42 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
                 badge={<PackageBadge pkg={item} />}
               />
             ))}
-            <AddRow title="Продать блок" onClick={() => setSelling(true)} />
+            {!client.deleted && <AddRow title="Продать блок" onClick={() => setSelling(true)} />}
           </Section>
-          <section className="section">
-            <label className="section-title" htmlFor="client-notes">
-              Заметки
-            </label>
-            <div className="group">
-              <textarea
-                id="client-notes"
-                className="field-input"
-                placeholder="Цели, ограничения, о чём договорились. Клиент заметки не видит."
-                maxLength={4000}
-                value={notes}
-                onChange={(event) => {
-                  setNotes(event.target.value)
-                  setNotesState('idle')
-                }}
-                onBlur={() => void saveNotes()}
-              />
-            </div>
-            {notesState !== 'idle' && (
-              <p className="section-footer">
-                {notesState === 'saving' ? 'Сохраняем…' : 'Сохранено'}
-              </p>
-            )}
-          </section>
-          <Section title="Ближайшие">
-            {upcoming.map(bookingRow)}
-            <AddRow title="Записать на занятие" onClick={() => setBooking(true)} />
-          </Section>
+          {!client.deleted && (
+            <section className="section">
+              <label className="section-title" htmlFor="client-notes">
+                Заметки
+              </label>
+              <div className="group">
+                <textarea
+                  id="client-notes"
+                  className="field-input"
+                  placeholder="Цели, ограничения, о чём договорились. Клиент заметки не видит."
+                  maxLength={4000}
+                  value={notes}
+                  onChange={(event) => {
+                    setNotes(event.target.value)
+                    setNotesState('idle')
+                  }}
+                  onBlur={() => void saveNotes()}
+                />
+              </div>
+              {notesState !== 'idle' && (
+                <p className="section-footer">
+                  {notesState === 'saving' ? 'Сохраняем…' : 'Сохранено'}
+                </p>
+              )}
+            </section>
+          )}
+          {(!client.deleted || upcoming.length > 0) && (
+            <Section title="Ближайшие">
+              {upcoming.map(bookingRow)}
+              {!client.deleted && (
+                <AddRow title="Записать на занятие" onClick={() => setBooking(true)} />
+              )}
+            </Section>
+          )}
           {past.length > 0 && <Section title="История">{past.map(bookingRow)}</Section>}
         </>
       )}
@@ -241,6 +273,18 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
           onBooked={() => {
             setBooking(false)
             reload()
+          }}
+        />
+      )}
+      {editingPhone && card && (
+        <PhoneForm
+          clientId={client.id}
+          clientName={name}
+          phone={card.phone}
+          onBack={() => setEditingPhone(false)}
+          onSaved={(phone) => {
+            setEditingPhone(false)
+            setCard({ ...card, phone })
           }}
         />
       )}

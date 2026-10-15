@@ -232,7 +232,7 @@ async def _create_booking(
 ) -> int:
     await _lock_trainer(session, trainer.id)
 
-    if not await is_client(session, trainer, client.id):
+    if client.is_deleted or not await is_client(session, trainer, client.id):
         raise BookingRejected(BookingError.NOT_CLIENT)
     service = await session.scalar(
         select(Service).where(

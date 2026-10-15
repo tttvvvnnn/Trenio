@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from aiogram import Router
-from aiogram.filters import CommandObject, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 from aiogram.types import User as TgUser
 
@@ -9,7 +9,7 @@ from trenio.auth.telegram import TelegramUser
 from trenio.config import get_settings
 from trenio.db.models import Trainer
 from trenio.db.session import get_sessionmaker
-from trenio.services import avatars
+from trenio.services import avatars, privacy
 from trenio.services.clients import (
     CLAIM_PREFIX,
     CLIENT_INVITE_PREFIX,
@@ -152,3 +152,9 @@ async def on_start(message: Message, command: CommandObject) -> None:
         start_text(tg_user.first_name, trainer, admin, has_trainers),
         reply_markup=webapp_keyboard(settings.webapp_url),
     )
+
+
+@router.message(Command("privacy"))
+async def on_privacy(message: Message) -> None:
+    settings = get_settings()
+    await message.answer(privacy.policy_text(settings.privacy_operator, settings.privacy_contact))

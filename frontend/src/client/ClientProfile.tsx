@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, resetMyName, saveMyName, type ClientTrainer, type Me, type MyName } from '../api'
+import {
+  fetchMe,
+  removeMyPhone,
+  resetMyName,
+  saveMyName,
+  type ClientTrainer,
+  type Me,
+  type MyName,
+} from '../api'
 import { fullName } from '../format'
-import { haptic } from '../telegram'
+import { confirmAction, haptic } from '../telegram'
 import { TrainerAvatar } from '../ui/Avatar'
 import { ErrorText, InlineField, Row, Section, SkeletonList } from '../ui/kit'
 import MyPhoto from '../ui/MyPhoto'
+import { PrivacySection } from '../ui/Privacy'
 import ReminderSettings from '../ui/ReminderSettings'
 import { RulesScreen } from '../ui/Rules'
 import { TourRow } from '../ui/Tour'
@@ -26,6 +35,8 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
   const [saving, setSaving] = useState(false)
   const [rulesOf, setRulesOf] = useState<ClientTrainer | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Тренеры, у которых клиент только что удалил свой телефон
+  const [phonesRemoved, setPhonesRemoved] = useState<number[]>([])
 
   useEffect(() => {
     fetchMe()
@@ -68,11 +79,30 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
     void save(() => saveMyName(first, last))
   }
 
+  async function removePhone(trainer: ClientTrainer) {
+    const sure = await confirmAction(
+      `Удалить ваш телефон у тренера ${trainer.display_name}?`,
+      'Удалить',
+    )
+    if (!sure) return
+    setError(null)
+    try {
+      await removeMyPhone(trainer.id)
+      haptic.success()
+      setPhonesRemoved((ids) => [...ids, trainer.id])
+    } catch (err) {
+      haptic.error()
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   if (me === null) {
     return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={3} />
   }
 
   const withRules = trainers?.filter((trainer) => trainer.rules) ?? []
+  const withPhone =
+    trainers?.filter((trainer) => trainer.my_phone && !phonesRemoved.includes(trainer.id)) ?? []
   const shownName = fullName({ first_name: firstName.trim() || me.first_name, last_name: lastName })
 
   return (
@@ -144,6 +174,27 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
               onClick={() => setRulesOf(trainer)}
             />
           ))}
+          {withPhone.map((trainer) => (
+            <Row
+              key={`phone-${trainer.id}`}
+              title={trainer.my_phone ?? ''}
+              subtitle={
+                trainers.length > 1
+                  ? `Ваш телефон у тренера ${trainer.display_name}`
+                  : 'Ваш телефон у тренера'
+              }
+              icon={{ name: 'phone', color: 'var(--c-success)' }}
+              after={
+                <button
+                  type="button"
+                  className="row-action destructive"
+                  onClick={() => void removePhone(trainer)}
+                >
+                  Удалить
+                </button>
+              }
+            />
+          ))}
         </Section>
       )}
       <ReminderSettings role="client" />
@@ -158,6 +209,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
           />
         </Section>
       )}
+      <PrivacySection trainer={onSwitchToTrainer !== undefined} />
       {rulesOf && <RulesScreen trainer={rulesOf} onBack={() => setRulesOf(null)} />}
     </>
   )

@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # Сколько дней действует одноразовая ссылка-приглашение для тренера
     trainer_invite_ttl_days: int = 7
 
+    # Кто оператор персональных данных и куда писать запросы о них: попадают в текст политики
+    privacy_operator: str = ""
+    privacy_contact: str = ""
+
     @field_validator("admin_telegram_ids", mode="before")
     @classmethod
     def _parse_ids(cls, value: object) -> object:

@@ -32,7 +32,8 @@ async def current_user(
     except TokenError:
         raise unauthorized from None
     user = await get_user(session, user_id)
-    if user is None:
+    # Удалённый аккаунт: старый токен больше не пускает
+    if user is None or user.is_deleted:
         raise unauthorized
     return user
 

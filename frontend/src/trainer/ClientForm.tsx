@@ -67,7 +67,7 @@ export default function ClientForm({ client, onBack, onSaved }: Props) {
             <textarea
               id="new-client-notes"
               className="field-input"
-              placeholder="Телефон, цели, ограничения. Клиент заметки не видит."
+              placeholder="Цели, ограничения. Клиент заметки не видит."
               maxLength={4000}
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
