@@ -235,12 +235,14 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
       {card !== null && (tab === 'card' || client.deleted) && (
         <>
           {client.deleted && (
-            <p className="card-hint missed">
+            <p className="card-hint client-hint missed">
               Клиент удалил аккаунт. Его прошедшие занятия и оплаты остались для учёта, записать его
               больше нельзя.
             </p>
           )}
-          {hint && !client.deleted && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+          {hint && !client.deleted && (
+            <p className={`card-hint client-hint ${hint.tone}`}>{hint.text}</p>
+          )}
           {current.length > 0 && (
             <Section title="Блок">
               {current.map((item) => (
