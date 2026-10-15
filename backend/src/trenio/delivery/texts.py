@@ -5,7 +5,7 @@ None вместо сообщения — уведомление больше н�
 и адресах может быть что угодно.
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -221,10 +221,68 @@ async def _package_left(session: AsyncSession, row: Notification) -> OutMessage 
     return OutMessage(_lines(f"📦 {head}", tail), open_app())
 
 
+def day_month(day: date) -> str:
+    """«17 окт»."""
+    return f"{day.day} {MONTHS[day.month - 1]}"
+
+
+def in_days(days: int) -> str:
+    """«завтра», «через 7 дней»."""
+    if days == 1:
+        return "завтра"
+    if days % 10 == 1 and days % 100 != 11:
+        word = "день"
+    elif days % 10 in (2, 3, 4) and days % 100 not in (12, 13, 14):
+        word = "дня"
+    else:
+        word = "дней"
+    return f"через {days} {word}"
+
+
+async def _package_expiring(
+    session: AsyncSession, row: Notification, now: datetime
+) -> OutMessage | None:
+    package = await session.get(Package, row.package_id)
+    # Блок закрыли, продлили или занятия кончились: предупреждение уже неверно
+    if (
+        package is None
+        or package.closed_at is not None
+        or package.valid_until is None
+        or package.valid_until.isoformat() != row.payload["valid_until"]
+        or left(package) <= 0
+    ):
+        return None
+    today = now.astimezone(ZoneInfo(package.trainer.timezone)).date()
+    days = (package.valid_until - today).days
+    if days < 0:
+        return None
+    client = await session.get(User, package.client_id)
+    assert client is not None
+    name = f"«{package.name}»"
+    rest = left(package)
+    sessions = f"{rest} {sessions_word(rest)}"
+    if days == 0:
+        when_ends = "сегодня последний день"
+    else:
+        when_ends = f"кончается {in_days(days)}, {day_month(package.valid_until)}"
+    debt = due(package)
+    if Role(row.payload["role"]) is Role.CLIENT:
+        head = f"Срок блока {name} {when_ends}, а в нём ещё {sessions}"
+        body = "Успейте их пройти или договоритесь с тренером о продлении"
+        tail = f"Осталось доплатить {rubles(debt)}" if debt else None
+    else:
+        head = f"У клиента {person(client)} срок блока {name} {when_ends}, осталось {sessions}"
+        body = "Продлить срок можно в карточке блока"
+        tail = f"Долг по блоку: {rubles(debt)}" if debt else None
+    return OutMessage(_lines(f"⏳ {head}", body, tail), open_app())
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
     if kind is Kind.PACKAGE_LEFT:
         return await _package_left(session, row)
+    if kind is Kind.PACKAGE_EXPIRING:
+        return await _package_expiring(session, row, now)
     booking = await session.get(Booking, row.booking_id) if row.booking_id is not None else None
     if booking is None:
         return None

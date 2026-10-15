@@ -37,12 +37,17 @@ class Kind(StrEnum):
     ATTENDANCE_PROMPT = "attendance_prompt"
     # Клиенту и тренеру: в блоке осталось мало занятий или он закончился, payload: role и left
     PACKAGE_LEFT = "package_left"
+    # Клиенту и тренеру: срок блока скоро кончится, а занятия ещё остались.
+    # payload: role, days и valid_until (дата окончания, по которой ставили)
+    PACKAGE_EXPIRING = "package_expiring"
 
 
 # Уведомления о будущем занятии: при отмене записи они больше не нужны
 UPCOMING_KINDS = (Kind.REMINDER, Kind.ATTENDANCE_PROMPT)
 # При скольких оставшихся занятиях предупреждаем; 0 — блок закончился
 PACKAGE_LEFT_ALERTS = frozenset({2, 1, 0})
+# За сколько дней до конца срока блока предупреждаем, если в нём остались занятия
+PACKAGE_EXPIRY_ALERTS = (7, 1)
 
 
 class Role(StrEnum):
@@ -287,6 +292,32 @@ async def package_left(session: AsyncSession, package: Package, left: int, now: 
             send_at=now,
             package_id=package.id,
             payload={"role": role.value, "left": left},
+        )
+
+
+async def package_expiring(
+    session: AsyncSession, package: Package, days: int, send_at: datetime
+) -> None:
+    """Предупредить клиента и тренера, что срок блока кончается через days дней.
+
+    Ключ с датой окончания: если тренер продлит блок, придёт новое предупреждение,
+    а поставленное по старой дате при отправке окажется неверным и пропустится.
+    """
+    assert package.valid_until is not None
+    trainer_user_id = await session.scalar(
+        select(Trainer.user_id).where(Trainer.id == package.trainer_id)
+    )
+    assert trainer_user_id is not None
+    until = package.valid_until.isoformat()
+    for role, user_id in ((Role.CLIENT, package.client_id), (Role.TRAINER, trainer_user_id)):
+        await _enqueue(
+            session,
+            user_id=user_id,
+            kind=Kind.PACKAGE_EXPIRING,
+            dedup_key=f"{Kind.PACKAGE_EXPIRING.value}:{package.id}:{role.value}:{days}:{until}",
+            send_at=send_at,
+            package_id=package.id,
+            payload={"role": role.value, "days": days, "valid_until": until},
         )
 
 
