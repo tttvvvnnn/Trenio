@@ -53,6 +53,11 @@ async def send_one(session: AsyncSession, channel: Channel, now: datetime) -> bo
             return True
         user = await session.get(User, row.user_id)
         assert user is not None
+        if user.is_offline:
+            # Клиент без Telegram: писать некуда. Если он привяжет Telegram,
+            # напоминания о будущих занятиях поставятся заново
+            row.status = Status.SKIPPED
+            return True
         await channel.send(user, message)
     except DeliveryError as error:
         _fail(row, str(error), error.permanent, now)

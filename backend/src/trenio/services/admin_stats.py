@@ -90,6 +90,8 @@ class Overview:
     trainers_disabled: int
     clients: int
     clients_new_week: int
+    # Клиенты без Telegram, которых завели тренеры; в users не входят
+    clients_offline: int
     bookings_week: int
     attended_week: int
     upcoming_week: int
@@ -205,7 +207,7 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
     )
 
     return Overview(
-        users=await _count(session, of=User.id),
+        users=await _count(session, User.telegram_id.is_not(None), of=User.id),
         users_seen_week=await _count(session, User.last_seen_at >= week_ago, of=User.id),
         trainers=len(trainers),
         trainers_active=len(active),
@@ -214,6 +216,7 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
         clients_new_week=await _count(
             session, TrainerClient.created_at >= week_ago, of=TrainerClient.user_id
         ),
+        clients_offline=await _count(session, User.telegram_id.is_(None), of=User.id),
         bookings_week=await _count(session, _held(week_ago, now), of=Booking.id),
         attended_week=await _count(
             session, _held(week_ago, now), Booking.attendance == "attended", of=Booking.id

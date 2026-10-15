@@ -64,6 +64,15 @@ class User(TimestampMixin, Base):
     avatar_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Когда человек последний раз открывал Mini App: для активности в админ-панели
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Клиент без Telegram, которого завёл тренер: имя правит тренер, уведомления не уходят.
+    # Когда клиент привяжет Telegram, эта строка сливается с его аккаунтом и удаляется
+    created_by_trainer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trainers.id", ondelete="SET NULL", use_alter=True)
+    )
+
+    @property
+    def is_offline(self) -> bool:
+        return self.telegram_id is None
 
 
 class UserAvatar(Base):
@@ -112,7 +121,7 @@ class Trainer(TimestampMixin, Base):
     # Когда правила последний раз менялись: принятые раньше клиенты подтверждают снова
     rules_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    user: Mapped[User] = relationship(lazy="joined")
+    user: Mapped[User] = relationship(lazy="joined", foreign_keys=[user_id])
 
 
 class TrainerInvite(TimestampMixin, Base):
@@ -224,6 +233,8 @@ class TrainerClient(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
     # Когда клиент согласился с правилами тренера; None — ещё не соглашался
     rules_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Код личной ссылки, по которой клиент без Telegram привязывает свой аккаунт
+    claim_code: Mapped[str | None] = mapped_column(String(32), unique=True)
 
     user: Mapped[User] = relationship(lazy="joined")
     trainer: Mapped[Trainer] = relationship(lazy="joined")
