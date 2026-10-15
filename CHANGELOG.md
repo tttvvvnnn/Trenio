@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/tttvvvnnn/Trenio/compare/v0.9.0...v0.10.0) (2026-10-15)
+
+
+### Новое
+
+* **admin:** активность тренеров за 14 дней — дни входа, серия, записи и отметки ([#59](https://github.com/tttvvvnnn/Trenio/issues/59)) ([2a7424b](https://github.com/tttvvvnnn/Trenio/commit/2a7424b89df4fe7b949dff82226c6551962f02f5))
+* вводный тур для тренера и клиента ([#55](https://github.com/tttvvvnnn/Trenio/issues/55)) ([48777ba](https://github.com/tttvvvnnn/Trenio/commit/48777ba3adbd7a1ee571d752e204548616b4e702))
+* заметки к занятиям и прогресс клиента — замеры с графиками ([#61](https://github.com/tttvvvnnn/Trenio/issues/61)) ([07dcc67](https://github.com/tttvvvnnn/Trenio/commit/07dcc67b20688e180e0b272552fb8a8b3531cc87))
+* клиенты без Telegram — тренер заводит сам, клиент потом привязывает аккаунт ([#51](https://github.com/tttvvvnnn/Trenio/issues/51)) ([9293d5b](https://github.com/tttvvvnnn/Trenio/commit/9293d5b69dc664f070ea3c8ec8ace4a3173332d3))
+* персональные данные — согласие, телефон клиента, удаление аккаунта ([#56](https://github.com/tttvvvnnn/Trenio/issues/56)) ([6967daf](https://github.com/tttvvvnnn/Trenio/commit/6967daf7140f5a71c1b17cdfbde2ed8677e91b99))
+* правило тренера о записи без блока — разрешать, с подтверждением, только по блоку ([#57](https://github.com/tttvvvnnn/Trenio/issues/57)) ([79b4255](https://github.com/tttvvvnnn/Trenio/commit/79b4255b27994973557254e8c8002dbaa17ea3ac))
+* предупреждение о конце срока блока за неделю и за день, с долгом по оплате ([#58](https://github.com/tttvvvnnn/Trenio/issues/58)) ([c296c84](https://github.com/tttvvvnnn/Trenio/commit/c296c84dca4adea1ada5240e5ffac5bfdffe69ae))
+* свои условия занятия — длительность, цена разового, не списывать из блока ([#54](https://github.com/tttvvvnnn/Trenio/issues/54)) ([082f638](https://github.com/tttvvvnnn/Trenio/commit/082f638469a5e7daf3e27109a618176f83aff4c4))
+* статистика тренера — посещаемость, загрузка по дням недели, кто давно не был ([#60](https://github.com/tttvvvnnn/Trenio/issues/60)) ([0e11e65](https://github.com/tttvvvnnn/Trenio/commit/0e11e658ab9f6b087af6241388c992f88dac3d4f))
+
 ## [0.9.0](https://github.com/tttvvvnnn/Trenio/compare/v0.8.0...v0.9.0) (2026-10-14)
 
 

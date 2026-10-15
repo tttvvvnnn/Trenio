@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trenio"
-version = "0.9.0"
+version = "0.10.0"
 description = "Backend Trenio: API, бот и планировщик"
 requires-python = ">=3.12"
 dependencies = [
