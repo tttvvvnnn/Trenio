@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.0](https://github.com/tttvvvnnn/Trenio/compare/v0.10.0...v0.11.0) (2026-10-15)
+
+
+### Новое
+
+* кнопки в уведомлениях открывают нужную запись или клиента, подсказка про экран телефона ([#68](https://github.com/tttvvvnnn/Trenio/issues/68)) ([4a950c4](https://github.com/tttvvvnnn/Trenio/commit/4a950c4af0fa775e4f17febb8a2db6231a8059c9))
+* кэш данных, обновление жестом и экран ошибки с секундомером ([#62](https://github.com/tttvvvnnn/Trenio/issues/62)) ([7fe8876](https://github.com/tttvvvnnn/Trenio/commit/7fe8876c2aceb7064abf70d6127a440e3a24752d))
+* поиск и фильтры клиентов, карточка с быстрыми действиями и свайпы по записям ([#65](https://github.com/tttvvvnnn/Trenio/issues/65)) ([8cfdb2b](https://github.com/tttvvvnnn/Trenio/commit/8cfdb2bc3566a377c310c2bd0bdd7a16af8c3191))
+* профиль тренера по группам, новые детали записи и «Отменить» вместо «Вы уверены?» ([#63](https://github.com/tttvvvnnn/Trenio/issues/63)) ([8b7ea61](https://github.com/tttvvvnnn/Trenio/commit/8b7ea6130f81e400ee272dc0419609255b2d20fa))
+* у клиента три вкладки и карточка «Как в прошлый раз» ([#66](https://github.com/tttvvvnnn/Trenio/issues/66)) ([34395e2](https://github.com/tttvvvnnn/Trenio/commit/34395e223285e0a61fe3435b734bbe80c7b94e53))
+
+
+### Исправления
+
+* отступ над подсказкой о блоке в карточке клиента ([#69](https://github.com/tttvvvnnn/Trenio/issues/69)) ([7eca4fc](https://github.com/tttvvvnnn/Trenio/commit/7eca4fc93f9ff88c8d55bb17990ebc68ceebd288))
+
 ## [0.10.0](https://github.com/tttvvvnnn/Trenio/compare/v0.9.0...v0.10.0) (2026-10-15)
 
 
