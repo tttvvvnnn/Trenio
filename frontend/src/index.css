@@ -1585,6 +1585,11 @@ button.time:active,
   box-shadow: inset 3px 0 0 var(--c-tone);
 }
 
+/* В карточке клиента подсказка стоит под переключателем «Карточка / Прогресс»: не впритык */
+.client-hint {
+  margin-top: var(--s-3);
+}
+
 /* ===== Расписание на месяц ===== */
 
 .month-hours {
