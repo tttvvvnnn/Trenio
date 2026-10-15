@@ -1,84 +1,21 @@
 import { useState } from 'react'
 
-import { errorText, updateTrainer, type OneOffMode, type Trainer } from '../api'
+import { errorText, updateTrainer, type Trainer } from '../api'
 import { deviceTimezone, timezoneOptions } from '../format'
 import { haptic } from '../telegram'
-import {
-  ErrorText,
-  InlineField,
-  PageHeader,
-  Row,
-  Section,
-  Stepper,
-  SwitchRow,
-  TextField,
-} from '../ui/kit'
+import { ErrorText, InlineField, PageHeader, Section, TextField } from '../ui/kit'
 import MyPhoto from '../ui/MyPhoto'
 import { MainButton } from '../ui/native'
-import ReminderSettings from '../ui/ReminderSettings'
-import { PrivacySection } from '../ui/Privacy'
-import { TourRow } from '../ui/Tour'
-import RulesEditor from './RulesEditor'
-
-// За сколько часов до начала клиент ещё может отменить запись
-const CANCEL_HOURS = [0, 1, 2, 3, 4, 6, 8, 12, 24, 36, 48, 72, 168]
-
-// Запись клиента без блока
-const ONE_OFF_MODES: [OneOffMode, string][] = [
-  ['allow', 'разрешать'],
-  ['confirm', 'с моим подтверждением'],
-  ['forbid', 'только по блоку'],
-]
-
-const ONE_OFF_FOOTER: Record<OneOffMode, string> = {
-  allow: 'Клиент может записаться, даже если блока нет или он закончился.',
-  confirm: 'Если блока на занятие не хватает, запись ждёт вашего подтверждения.',
-  forbid: 'Без свободного занятия в блоке клиент записаться не сможет. Вы записываете кого угодно.',
-}
-
-// С каким шагом клиенту предлагается время начала; 0 — по длительности услуги
-const SLOT_STEPS: [number, string][] = [
-  [5, 'каждые 5 мин'],
-  [10, 'каждые 10 мин'],
-  [15, 'каждые 15 мин'],
-  [20, 'каждые 20 мин'],
-  [30, 'каждые 30 мин'],
-  [60, 'каждый час'],
-  [0, 'по длительности услуги'],
-]
 
 type Props = {
   trainer: Trainer
   // Онбординг: короткая форма и подсказки для первого входа
   onboarding?: boolean
   onSaved: (trainer: Trainer) => void
-  // Услуги и шаблоны блоков: отдельный экран
-  onOpenServices?: () => void
-  // Есть только у админа
-  onOpenAdmin?: () => void
-  // Статистика занятий за месяц
-  onOpenStats?: () => void
-  // Есть, когда тренер сам записан к другому тренеру
-  onSwitchToClient?: () => void
-  // Запустить вводный тур заново
-  onStartTour?: () => void
 }
 
-// 795 -> "13:15"
-function clock(minutes: number): string {
-  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`
-}
-
-export default function ProfileForm({
-  trainer,
-  onboarding = false,
-  onSaved,
-  onOpenServices,
-  onOpenAdmin,
-  onOpenStats,
-  onSwitchToClient,
-  onStartTour,
-}: Props) {
+/** Как тренера видят клиенты: фото, имя, адрес зала и часовой пояс. */
+export default function ProfileForm({ trainer, onboarding = false, onSaved }: Props) {
   const [displayName, setDisplayName] = useState(trainer.display_name)
   // При первом входе подставляем часовой пояс телефона, если он из списка
   const [timezone, setTimezone] = useState(() => {
@@ -89,22 +26,13 @@ export default function ProfileForm({
       : trainer.timezone
   })
   const [address, setAddress] = useState(trainer.address ?? '')
-  const [autoConfirm, setAutoConfirm] = useState(trainer.auto_confirm)
-  const [cancelHours, setCancelHours] = useState(trainer.cancel_hours)
-  const [slotStep, setSlotStep] = useState(trainer.slot_step_min)
-  const [oneOffMode, setOneOffMode] = useState(trainer.one_off_mode)
-  const [rulesOpen, setRulesOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const dirty =
     displayName.trim() !== trainer.display_name ||
     timezone !== trainer.timezone ||
-    address.trim() !== (trainer.address ?? '') ||
-    autoConfirm !== trainer.auto_confirm ||
-    cancelHours !== trainer.cancel_hours ||
-    slotStep !== trainer.slot_step_min ||
-    oneOffMode !== trainer.one_off_mode
+    address.trim() !== (trainer.address ?? '')
   const valid = displayName.trim() !== ''
 
   async function submit() {
@@ -116,10 +44,6 @@ export default function ProfileForm({
         display_name: displayName.trim(),
         timezone,
         address: address.trim(),
-        auto_confirm: autoConfirm,
-        cancel_hours: cancelHours,
-        slot_step_min: slotStep,
-        one_off_mode: oneOffMode,
       })
       haptic.success()
       onSaved(updated)
@@ -184,144 +108,7 @@ export default function ProfileForm({
           )}
         </InlineField>
       </Section>
-      {!onboarding && (
-        <Section
-          title="Записи"
-          footer={
-            cancelHours === 0
-              ? 'Клиент может отменить запись в любой момент до начала.'
-              : `Позже чем за ${cancelHours} ч до начала клиент отменить запись не сможет, только написать вам.`
-          }
-        >
-          <SwitchRow
-            label="Подтверждать сразу"
-            subtitle={
-              autoConfirm ? 'Запись подтверждается без вас' : 'Каждую запись подтверждаете вы'
-            }
-            icon={{ name: 'check', color: 'var(--c-success)' }}
-            checked={autoConfirm}
-            onChange={setAutoConfirm}
-          />
-          <Row
-            title="Срок отмены"
-            icon={{ name: 'clock', color: 'var(--c-destructive)' }}
-            after={
-              <Stepper
-                label="Отмена клиентом, часов до начала"
-                value={cancelHours}
-                options={CANCEL_HOURS}
-                onChange={setCancelHours}
-                format={(value) => `${value} ч`}
-              />
-            }
-          />
-        </Section>
-      )}
-      {!onboarding && (
-        <Section
-          footer={
-            slotStep === 0
-              ? 'Начала идут подряд: часовая услуга в 10:00, 11:00, 12:00.'
-              : `Клиент выбирает начало с шагом ${slotStep} мин, например 13:00 или ${clock(13 * 60 + slotStep)}. Занятие целиком помещается в рабочее время.`
-          }
-        >
-          <InlineField label="Время начала" icon={{ name: 'calendar', color: 'var(--c-accent)' }}>
-            {(id) => (
-              <select
-                id={id}
-                className="row-input"
-                value={slotStep}
-                onChange={(event) => setSlotStep(Number(event.target.value))}
-              >
-                {SLOT_STEPS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </InlineField>
-        </Section>
-      )}
-      {!onboarding && (
-        <Section footer={ONE_OFF_FOOTER[oneOffMode]}>
-          <InlineField label="Без блока" icon={{ name: 'ticket', color: 'var(--c-warning)' }}>
-            {(id) => (
-              <select
-                id={id}
-                className="row-input"
-                value={oneOffMode}
-                onChange={(event) => setOneOffMode(event.target.value as OneOffMode)}
-              >
-                {ONE_OFF_MODES.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </InlineField>
-        </Section>
-      )}
-      {!onboarding && onOpenAdmin && (
-        <Section footer="Видите только вы: тренеры, клиенты и общие цифры платформы.">
-          <Row
-            title="Админ-панель"
-            icon={{ name: 'users', color: 'var(--c-planned)' }}
-            chevron
-            onClick={onOpenAdmin}
-          />
-        </Section>
-      )}
-      {!onboarding && onOpenStats && (
-        <Section footer="Посещаемость, загрузка по дням недели и клиенты, которые давно не были.">
-          <Row
-            title="Статистика"
-            icon={{ name: 'users', color: 'var(--c-success)' }}
-            chevron
-            onClick={onOpenStats}
-          />
-        </Section>
-      )}
-      {!onboarding && onOpenServices && (
-        <Section footer="На услуги клиенты записываются, шаблоны блоков помогают их продавать.">
-          <Row
-            title="Услуги и блоки"
-            tourId="services"
-            icon={{ name: 'ticket', color: 'var(--c-violet)' }}
-            chevron
-            onClick={onOpenServices}
-          />
-        </Section>
-      )}
-      {!onboarding && (
-        <Section footer="Клиент читает их и соглашается перед первой записью.">
-          <Row
-            title="Правила занятий"
-            subtitle={trainer.rules ? undefined : 'Не заполнены'}
-            icon={{ name: 'list', color: 'var(--c-warning)' }}
-            chevron
-            onClick={() => setRulesOpen(true)}
-          />
-        </Section>
-      )}
-      {!onboarding && <ReminderSettings role="trainer" />}
-      {!onboarding && onStartTour && <TourRow onClick={onStartTour} />}
-      {onSwitchToClient && !onboarding && (
-        <Section footer="Ваши записи к другим тренерам.">
-          <Row
-            title="Профиль клиента"
-            icon={{ name: 'calendar', color: 'var(--c-accent)' }}
-            chevron
-            onClick={onSwitchToClient}
-          />
-        </Section>
-      )}
-      {!onboarding && <PrivacySection trainer />}
       {error && <ErrorText>{error}</ErrorText>}
-      {rulesOpen && (
-        <RulesEditor trainer={trainer} onSaved={onSaved} onBack={() => setRulesOpen(false)} />
-      )}
       <MainButton
         text={onboarding ? 'Продолжить' : 'Сохранить'}
         onClick={() => void submit()}

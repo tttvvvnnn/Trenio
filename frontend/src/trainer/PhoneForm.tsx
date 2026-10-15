@@ -1,10 +1,11 @@
 import { useState } from 'react'
 
 import { errorText, saveClientPhone } from '../api'
-import { confirmAction, haptic } from '../telegram'
+import { haptic } from '../telegram'
 import { ErrorText, Row, Section, SwitchRow, TextField } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
+import { withUndo } from '../undo'
 
 type Props = {
   clientId: number
@@ -39,8 +40,14 @@ export default function PhoneForm({ clientId, clientName, phone, onBack, onSaved
     }
   }
 
-  async function remove() {
-    if (await confirmAction('Удалить телефон клиента?', 'Удалить')) void save(null)
+  function remove() {
+    haptic.success()
+    onSaved(null)
+    withUndo({
+      text: 'Телефон удалён',
+      commit: () => saveClientPhone(clientId, null, consent),
+      undo: () => onSaved(phone),
+    })
   }
 
   return (
@@ -67,11 +74,7 @@ export default function PhoneForm({ clientId, clientName, phone, onBack, onSaved
       </Section>
       {phone !== null && (
         <Section>
-          <Row
-            title="Удалить телефон"
-            tone="destructive"
-            onClick={saving ? undefined : () => void remove()}
-          />
+          <Row title="Удалить телефон" tone="destructive" onClick={saving ? undefined : remove} />
         </Section>
       )}
       {error && <ErrorText>{error}</ErrorText>}

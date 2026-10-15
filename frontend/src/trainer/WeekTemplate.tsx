@@ -11,11 +11,12 @@ import {
   type Service,
 } from '../api'
 import { hhmm, WEEKDAYS, WEEKDAYS_SHORT } from '../format'
-import { confirmAction, haptic } from '../telegram'
+import { haptic } from '../telegram'
 import Icon from '../ui/icons'
 import { AddRow, ErrorText, InlineField, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
+import { withUndo } from '../undo'
 
 export default function WeekTemplate() {
   const [rules, setRules] = useState<Rule[] | null>(null)
@@ -48,6 +49,20 @@ export default function WeekTemplate() {
       .filter((service) => rule.service_ids.includes(service.id))
       .map((service) => service.name)
       .join(', ')
+  }
+
+  // Часы пропадают сразу, на сервер удаление уходит, если не нажали «Отменить»
+  function removeRule(rule: Rule) {
+    if (rules === null) return
+    const before = rules
+    haptic.success()
+    setEditing(null)
+    setRules(before.filter((item) => item.id !== rule.id))
+    withUndo({
+      text: `Часы ${hhmm(rule.start)}–${hhmm(rule.end)} удалены`,
+      commit: () => deleteRule(rule.id).then(reload),
+      undo: () => setRules(before),
+    })
   }
 
   const rulesOf = (weekday: number) =>
@@ -116,6 +131,7 @@ export default function WeekTemplate() {
             await reload()
           }}
           onCancel={() => setEditing(null)}
+          onRemove={removeRule}
         />
       )}
     </>
@@ -128,9 +144,10 @@ type FormProps = {
   services: Service[]
   onDone: () => void
   onCancel: () => void
+  onRemove: (rule: Rule) => void
 }
 
-function RuleForm({ rule, weekday, services, onDone, onCancel }: FormProps) {
+function RuleForm({ rule, weekday, services, onDone, onCancel, onRemove }: FormProps) {
   // Новые часы можно сразу добавить на несколько дней
   const [weekdays, setWeekdays] = useState<number[]>([rule?.weekday ?? weekday])
   const [start, setStart] = useState(hhmm(rule?.start ?? '10:00'))
@@ -165,23 +182,6 @@ function RuleForm({ rule, weekday, services, onDone, onCancel }: FormProps) {
       haptic.error()
       setError(errorText(err))
       setSaving(false)
-    }
-  }
-
-  async function remove() {
-    if (rule === null) return
-    const ok = await confirmAction(
-      `Удалить часы ${hhmm(rule.start)}–${hhmm(rule.end)} в ${WEEKDAYS[rule.weekday].toLowerCase()}?`,
-      'Удалить',
-    )
-    if (!ok) return
-    try {
-      await deleteRule(rule.id)
-      haptic.success()
-      onDone()
-    } catch (err) {
-      haptic.error()
-      setError(errorText(err))
     }
   }
 
@@ -261,7 +261,7 @@ function RuleForm({ rule, weekday, services, onDone, onCancel }: FormProps) {
         )}
         {rule !== null && (
           <Section>
-            <Row title="Удалить часы" tone="destructive" onClick={() => void remove()} />
+            <Row title="Удалить часы" tone="destructive" onClick={() => onRemove(rule)} />
           </Section>
         )}
         {error && <ErrorText>{error}</ErrorText>}

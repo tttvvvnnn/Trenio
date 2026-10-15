@@ -274,9 +274,20 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
           clientName={name}
           timezone={timezone}
           onBack={() => setOpenedPackage(null)}
-          onChanged={(updated) => {
+          onChanged={(updated, local) => {
             if (updated === null) setOpenedPackage(null)
-            reload()
+            else
+              setCard(
+                (current) =>
+                  current && {
+                    ...current,
+                    packages: current.packages.map((item) =>
+                      item.id === updated.id ? updated : item,
+                    ),
+                  },
+              )
+            // Изменение пока только на экране (ждёт «Отменить»): сервер ещё не знает
+            if (!local) reload()
           }}
         />
       )}
@@ -312,7 +323,7 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
           onBack={() => setEditingPhone(false)}
           onSaved={(phone) => {
             setEditingPhone(false)
-            setCard({ ...card, phone })
+            setCard((current) => current && { ...current, phone })
           }}
         />
       )}

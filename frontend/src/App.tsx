@@ -10,6 +10,7 @@ import { EmptyState } from './ui/kit'
 import { ConsentGate } from './ui/Privacy'
 import Refresher, { OfflineBanner } from './ui/Refresh'
 import RolePicker from './ui/RolePicker'
+import UndoToast from './ui/Undo'
 
 type State =
   | { kind: 'loading' }
@@ -67,6 +68,7 @@ export default function App() {
         <>
           <Refresher />
           <OfflineBanner />
+          <UndoToast />
         </>
       )}
       {state.kind === 'ready' && state.me.consent_required ? (

@@ -2080,3 +2080,168 @@ button.stat-tile:active {
 .sparkline circle {
   fill: var(--c-accent);
 }
+
+/* ===== Плашка «Отменить» ===== */
+
+.undo-toast {
+  position: fixed;
+  right: var(--s-4);
+  bottom: calc(var(--tabbar-height) + var(--tabbar-gap) * 2 + env(safe-area-inset-bottom, 0px));
+  left: var(--s-4);
+  z-index: 50;
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  overflow: hidden;
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  background: rgba(30, 26, 25, 0.92);
+  color: #fff;
+  font-size: 15px;
+  box-shadow: 0 8px 24px var(--c-glass-shadow);
+  animation: appear 0.2s var(--ease);
+}
+
+.undo-toast span {
+  flex: 1;
+  min-width: 0;
+}
+
+.undo-toast button {
+  flex: none;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: #ff9a7a;
+  font: inherit;
+  font-weight: 600;
+}
+
+.undo-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #ff9a7a;
+  transform-origin: left;
+  animation: undo-shrink linear forwards;
+}
+
+@keyframes undo-shrink {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* ===== Детали записи: сводка и отметка ===== */
+
+.booking-head {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  padding: var(--s-4) var(--s-4) var(--s-2);
+}
+
+.booking-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.booking-head h1 {
+  margin: 0 0 2px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.booking-head p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--c-hint);
+}
+
+.booking-head .badge {
+  display: inline-block;
+  margin-top: var(--s-2);
+}
+
+.attendance {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+}
+
+.attendance button {
+  min-height: 48px;
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  border-radius: calc(var(--r-group) - 4px);
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  transition:
+    background-color 150ms var(--ease),
+    color 150ms var(--ease);
+}
+
+.attendance button[aria-pressed='true'] {
+  background: var(--c-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.attendance button:disabled {
+  opacity: 0.6;
+}
+
+/* ===== Профиль тренера: шапка с кнопкой «Изменить» ===== */
+
+.profile-head {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  margin: var(--s-4) var(--s-4) 0;
+  padding: var(--s-3);
+  border-radius: var(--r-group);
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+}
+
+.profile-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-head h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.profile-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--c-hint);
+}
+
+.pill-button {
+  flex: none;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--c-tint);
+  color: var(--c-link);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pill-button:active {
+  opacity: 0.7;
+}

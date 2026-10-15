@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import {
   errorText,
@@ -12,22 +12,24 @@ import {
 } from '../api'
 import {
   ATTENDANCE,
+  ATTENDANCE_SHORT,
   bookingMinutes,
-  dateTime,
+  dayTitle,
   duration,
   fullName,
+  localDate,
+  localTime,
   rescheduleNote,
   rubles,
 } from '../format'
 import { haptic } from '../telegram'
 import CancelScreen from '../ui/CancelScreen'
-import Icon from '../ui/icons'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import { PersonAvatar } from '../ui/Avatar'
 import { ErrorText, Row, Section } from '../ui/kit'
-import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
+import { withUndo } from '../undo'
 import BookingTerms from './BookingTerms'
 import NoteForm from './NoteForm'
 
@@ -37,7 +39,7 @@ type Props = {
   onChanged: (booking: Booking) => void
 }
 
-/** Запись глазами тренера: кто, когда, и что с ней сделать. */
+/** Запись глазами тренера: сводка сверху, отметка посещения, действия, заметка и условия. */
 export default function BookingDetails({ booking, onBack, onChanged }: Props) {
   const [busy, setBusy] = useState<BookingAction | 'mark' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -63,14 +65,21 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
     }
   }
 
-  async function mark(attendance: Attendance | null) {
-    if (attendance === booking.attendance) return
+  // Нажатие на выбранную отметку снимает её. После отметки 5 секунд можно вернуть прежнюю
+  async function mark(pressed: Attendance) {
+    if (busy) return
+    const previous = booking.attendance
+    const next = pressed === previous ? null : pressed
     setBusy('mark')
     setError(null)
     try {
-      const updated = await markAttendance(booking.id, attendance)
+      const updated = await markAttendance(booking.id, next)
       haptic.success()
       onChanged(updated)
+      withUndo({
+        text: next ? `Отмечено: ${ATTENDANCE_SHORT[next]}` : 'Отметка снята',
+        undo: () => markAttendance(booking.id, previous).then(onChanged),
+      })
     } catch (err) {
       haptic.error()
       setError(errorText(err))
@@ -92,32 +101,97 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
   else if (booking.created_by === 'trainer') note = 'Вы записали клиента сами.'
   const moved = rescheduleNote(booking, 'trainer')
   const inactive = booking.status === 'cancelled' || booking.status === 'declined'
+  const comment = inactive ? booking.cancel_comment : null
+  const name = fullName(client)
+  const day = dayTitle(localDate(booking.starts_at, timezone))
+  const time = `${localTime(booking.starts_at, timezone)}–${localTime(booking.ends_at, timezone)}`
+  const where = [booking.service.name, booking.address].filter(Boolean).join(' · ')
 
   return (
     <Screen
-      title={fullName(client)}
-      subtitle={client.username ? `@${client.username}` : undefined}
-      avatar={<PersonAvatar person={client} size="md" />}
+      title={name}
       onBack={onBack}
+      header={
+        <div className="booking-head">
+          <PersonAvatar person={client} size="md" />
+          <div>
+            <h1>{name}</h1>
+            <p>
+              {day} · {time}
+            </p>
+            <p>{where}</p>
+            {client.username && <p>@{client.username}</p>}
+            <StatusBadge status={booking.status} />
+          </div>
+        </div>
+      }
     >
-      <Section footer={note}>
-        <Row title="Статус" after={<StatusBadge status={booking.status} />} />
-        <Row title="Когда" subtitle={dateTime(booking.starts_at, timezone)} />
-        <Row title="Услуга" value={booking.service.name} />
-        <Row title="Длительность" value={duration(bookingMinutes(booking))} />
-        {booking.address && <Row title="Место" subtitle={booking.address} />}
-        {moved && !inactive && (
+      {note && <p className="section-footer">{note}</p>}
+      {((moved && !inactive) || comment) && (
+        <Section>
+          {moved && !inactive && (
+            <Row
+              title={moved}
+              subtitle={booking.reschedule_comment ?? undefined}
+              icon={{ name: 'clock', color: 'var(--c-accent)' }}
+            />
+          )}
+          {comment && <Row title="Комментарий" subtitle={comment} />}
+        </Section>
+      )}
+      {booking.can_mark && (
+        <Section title="Как прошло" footer={chargeNote(booking)}>
+          <div className="attendance" role="group" aria-label="Посещение">
+            {marks.map((attendance) => (
+              <button
+                key={attendance}
+                type="button"
+                aria-pressed={booking.attendance === attendance}
+                disabled={busy !== null}
+                onClick={() => void mark(attendance)}
+              >
+                {ATTENDANCE[attendance]}
+              </button>
+            ))}
+          </div>
+        </Section>
+      )}
+      {pending && (
+        <Section>
           <Row
-            title={moved}
-            subtitle={booking.reschedule_comment ?? undefined}
-            icon={{ name: 'clock', color: 'var(--c-accent)' }}
+            title={busy === 'confirm' ? 'Подтверждаем…' : 'Подтвердить'}
+            tone="accent"
+            centered
+            onClick={busy ? undefined : () => void act('confirm')}
           />
-        )}
-        {inactive && booking.cancel_comment && (
-          <Row title="Комментарий" subtitle={booking.cancel_comment} />
-        )}
-      </Section>
-      <Section title="Заметка к занятию">
+          {booking.can_cancel && (
+            <Row
+              title="Отклонить"
+              tone="destructive"
+              centered
+              onClick={busy ? undefined : () => setStep('decline')}
+            />
+          )}
+        </Section>
+      )}
+      {!pending && booking.can_cancel && (
+        <Section>
+          <Row
+            title="Перенести"
+            tone="accent"
+            centered
+            onClick={busy ? undefined : () => setStep('reschedule')}
+          />
+          <Row
+            title="Отменить запись"
+            tone="destructive"
+            centered
+            onClick={busy ? undefined : () => setStep('cancel')}
+          />
+        </Section>
+      )}
+      {error && <ErrorText>{error}</ErrorText>}
+      <Section title="Заметка">
         <Row
           title={booking.note ?? 'Добавить заметку'}
           subtitle={
@@ -133,48 +207,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           onClick={busy ? undefined : () => setStep('note')}
         />
       </Section>
-      {booking.can_mark && (
-        <Section title="Посещение" footer={chargeNote(booking)}>
-          {marks.map((attendance) => (
-            <Row
-              key={attendance}
-              title={ATTENDANCE[attendance]}
-              onClick={busy ? undefined : () => void mark(attendance)}
-              badge={
-                booking.attendance === attendance ? (
-                  <Icon name="check" className="row-check" />
-                ) : undefined
-              }
-            />
-          ))}
-          {booking.attendance && (
-            <Row
-              title={busy === 'mark' ? 'Сохраняем…' : 'Снять отметку'}
-              tone="accent"
-              onClick={busy ? undefined : () => void mark(null)}
-            />
-          )}
-        </Section>
-      )}
-      {!booking.can_mark && booking.no_package && (
-        <p className="section-footer">Не списывается из блока: разовое занятие, оплата отдельно.</p>
-      )}
-      {!booking.can_mark && !booking.no_package && booking.one_off && !booking.out_of_block && (
-        <p className="section-footer">У клиента нет блоков: занятие разовое.</p>
-      )}
-      {!booking.can_mark && !booking.no_package && booking.out_of_block && (
-        <p className="section-footer hint-alert">
-          Без блока: подходящего блока нет или его занятия уже заняты более ранними записями.
-          Занятие будет разовым, если не продать клиенту новый блок.
-        </p>
-      )}
-      {!booking.can_mark && booking.planned && (
-        <p className="section-footer">
-          Спишется из блока «{booking.planned.package_name}»: занятие {booking.planned.number} из{' '}
-          {booking.planned.sessions_count}.
-        </p>
-      )}
-      <Section>
+      <Section footer={booking.can_mark ? undefined : blockNote(booking)}>
         <Row
           title="Условия занятия"
           subtitle={termsLine(booking)}
@@ -182,29 +215,13 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           onClick={busy ? undefined : () => setStep('terms')}
         />
       </Section>
-      {error && <ErrorText>{error}</ErrorText>}
-      {booking.can_cancel && (
-        <Section>
-          <Row
-            title="Перенести"
-            tone="accent"
-            centered
-            onClick={busy ? undefined : () => setStep('reschedule')}
-          />
-          <Row
-            title={pending ? 'Отклонить' : 'Отменить запись'}
-            tone="destructive"
-            onClick={busy ? undefined : () => setStep(pending ? 'decline' : 'cancel')}
-          />
-        </Section>
-      )}
       {(step === 'cancel' || step === 'decline') && (
         <CancelScreen
           booking={booking}
           action={step}
           recipient="Клиент"
           onBack={() => setStep(null)}
-          onSubmit={(comment) => changeTrainerBooking(booking.id, step, comment)}
+          onSubmit={(text) => changeTrainerBooking(booking.id, step, text)}
           onDone={(updated) => {
             setStep(null)
             onChanged(updated)
@@ -218,7 +235,7 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           allowCustom
           footer="Необязательно. Запись останется подтверждённой, клиенту придёт уведомление с новым временем."
           onBack={() => setStep(null)}
-          onSubmit={(startsAt, comment) => rescheduleTrainerBooking(booking.id, startsAt, comment)}
+          onSubmit={(startsAt, text) => rescheduleTrainerBooking(booking.id, startsAt, text)}
           onDone={(updated) => {
             setStep(null)
             onChanged(updated)
@@ -245,15 +262,27 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           }}
         />
       )}
-      <MainButton
-        text="Подтвердить запись"
-        onClick={() => void act('confirm')}
-        visible={pending}
-        disabled={busy !== null && busy !== 'confirm'}
-        loading={busy === 'confirm'}
-      />
     </Screen>
   )
+}
+
+// Будущее занятие: из какого блока спишется или почему без блока
+function blockNote(booking: Booking): ReactNode {
+  if (booking.no_package) return 'Не списывается из блока: разовое занятие, оплата отдельно.'
+  if (booking.out_of_block) {
+    return (
+      <span className="hint-alert">
+        Без блока: подходящего блока нет или его занятия уже заняты более ранними записями. Занятие
+        будет разовым, если не продать клиенту новый блок.
+      </span>
+    )
+  }
+  if (booking.one_off) return 'У клиента нет блоков: занятие разовое.'
+  if (booking.planned) {
+    const { package_name, number, sessions_count } = booking.planned
+    return `Спишется из блока «${package_name}»: занятие ${number} из ${sessions_count}.`
+  }
+  return undefined
 }
 
 // Что особенного в условиях: своя длительность, цена разового, не из блока

@@ -158,3 +158,29 @@ export function PrivacySection({ trainer }: { trainer: boolean }) {
     </>
   )
 }
+
+/** «Данные и аккаунт» в Профиле тренера: политика и удаление аккаунта на одном экране. */
+export function AccountDataScreen({ trainer, onBack }: { trainer: boolean; onBack: () => void }) {
+  const [open, setOpen] = useState<'policy' | 'delete' | null>(null)
+  return (
+    <Screen title="Данные и аккаунт" onBack={onBack}>
+      <Section>
+        <Row
+          title="Обработка данных"
+          subtitle="Какие данные хранит Trenio и зачем"
+          icon={{ name: 'shield', color: 'var(--c-success)' }}
+          chevron
+          onClick={() => setOpen('policy')}
+        />
+        <Row
+          title="Удалить аккаунт"
+          icon={{ name: 'trash', color: 'var(--c-destructive)' }}
+          chevron
+          onClick={() => setOpen('delete')}
+        />
+      </Section>
+      {open === 'policy' && <PolicyScreen onBack={() => setOpen(null)} />}
+      {open === 'delete' && <DeleteAccountScreen trainer={trainer} onBack={() => setOpen(null)} />}
+    </Screen>
+  )
+}
