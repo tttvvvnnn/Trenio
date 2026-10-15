@@ -78,7 +78,8 @@ async def _store(session: AsyncSession, user: User, data: bytes) -> None:
     user.avatar_key = secrets.token_urlsafe(16)
 
 
-async def _clear(session: AsyncSession, user: User) -> None:
+async def forget(session: AsyncSession, user: User) -> None:
+    """Удаляет своё фото и забывает фото из Telegram. Коммит — за вызывающим."""
     await session.execute(delete(UserAvatar).where(UserAvatar.user_id == user.id))
     user.avatar_key = None
     user.avatar_telegram_id = None
@@ -108,7 +109,7 @@ async def refresh_from_telegram(
     await session.refresh(user, with_for_update=True)
     if user.avatar_mode == AvatarMode.TELEGRAM and not failed:
         if photo is None:
-            await _clear(session, user)
+            await forget(session, user)
         elif photo.unique_id != user.avatar_telegram_id or user.avatar_key is None:
             await _store(session, user, photo.data)
             user.avatar_telegram_id = photo.unique_id
@@ -139,7 +140,7 @@ async def set_custom(session: AsyncSession, user: User, data: bytes) -> None:
 
 async def remove(session: AsyncSession, user: User) -> None:
     """Убрать фото совсем: вместо него будут инициалы, из Telegram больше не берём."""
-    await _clear(session, user)
+    await forget(session, user)
     user.avatar_mode = AvatarMode.NONE
     await session.commit()
 
@@ -147,7 +148,7 @@ async def remove(session: AsyncSession, user: User) -> None:
 async def use_telegram(session: AsyncSession, user: User, now: datetime) -> None:
     """Вернуться к фото из Telegram и сразу его подтянуть."""
     if user.avatar_mode != AvatarMode.TELEGRAM:
-        await _clear(session, user)
+        await forget(session, user)
         user.avatar_mode = AvatarMode.TELEGRAM
         await session.commit()
     await refresh_from_telegram(session, user, now, force=True)

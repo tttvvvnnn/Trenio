@@ -73,10 +73,19 @@ class User(TimestampMixin, Base):
     created_by_trainer_id: Mapped[int | None] = mapped_column(
         ForeignKey("trainers.id", ondelete="SET NULL", use_alter=True)
     )
+    # Согласие на обработку персональных данных: когда и с какой версией политики
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_version: Mapped[int | None] = mapped_column(Integer)
+    # Человек удалил аккаунт: строка обезличена и осталась только ради учёта у тренеров
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def is_offline(self) -> bool:
         return self.telegram_id is None
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
 
 class UserAvatar(Base):
@@ -239,6 +248,9 @@ class TrainerClient(TimestampMixin, Base):
     rules_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Код личной ссылки, по которой клиент без Telegram привязывает свой аккаунт
     claim_code: Mapped[str | None] = mapped_column(String(32), unique=True)
+    # Телефон клиента: видит только этот тренер. Хранится, только если клиент согласился
+    phone: Mapped[str | None] = mapped_column(String(32))
+    phone_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(lazy="joined")
     trainer: Mapped[Trainer] = relationship(lazy="joined")

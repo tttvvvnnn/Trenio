@@ -38,6 +38,8 @@ export type Me = {
   // Вводный тур пройден или пропущен; false — показать при входе в этот профиль
   trainer_tour_done: boolean
   client_tour_done: boolean
+  // Нужно согласие с политикой обработки данных: впервые или после её изменения
+  consent_required: boolean
 }
 
 export type TrainerProfileInput = Partial<
@@ -117,6 +119,8 @@ export type ClientTrainer = {
   // Правила нужно прочитать и принять, прежде чем записываться
   rules_pending: boolean
   avatar_url: string | null
+  // Телефон клиента, который записал этот тренер; клиент может его удалить
+  my_phone: string | null
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'cancelled'
@@ -250,6 +254,36 @@ export function saveMyName(firstName: string, lastName: string | null): Promise<
 
 export function resetMyName(): Promise<MyName> {
   return send<MyName>('DELETE', '/api/me/name')
+}
+
+// --- Персональные данные ---
+
+export type Policy = { version: number; text: string }
+
+export function fetchPolicy(): Promise<Policy> {
+  return request<Policy>('/api/privacy')
+}
+
+export function giveConsent(): Promise<void> {
+  return send<void>('POST', '/api/me/consent')
+}
+
+// Удалить аккаунт: записи и оплаты у тренеров останутся обезличенными
+export function deleteAccount(): Promise<void> {
+  return send<void>('DELETE', '/api/me')
+}
+
+// Телефон клиента; null — удалить. consent — клиент согласен его хранить
+export function saveClientPhone(
+  clientId: number,
+  phone: string | null,
+  consent: boolean,
+): Promise<{ phone: string | null }> {
+  return send('PUT', `/api/trainer/clients/${clientId}/phone`, { phone, consent })
+}
+
+export function removeMyPhone(trainerId: number): Promise<void> {
+  return send<void>('DELETE', `/api/client/trainers/${trainerId}/phone`)
 }
 
 export type TourRole = 'trainer' | 'client'
@@ -461,6 +495,8 @@ export type Client = Person & {
   upcoming_one_off: number
   // Клиент без Telegram, которого тренер завёл сам: имя правит тренер, уведомлений нет
   offline: boolean
+  // Клиент удалил аккаунт: осталась обезличенная история, записать его нельзя
+  deleted: boolean
 }
 
 export function fetchTrainerBookings(days = 14, from?: string): Promise<Booking[]> {
@@ -643,6 +679,8 @@ export type PackageInput = {
 export type ClientCard = {
   client: Client
   notes: string | null
+  // Телефон клиента: видит только этот тренер
+  phone: string | null
   // Новые первыми
   packages: Package[]
   // Все записи у тренера, новые первыми

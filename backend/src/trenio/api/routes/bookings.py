@@ -402,6 +402,8 @@ class ClientOut(PersonOut):
     upcoming_one_off: int = 0
     # Клиент без Telegram, которого тренер завёл сам: имя правит тренер, уведомлений нет
     offline: bool = False
+    # Клиент удалил аккаунт: осталась обезличенная история, записать его нельзя
+    deleted: bool = False
 
     @classmethod
     def of_link(
@@ -410,7 +412,8 @@ class ClientOut(PersonOut):
         out = cls(
             **PersonOut.of(link.user).model_dump(),
             since=link.created_at,
-            offline=link.user.is_offline,
+            offline=link.user.is_offline and not link.user.is_deleted,
+            deleted=link.user.is_deleted,
         )
         if summary is not None:
             out.sessions_left = summary.sessions_left

@@ -1,6 +1,7 @@
 import {
   backButton,
   bindThemeParamsCssVars,
+  closeMiniApp,
   disableVerticalSwipes,
   hapticFeedback,
   init,
@@ -167,4 +168,9 @@ export function openTelegram(url: string): void {
     return
   }
   window.open(url, '_blank')
+}
+
+/** Закрыть Mini App; вне Telegram ничего не делает. */
+export function closeApp(): void {
+  if (closeMiniApp.isAvailable()) closeMiniApp()
 }

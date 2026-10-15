@@ -33,6 +33,8 @@ class ClientTrainerOut(BaseModel):
     # Правила нужно прочитать и принять, прежде чем записываться
     rules_pending: bool
     avatar_url: str | None = None
+    # Телефон клиента, который записал этот тренер; клиент может его удалить
+    my_phone: str | None = None
 
     @classmethod
     def of(cls, link: TrainerClient) -> "ClientTrainerOut":
@@ -47,6 +49,7 @@ class ClientTrainerOut(BaseModel):
             rules=trainer.rules,
             rules_pending=link.rules_pending,
             avatar_url=avatars.avatar_url(trainer.user),
+            my_phone=link.phone,
         )
 
 

@@ -7,6 +7,7 @@ import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
 import BrandMark from './ui/BrandMark'
 import { EmptyState } from './ui/kit'
+import { ConsentGate } from './ui/Privacy'
 import RolePicker from './ui/RolePicker'
 
 type State =
@@ -41,6 +42,14 @@ export default function App() {
     )
   }
 
+  function setConsented() {
+    setState((current) =>
+      current.kind === 'ready'
+        ? { kind: 'ready', me: { ...current.me, consent_required: false } }
+        : current,
+    )
+  }
+
   function setTrainer(trainer: Trainer) {
     setState((current) =>
       current.kind === 'ready' ? { kind: 'ready', me: { ...current.me, trainer } } : current,
@@ -48,10 +57,16 @@ export default function App() {
   }
 
   const view = state.kind === 'ready' ? chooseView(state.me, clientMode) : null
-  const withTabbar = view === 'client' || view === 'trainer'
+  const withTabbar =
+    (view === 'client' || view === 'trainer') &&
+    !(state.kind === 'ready' && state.me.consent_required)
   return (
     <main className={withTabbar ? 'app with-tabbar' : 'app'}>
-      {render(state, view, setTrainer, setClientMode, setTourDone)}
+      {state.kind === 'ready' && state.me.consent_required ? (
+        <ConsentGate onAccepted={setConsented} />
+      ) : (
+        render(state, view, setTrainer, setClientMode, setTourDone)
+      )}
     </main>
   )
 }

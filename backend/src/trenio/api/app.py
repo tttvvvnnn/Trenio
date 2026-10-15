@@ -25,6 +25,7 @@ from trenio.api.routes import (
     health,
     me,
     packages,
+    privacy,
     schedule,
     trainer,
 )
@@ -98,6 +99,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
         api.include_router(packages.router)
         api.include_router(finance.router)
         api.include_router(admin.router)
+        api.include_router(privacy.router)
         app.include_router(api)
     if Component.BOT in components and settings.bot_mode is BotMode.WEBHOOK:
         app.include_router(bot_webhook.router)

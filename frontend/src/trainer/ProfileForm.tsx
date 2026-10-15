@@ -16,6 +16,7 @@ import {
 import MyPhoto from '../ui/MyPhoto'
 import { MainButton } from '../ui/native'
 import ReminderSettings from '../ui/ReminderSettings'
+import { PrivacySection } from '../ui/Privacy'
 import { TourRow } from '../ui/Tour'
 import RulesEditor from './RulesEditor'
 
@@ -267,6 +268,7 @@ export default function ProfileForm({
           />
         </Section>
       )}
+      {!onboarding && <PrivacySection trainer />}
       {error && <ErrorText>{error}</ErrorText>}
       {rulesOpen && (
         <RulesEditor trainer={trainer} onSaved={onSaved} onBack={() => setRulesOpen(false)} />

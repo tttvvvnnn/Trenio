@@ -300,7 +300,9 @@ type TextFieldProps = {
   placeholder?: string
   footer?: ReactNode
   maxLength?: number
-  inputMode?: 'text' | 'numeric'
+  inputMode?: 'text' | 'numeric' | 'tel'
+  type?: 'text' | 'tel'
+  autoComplete?: string
   required?: boolean
 }
 

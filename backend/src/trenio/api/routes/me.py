@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
 from trenio.api.routes.trainer import TrainerOut
 from trenio.db.models import User
-from trenio.services import avatars, notifications, users
+from trenio.services import avatars, notifications, privacy, users
 from trenio.services.clients import list_my_trainers
 from trenio.services.notifications import Role
 from trenio.services.trainers import get_active_trainer, is_admin
@@ -35,6 +35,8 @@ class MeOut(BaseModel):
     # Вводный тур пройден или пропущен; false — показать при входе в этот профиль
     trainer_tour_done: bool
     client_tour_done: bool
+    # Нужно согласие с политикой обработки данных (впервые или после её изменения)
+    consent_required: bool
 
 
 @router.get("/me")
@@ -54,6 +56,7 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         trainer=TrainerOut.of(trainer) if trainer is not None else None,
         trainer_tour_done=user.trainer_tour_at is not None,
         client_tour_done=user.client_tour_at is not None,
+        consent_required=privacy.consent_required(user),
     )
 
 

@@ -424,6 +424,8 @@ class ClientCardOut(BaseModel):
     client: ClientOut
     # Заметки тренера; клиент их не видит
     notes: str | None
+    # Телефон клиента: видит только этот тренер
+    phone: str | None
     # Новые первыми
     packages: list[PackageOut]
     # Все записи у тренера, новые первыми
@@ -447,6 +449,7 @@ async def get_client_card(
     return ClientCardOut(
         client=ClientOut.of_link(link, summary),
         notes=link.notes,
+        phone=link.phone,
         packages=[PackageOut.of(p, today, plan) for p in reversed(own)],
         history=await trainer_views(session, history, now),
     )
