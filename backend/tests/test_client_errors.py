@@ -9,6 +9,7 @@ from tests.conftest import ADMIN_TELEGRAM_ID
 from tests.factories import make_init_data
 from tests.test_api import login
 from trenio.api.routes import client_errors as route
+from trenio.services import client_errors as service
 from trenio.services.client_errors import HOURLY_LIMIT, Limiter, error_text
 
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
@@ -52,7 +53,7 @@ async def test_report_goes_to_admins(client: AsyncClient, monkeypatch: pytest.Mo
         sent.append((admin_ids, text))
 
     monkeypatch.setattr(route, "send_to_admins", fake)
-    monkeypatch.setattr(route.client_errors, "limiter", Limiter())
+    monkeypatch.setattr(service, "limiter", Limiter())
     token = await login(client, make_init_data(user_id=4201, first_name="Оля"))
     headers = {"Authorization": f"Bearer {token}"}
 
