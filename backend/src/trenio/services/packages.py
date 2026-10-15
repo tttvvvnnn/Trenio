@@ -11,7 +11,7 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
@@ -846,3 +846,37 @@ def summarize(
             ),
         )
     return result
+
+
+# Во сколько по времени тренера приходит предупреждение о сроке блока
+EXPIRY_ALERT_HOUR = 10
+
+
+async def schedule_expiry_alerts(session: AsyncSession, now: datetime) -> None:
+    """Ставит предупреждения о конце срока блоков, в которых остались занятия.
+
+    Запускается планировщиком регулярно; повторы отсекает dedup_key. Предупреждение,
+    чей день уже прошёл (блок продали за три дня до конца), не ставим: придёт следующее.
+    """
+    horizon = (now + timedelta(days=max(notifications.PACKAGE_EXPIRY_ALERTS) + 1)).date()
+    found = await _load_packages(
+        session,
+        Package.closed_at.is_(None),
+        Package.valid_until.is_not(None),
+        Package.valid_until <= horizon,
+        Package.valid_until >= (now - timedelta(days=1)).date(),
+    )
+    for package in found:
+        if left(package) <= 0:
+            continue
+        assert package.valid_until is not None
+        zone = ZoneInfo(package.trainer.timezone)
+        today = now.astimezone(zone).date()
+        for days in notifications.PACKAGE_EXPIRY_ALERTS:
+            day = package.valid_until - timedelta(days=days)
+            if day < today:
+                continue
+            at = datetime.combine(day, time(EXPIRY_ALERT_HOUR), zone)
+            await notifications.package_expiring(session, package, days, max(at, now))
+    await session.commit()
+    kick()
