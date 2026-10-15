@@ -546,6 +546,10 @@ export type Client = Person & {
   offline: boolean
   // Клиент удалил аккаунт: осталась обезличенная история, записать его нельзя
   deleted: boolean
+  // Блок, из которого сейчас списываются занятия
+  block: { name: string; used: number; sessions_count: number } | null
+  // Блок кончается: осталось мало занятий или до конца срока меньше недели
+  ending_soon: boolean
 }
 
 export function fetchTrainerBookings(days = 14, from?: string): Promise<Booking[]> {

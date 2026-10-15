@@ -417,6 +417,12 @@ async def reschedule_booking(
 # --- Клиенты ---
 
 
+class ClientBlockOut(BaseModel):
+    name: str
+    used: int
+    sessions_count: int
+
+
 class ClientOut(PersonOut):
     # Когда клиент впервые открыл ссылку тренера
     since: datetime
@@ -432,6 +438,10 @@ class ClientOut(PersonOut):
     offline: bool = False
     # Клиент удалил аккаунт: осталась обезличенная история, записать его нельзя
     deleted: bool = False
+    # Блок, из которого сейчас списываются занятия
+    block: ClientBlockOut | None = None
+    # Блок кончается: пора предложить новый
+    ending_soon: bool = False
 
     @classmethod
     def of_link(
@@ -448,6 +458,13 @@ class ClientOut(PersonOut):
             out.debt = summary.debt
             out.has_packages = summary.has_packages
             out.upcoming_one_off = summary.upcoming_one_off
+            out.ending_soon = summary.ending_soon
+            if summary.current is not None:
+                out.block = ClientBlockOut(
+                    name=summary.current.name,
+                    used=packages.used(summary.current),
+                    sessions_count=summary.current.sessions_count,
+                )
         return out
 
 

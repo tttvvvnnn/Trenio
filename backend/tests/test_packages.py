@@ -149,6 +149,9 @@ async def test_ten_for_20000_paid_10000_used_3(client: AsyncClient, session: Asy
     assert [(c["sessions_left"], c["debt"], c["has_packages"]) for c in clients] == [
         (7, 10000, True)
     ]
+    # В списке клиентов виден текущий блок: для строки «10 персональных · 3 из 10»
+    assert clients[0]["block"] == {"name": "10 персональных", "used": 3, "sessions_count": 10}
+    assert clients[0]["ending_soon"] is False
 
 
 async def test_oldest_matching_package(client: AsyncClient, session: AsyncSession) -> None:

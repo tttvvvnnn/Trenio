@@ -109,6 +109,28 @@ export async function confirmAction(message: string, actionText: string): Promis
   return window.confirm(message)
 }
 
+/** Выбор из двух вариантов во всплывающем окне Telegram. null — передумали. */
+export async function chooseAction<T extends string>(
+  message: string,
+  options: [[T, string], [T, string]],
+): Promise<T | null> {
+  if (popup.open.isAvailable()) {
+    const id = await popup.open({
+      message,
+      buttons: [
+        { id: options[0][0], type: 'default', text: options[0][1] },
+        { id: options[1][0], type: 'default', text: options[1][1] },
+        { type: 'cancel' },
+      ],
+    })
+    return options.some(([value]) => value === id) ? (id as T) : null
+  }
+  // Вне Telegram (разработка): «ОК» — первый вариант, «Отмена» — второй
+  return window.confirm(`${message}\nОК — ${options[0][1]}, Отмена — ${options[1][1]}`)
+    ? options[0][0]
+    : options[1][0]
+}
+
 export function hasNativeMainButton(): boolean {
   return mainButton.setParams.isAvailable()
 }

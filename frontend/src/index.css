@@ -222,7 +222,11 @@ button {
   min-width: 0;
 }
 
-.page-header-row h1 {
+.page-header-text {
+  flex: 1;
+}
+
+.page-header-row.with-leading h1 {
   font-size: 24px;
   overflow-wrap: anywhere;
 }
@@ -2244,4 +2248,289 @@ button.stat-tile:active {
 
 .pill-button:active {
   opacity: 0.7;
+}
+
+/* ===== Свайп по строке ===== */
+
+.swipe {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-content {
+  position: relative;
+  touch-action: pan-y;
+  transition: transform 220ms var(--ease);
+}
+
+.swipe-content.dragging {
+  transition: none;
+}
+
+.swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.swipe-action {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 var(--s-1);
+  border: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: flex-basis 150ms var(--ease);
+}
+
+.swipe-action.success {
+  background: var(--c-success);
+}
+
+.swipe-action.muted {
+  background: #8a8380;
+}
+
+.swipe-action.planned {
+  background: var(--c-planned);
+}
+
+.swipe-action.destructive {
+  background: var(--c-destructive);
+}
+
+/* Разделитель между строками, когда строка обёрнута в свайп */
+.swipe + .swipe > .swipe-content > .row::before,
+.row + .swipe > .swipe-content > .row::before,
+.swipe + .row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: var(--s-4);
+  border-top: 0.5px solid var(--c-separator);
+}
+
+.swipe + .swipe > .swipe-content > .row.with-leading::before,
+.row + .swipe > .swipe-content > .row.with-leading::before,
+.swipe + .row.with-leading::before {
+  left: calc(var(--s-4) + 36px + var(--s-3));
+}
+
+/* ===== Клиенты: поиск и фильтры ===== */
+
+.search {
+  margin: var(--s-2) var(--s-4) 0;
+}
+
+.search input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: 999px;
+  outline: none;
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+}
+
+.search input::placeholder {
+  color: var(--c-hint);
+}
+
+.chips.scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0;
+  scrollbar-width: none;
+}
+
+.chips.scroll .chip {
+  flex: none;
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  font-size: 14px;
+}
+
+/* ===== Карточка клиента ===== */
+
+.person-head {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-4) var(--s-4) var(--s-2);
+}
+
+.person-head > div:not(.menu) {
+  flex: 1;
+  min-width: 0;
+}
+
+.person-head h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.person-head p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--c-hint);
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-2);
+  margin: var(--s-3) var(--s-4) 0;
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--s-2) 2px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+  color: var(--c-link);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.quick-action .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.quick-action:active:not(:disabled) {
+  background: var(--c-pressed);
+}
+
+.quick-action:disabled {
+  color: var(--c-hint);
+  opacity: 0.6;
+}
+
+.block-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.block-card + .block-card {
+  border-top: 0.5px solid var(--c-separator);
+}
+
+.block-card:active {
+  background: var(--c-pressed);
+}
+
+.block-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.block-card-line {
+  font-size: 14px;
+  color: var(--c-hint);
+}
+
+.block-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-fill);
+  overflow: hidden;
+}
+
+.block-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--c-success);
+}
+
+.notes-input {
+  min-height: 200px;
+}
+
+.menu {
+  position: relative;
+  flex: none;
+}
+
+.menu-button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 0.5px var(--c-card-line);
+  color: var(--c-text);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 220px;
+  overflow: hidden;
+  border-radius: var(--r-control);
+  background: var(--c-section);
+  box-shadow:
+    inset 0 0 0 0.5px var(--c-card-line),
+    0 8px 24px var(--c-glass-shadow);
+  animation: appear 0.15s var(--ease);
+}
+
+.menu-list button {
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+}
+
+.menu-list button + button {
+  border-top: 0.5px solid var(--c-separator);
+}
+
+.menu-list button:active {
+  background: var(--c-pressed);
+}
+
+a.row-main {
+  color: inherit;
+  text-decoration: none;
 }
