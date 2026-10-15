@@ -28,7 +28,7 @@ import { ErrorText, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import Menu from '../ui/Menu'
 import { BookingBadge } from '../ui/MonthCalendar'
 import { MainButton } from '../ui/native'
-import { PackageBadge } from '../ui/PackageSummary'
+import { BlockCard, PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
 import BookingDetails from './BookingDetails'
 import BookingSwipe from './BookingSwipe'
@@ -422,23 +422,6 @@ function QuickAction({ icon, label, disabled, onClick }: QuickActionProps) {
     >
       <Icon name={icon} />
       {label}
-    </button>
-  )
-}
-
-/** Действующий блок: сколько пройдено полоской, оплата и срок. */
-function BlockCard({ pkg, onClick }: { pkg: Package; onClick: () => void }) {
-  const done = Math.min(pkg.used / pkg.sessions_count, 1)
-  return (
-    <button type="button" className="block-card" onClick={onClick}>
-      <span className="block-card-top">
-        <strong>{pkg.name}</strong>
-        <PackageBadge pkg={pkg} />
-      </span>
-      <span className="block-card-line">{packageLine(pkg)}</span>
-      <span className="block-bar" aria-hidden="true">
-        <i style={{ width: `${Math.max(done * 100, 2)}%` }} />
-      </span>
     </button>
   )
 }

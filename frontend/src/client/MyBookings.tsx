@@ -13,17 +13,17 @@ import { bookingMinutes, dateTime, duration, localTime, rescheduleNote } from '.
 import BookingDays, { Named } from '../ui/BookingDays'
 import CancelScreen from '../ui/CancelScreen'
 import { TrainerAvatar } from '../ui/Avatar'
-import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
+import { EmptyState, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import RescheduleScreen from '../ui/RescheduleScreen'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
 import { useRefreshKey } from '../sync'
 
 type Props = {
+  // Какой список показать: вкладку выбирает «Мои занятия»
+  view: 'upcoming' | 'history'
   onBook: () => void
 }
-
-type Tab = 'upcoming' | 'history'
 
 // Столько записей сервер отдаёт за раз; страница короче — значит, история кончилась
 const HISTORY_PAGE = 30
@@ -32,8 +32,8 @@ function isActive(booking: Booking): boolean {
   return booking.status === 'pending' || booking.status === 'confirmed'
 }
 
-export default function MyBookings({ onBook }: Props) {
-  const [tab, setTab] = useState<Tab>('upcoming')
+/** Свои записи: предстоящие или прошедшие, с подробностями, переносом и отменой. */
+export default function MyBookings({ view: tab, onBook }: Props) {
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   // null — историю ещё не грузили или её надо перечитать
   const [history, setHistory] = useState<Booking[] | null>(null)
@@ -91,16 +91,6 @@ export default function MyBookings({ onBook }: Props) {
 
   return (
     <>
-      <PageHeader title="Мои записи" />
-      <Segmented
-        label="Какие записи показать"
-        value={tab}
-        options={[
-          ['upcoming', 'Предстоящие'],
-          ['history', 'История'],
-        ]}
-        onChange={setTab}
-      />
       {error && <ErrorText>{error}</ErrorText>}
       {tab === 'upcoming' && (
         <>

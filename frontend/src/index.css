@@ -2539,3 +2539,21 @@ a.row-main {
   color: inherit;
   text-decoration: none;
 }
+
+/* ===== «Как в прошлый раз» ===== */
+
+.repeat-card {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+}
+
+.repeat-card .row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.pill-button:disabled {
+  opacity: 0.6;
+}
