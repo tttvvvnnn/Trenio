@@ -34,6 +34,12 @@ class BookingStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class OneOffMode(StrEnum):
+    ALLOW = "allow"
+    CONFIRM = "confirm"
+    FORBID = "forbid"
+
+
 class Actor(StrEnum):
     CLIENT = "client"
     TRAINER = "trainer"
@@ -58,6 +64,8 @@ class BookingError(StrEnum):
     IN_PAST = "in_past"
     # Перенос на то же время
     SAME_TIME = "same_time"
+    # Тренер записывает только по блоку, а блока на это занятие не хватает
+    ONE_OFF_FORBIDDEN = "one_off_forbidden"
     # Длительность группового занятия общая, у одного участника её не поменять
     GROUP_DURATION = "group_duration"
 
@@ -262,10 +270,30 @@ async def _create_booking(
     )
     session.add(booking)
     await session.flush()
+    if actor is Actor.CLIENT and trainer.one_off_mode != OneOffMode.ALLOW:
+        await _apply_one_off_mode(session, trainer, booking)
     booking_id = booking.id
     await notifications.booking_created(session, booking, now)
     await session.commit()
     return booking_id
+
+
+async def _apply_one_off_mode(session: AsyncSession, trainer: Trainer, booking: Booking) -> None:
+    """Клиент записался сам, а блока на это занятие не хватит: правило тренера о разовых.
+
+    Считаем тем же прогнозом, что и финансы: учтены уже запланированные записи клиента.
+    """
+    # Блоки сами пользуются записями, поэтому импорт здесь
+    from trenio.services.packages import forecast
+
+    plan = (await forecast(session, [trainer.id], [booking.client_id])).plan
+    if plan.get(booking.id) is not None:
+        return
+    if trainer.one_off_mode == OneOffMode.FORBID:
+        await session.delete(booking)
+        await session.flush()
+        raise BookingRejected(BookingError.ONE_OFF_FORBIDDEN)
+    booking.status = BookingStatus.PENDING
 
 
 def _check_can_change(booking: Booking, actor: Actor, now: datetime) -> None:

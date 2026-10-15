@@ -133,6 +133,11 @@ class Trainer(TimestampMixin, Base):
     rules: Mapped[str | None] = mapped_column(Text)
     # Когда правила последний раз менялись: принятые раньше клиенты подтверждают снова
     rules_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Запись клиента без блока: allow — разрешать, confirm — только с подтверждением тренера,
+    # forbid — запрещать. Тренера, который записывает сам, правило не ограничивает
+    one_off_mode: Mapped[str] = mapped_column(
+        String(16), default="allow", server_default=text("'allow'")
+    )
 
     user: Mapped[User] = relationship(lazy="joined", foreign_keys=[user_id])
 
