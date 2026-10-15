@@ -9,6 +9,7 @@ import {
   type ClientTrainer,
 } from '../api'
 import { nextBooking } from '../calendar'
+import { takeLink } from '../deeplink'
 import { dateTime } from '../format'
 import { haptic } from '../telegram'
 import { CLIENT_TOUR, type ClientTab as Tab } from '../tour'
@@ -21,6 +22,7 @@ import { RulesGate } from '../ui/Rules'
 import Screen from '../ui/Screen'
 import Tour from '../ui/Tour'
 import BookTrainer from './BookTrainer'
+import ClientLink from './ClientLink'
 import ClientProfile from './ClientProfile'
 import MySessions from './MySessions'
 import { useRefreshKey } from '../sync'
@@ -40,8 +42,11 @@ type Props = {
 }
 
 export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: Props) {
-  const [tab, setTab] = useState<Tab>('book')
-  const [touring, setTouring] = useState(!tourDone)
+  // Открыли кнопкой из уведомления: сразу на свою запись или нужную вкладку
+  const [link] = useState(() => takeLink('client'))
+  const [tab, setTab] = useState<Tab>(() => linkTab(link?.tab, link?.booking))
+  // Тур не перекрывает то, ради чего открыли приложение: покажем при следующем входе
+  const [touring, setTouring] = useState(!tourDone && link === null)
   const [trainers, setTrainers] = useState<ClientTrainer[] | null>(null)
   // Выбранный тренер, когда их несколько
   const [opened, setOpened] = useState<ClientTrainer | null>(null)
@@ -134,6 +139,7 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
           <BookTrainer trainer={opened} onBooked={onBooked} />
         </Screen>
       )}
+      {link && <ClientLink link={link} />}
       {booked && (
         <BookedScreen
           booking={booked}
@@ -171,6 +177,11 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
       )}
     </>
   )
+}
+
+function linkTab(tab: string | undefined, booking: number | undefined): Tab {
+  if (booking !== undefined) return 'sessions'
+  return TABS.find(([value]) => value === tab)?.[0] ?? 'book'
 }
 
 type BookTabProps = {

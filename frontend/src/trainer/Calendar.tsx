@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   errorText,
@@ -34,6 +34,8 @@ const UPCOMING_DAYS = 14
 type Props = {
   timezone: string
   onGoToSetup: () => void
+  // Подсказка под заголовком, например «Trenio на экране телефона»
+  tip?: ReactNode
 }
 
 type Data = {
@@ -47,7 +49,7 @@ function isActive(booking: Booking): boolean {
   return booking.status === 'pending' || booking.status === 'confirmed'
 }
 
-export default function Calendar({ timezone, onGoToSetup }: Props) {
+export default function Calendar({ timezone, onGoToSetup, tip }: Props) {
   const today = localDate(new Date(), timezone)
   const [data, setData] = useState<Data | null>(null)
   const [month, setMonth] = useState(`${today.slice(0, 7)}-01`)
@@ -109,7 +111,12 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
     setSelected(next.slice(0, 7) === today.slice(0, 7) ? today : next)
   }
 
-  const header = <PageHeader title="Записи" brand />
+  const header = (
+    <>
+      <PageHeader title="Записи" brand />
+      {tip}
+    </>
+  )
 
   if (data === null) {
     return (

@@ -3,12 +3,14 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import ADMIN_TELEGRAM_ID
 from tests.test_bookings import ELEVEN, TEN, book, new_client, setup_trainer
+from trenio.config import get_settings
 from trenio.db.models import Notification, User
 from trenio.db.session import get_sessionmaker
 from trenio.delivery.channel import DeliveryError, OutMessage
@@ -295,3 +297,32 @@ async def test_kick_sends_right_away(client: AsyncClient, session: AsyncSession)
     finally:
         sender.unregister()
     assert [tg for tg, _ in channel.sent] == [ADMIN_TELEGRAM_ID]
+
+
+async def test_buttons_open_booking_in_app(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(get_settings(), "webapp_url", "https://app.example")
+    trainer_headers, trainer_id, service_id = await setup_trainer(client)
+    await client.patch("/api/trainer/me", headers=trainer_headers, json={"auto_confirm": False})
+    headers = await new_client(client, session, trainer_id, CLIENT_TG)
+    _, booking = await book(client, headers, trainer_id, service_id)
+
+    channel = FakeChannel()
+    await dispatch(channel, datetime.now(UTC))
+    link = channel.messages[-1].buttons[-1][0]
+    assert link.text == "Открыть заявку"
+    assert link.webapp_url == f"https://app.example?role=trainer&booking={booking['id']}"
+
+    # Клиент отменил: тренеру — кнопка на карточку клиента
+    await client.post(f"/api/client/bookings/{booking['id']}/cancel", headers=headers, json={})
+    await dispatch(channel, datetime.now(UTC))
+    link = channel.messages[-1].buttons[-1][0]
+    assert link.text == "Открыть клиента"
+    client_id = await session.scalar(select(User.id).where(User.telegram_id == CLIENT_TG))
+    assert link.webapp_url == f"https://app.example?role=trainer&client={client_id}"
+
+    response = await client.get(f"/api/client/bookings/{booking['id']}", headers=headers)
+    assert response.json()["status"] == "cancelled"
+    response = await client.get("/api/client/bookings/999999", headers=headers)
+    assert response.status_code == 404

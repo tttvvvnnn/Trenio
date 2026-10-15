@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { finishTour, type Trainer } from '../api'
+import { takeLink } from '../deeplink'
 import { haptic } from '../telegram'
 import { TRAINER_TOUR, type TrainerTab as Tab } from '../tour'
 import Icon, { type IconName } from '../ui/icons'
@@ -10,8 +11,10 @@ import Tour from '../ui/Tour'
 import Calendar from './Calendar'
 import Clients from './Clients'
 import Finance from './Finance'
+import HomeScreenTip from './HomeScreenTip'
 import Schedule from './Schedule'
 import Services from './Services'
+import TrainerLink from './TrainerLink'
 import TrainerProfile from './TrainerProfile'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
@@ -42,8 +45,11 @@ export default function TrainerHome({
   tourDone,
   onTourDone,
 }: Props) {
-  const [tab, setTab] = useState<Tab>('calendar')
-  const [touring, setTouring] = useState(!tourDone)
+  // Открыли кнопкой из уведомления: сразу на нужную запись или клиента
+  const [link] = useState(() => takeLink('trainer'))
+  const [tab, setTab] = useState<Tab>(link?.client !== undefined ? 'clients' : 'calendar')
+  // Тур не перекрывает то, ради чего открыли приложение: покажем при следующем входе
+  const [touring, setTouring] = useState(!tourDone && link === null)
   // Услуги и шаблоны блоков открываются из Профиля
   const [services, setServices] = useState(false)
   const [admin, setAdmin] = useState(false)
@@ -70,7 +76,11 @@ export default function TrainerHome({
   return (
     <>
       {tab === 'calendar' && (
-        <Calendar timezone={trainer.timezone} onGoToSetup={() => open('schedule')} />
+        <Calendar
+          timezone={trainer.timezone}
+          onGoToSetup={() => open('schedule')}
+          tip={<HomeScreenTip trainer={trainer} />}
+        />
       )}
       {tab === 'clients' && <Clients timezone={trainer.timezone} />}
       {tab === 'schedule' && <Schedule timezone={trainer.timezone} />}
@@ -95,6 +105,7 @@ export default function TrainerHome({
         </Screen>
       )}
       {tab === 'profile' && admin && <AdminPanel onBack={() => setAdmin(false)} />}
+      {link && <TrainerLink link={link} timezone={trainer.timezone} />}
       <nav className="tabbar" aria-label="Разделы">
         {TABS.map(([value, title, icon]) => (
           <button

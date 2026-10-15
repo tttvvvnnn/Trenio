@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { errorText, fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
 import ClientHome from './client/ClientHome'
+import { linkRole } from './deeplink'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
@@ -22,7 +23,11 @@ export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
   // Тренер, который сам ходит к другому тренеру, выбирает профиль при каждом входе.
   // null — ещё не выбрал
-  const [clientMode, setClientMode] = useState<boolean | null>(null)
+  // Кнопка из уведомления сама говорит, какой профиль открыть
+  const [clientMode, setClientMode] = useState<boolean | null>(() => {
+    const role = linkRole()
+    return role === null ? null : role === 'client'
+  })
 
   useEffect(() => {
     const initData = setupTelegram()
