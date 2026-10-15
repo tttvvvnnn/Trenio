@@ -1,7 +1,7 @@
 """user tours
 
 Revision ID: 9a1c5e7b3d28
-Revises: c3e7a9b1d4f2
+Revises: 9a1c5e3b7d20
 Create Date: 2026-10-15 12:00:00.000000
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "9a1c5e7b3d28"
-down_revision: str | None = "c3e7a9b1d4f2"
+down_revision: str | None = "9a1c5e3b7d20"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

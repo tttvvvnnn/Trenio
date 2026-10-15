@@ -164,6 +164,10 @@ export type Booking = {
   charge: BookingCharge | null
   // Неотмеченная запись: из какого блока спишется, если пройдёт
   planned: BookingCharge | null
+  // Только тренеру: цена занятия, если оно разовое; null — цены нет
+  price: number | null
+  // Только тренеру: тренер решил не списывать занятие из блока
+  no_package: boolean
 }
 
 export type BookingCharge = {
@@ -455,6 +459,8 @@ export type Client = Person & {
   has_packages: boolean
   // Сколько будущих записей не покрыто блоками: они будут разовыми
   upcoming_one_off: number
+  // Клиент без Telegram, которого тренер завёл сам: имя правит тренер, уведомлений нет
+  offline: boolean
 }
 
 export function fetchTrainerBookings(days = 14, from?: string): Promise<Booking[]> {
@@ -470,12 +476,21 @@ export function fetchPendingBookings(): Promise<Booking[]> {
   return request<Booking[]>('/api/trainer/bookings/pending')
 }
 
-export function createTrainerBooking(booking: {
-  client_id: number
-  service_id: number
-  starts_at: string
-}): Promise<Booking> {
+// Свои условия одного занятия; не переданное — как у услуги или как было
+export type BookingTermsInput = {
+  duration_min?: number
+  price?: number
+  no_package?: boolean
+}
+
+export function createTrainerBooking(
+  booking: { client_id: number; service_id: number; starts_at: string } & BookingTermsInput,
+): Promise<Booking> {
   return send<Booking>('POST', '/api/trainer/bookings', booking)
+}
+
+export function setBookingTerms(bookingId: number, terms: BookingTermsInput): Promise<Booking> {
+  return send<Booking>('PATCH', `/api/trainer/bookings/${bookingId}/terms`, terms)
 }
 
 export type BookingAction = 'confirm' | 'decline' | 'cancel'
@@ -508,6 +523,31 @@ export function fetchClients(): Promise<Client[]> {
 
 export function fetchInviteLink(): Promise<string> {
   return request<{ url: string }>('/api/trainer/invite-link').then(({ url }) => url)
+}
+
+export type ClientName = {
+  first_name: string
+  last_name: string | null
+}
+
+export function createClient(data: ClientName & { notes: string | null }): Promise<Client> {
+  return send<Client>('POST', '/api/trainer/clients', data)
+}
+
+export function renameClient(clientId: number, data: ClientName): Promise<Client> {
+  return send<Client>('PATCH', `/api/trainer/clients/${clientId}`, data)
+}
+
+/** Личная ссылка клиента без Telegram: открыв её, он привяжет свой аккаунт. */
+export function fetchClaimLink(clientId: number): Promise<string> {
+  return send<{ url: string }>('POST', `/api/trainer/clients/${clientId}/claim-link`).then(
+    ({ url }) => url,
+  )
+}
+
+/** Клиент без Telegram и клиент из Telegram — один человек: история переезжает ко второму. */
+export function mergeClient(clientId: number, intoId: number): Promise<void> {
+  return send<void>('POST', `/api/trainer/clients/${clientId}/merge`, { into_id: intoId })
 }
 
 export function fetchUnmarkedBookings(): Promise<Booking[]> {

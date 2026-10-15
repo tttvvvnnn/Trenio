@@ -193,6 +193,19 @@ async def booking_rescheduled(
         await schedule_reminders(session, booking, now)
 
 
+async def booking_retimed(session: AsyncSession, booking: Booking, now: datetime) -> None:
+    """Поменялось время окончания: просьба отметить занятие приходит к новому концу."""
+    await session.execute(
+        delete(Notification).where(
+            Notification.booking_id == booking.id,
+            Notification.kind == Kind.ATTENDANCE_PROMPT,
+            Notification.status == Status.PENDING,
+        )
+    )
+    if booking.status == "confirmed":
+        await schedule_reminders(session, booking, now, roles=(Role.TRAINER,))
+
+
 async def drop_upcoming(session: AsyncSession, booking_id: int) -> None:
     """Убирает неотправленные напоминания и просьбу отметить занятие у отменённой записи."""
     await session.execute(

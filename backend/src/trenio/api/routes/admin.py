@@ -67,6 +67,7 @@ class OverviewOut(BaseModel):
     trainers_disabled: int
     clients: int
     clients_new_week: int
+    clients_offline: int
     bookings_week: int
     attended_week: int
     upcoming_week: int
@@ -90,6 +91,7 @@ async def get_overview(_: CurrentAdmin, session: SessionDep) -> OverviewOut:
         trainers_disabled=data.trainers_disabled,
         clients=data.clients,
         clients_new_week=data.clients_new_week,
+        clients_offline=data.clients_offline,
         bookings_week=data.bookings_week,
         attended_week=data.attended_week,
         upcoming_week=data.upcoming_week,
