@@ -250,7 +250,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
         </div>
       )}
       {selected >= today && (
-        <div className="group">
+        <div className="group day-add">
           <AddRow title="Записать клиента" onClick={() => setNewBooking(true)} />
         </div>
       )}
