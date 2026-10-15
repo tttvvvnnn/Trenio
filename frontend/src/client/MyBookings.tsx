@@ -226,6 +226,7 @@ function HistoryRow({ booking, leaf, withTrainer, onClick }: RowProps & { withTr
       subtitle={[
         localTime(booking.starts_at, booking.trainer.timezone),
         detail,
+        booking.note ? 'заметка тренера' : null,
         withTrainer ? booking.trainer.display_name : null,
       ]
         .filter(Boolean)
@@ -298,6 +299,11 @@ function BookingDetails({ booking, onBack, onChanged }: DetailsProps) {
           <Row title="Комментарий" subtitle={booking.cancel_comment} />
         )}
       </Section>
+      {booking.note && (
+        <Section title="Заметка тренера">
+          <p className="rules-text">{booking.note}</p>
+        </Section>
+      )}
       {booking.can_cancel && (
         <Section>
           <Row title="Перенести" tone="accent" centered onClick={() => setStep('reschedule')} />

@@ -178,6 +178,10 @@ export type Booking = {
   price: number | null
   // Только тренеру: тренер решил не списывать занятие из блока
   no_package: boolean
+  // Заметка тренера к занятию; клиенту приходит, только если она не «только для меня»
+  note: string | null
+  // Только тренеру: заметку видит только он
+  note_private: boolean
 }
 
 export type BookingCharge = {
@@ -973,4 +977,71 @@ export function createTrainerInvite(): Promise<{ url: string; expires_at: string
 
 export function fetchOpenInvites(): Promise<{ created_at: string; expires_at: string }[]> {
   return request<{ created_at: string; expires_at: string }[]>('/api/admin/invites')
+}
+
+// --- Заметки к занятиям и прогресс клиента ---
+
+export function saveBookingNote(
+  bookingId: number,
+  note: string | null,
+  isPrivate: boolean,
+): Promise<Booking> {
+  return send<Booking>('PUT', `/api/trainer/bookings/${bookingId}/note`, {
+    note,
+    private: isPrivate,
+  })
+}
+
+// Встроенные виды замеров и свой вид с названием и единицей
+export type MeasurementKind = 'weight' | 'waist' | 'chest' | 'hips' | 'custom'
+
+export type ProgressPoint = { id: number; day: string; value: number }
+
+export type ProgressSeries = {
+  // weight, waist… или custom:<название>
+  key: string
+  kind: MeasurementKind
+  label: string
+  unit: string | null
+  // Старые первыми
+  points: ProgressPoint[]
+}
+
+export type MeasurementInput = {
+  day: string
+  kind: MeasurementKind
+  value: number
+  label?: string
+  unit?: string
+}
+
+export function fetchClientProgress(clientId: number): Promise<ProgressSeries[]> {
+  return request<ProgressSeries[]>(`/api/trainer/clients/${clientId}/progress`)
+}
+
+export function addMeasurement(
+  clientId: number,
+  data: MeasurementInput,
+): Promise<ProgressSeries[]> {
+  return send<ProgressSeries[]>('POST', `/api/trainer/clients/${clientId}/measurements`, data)
+}
+
+export function deleteMeasurement(
+  clientId: number,
+  measurementId: number,
+): Promise<ProgressSeries[]> {
+  return send<ProgressSeries[]>(
+    'DELETE',
+    `/api/trainer/clients/${clientId}/measurements/${measurementId}`,
+  )
+}
+
+export type TrainerProgress = {
+  trainer_id: number
+  trainer_name: string
+  series: ProgressSeries[]
+}
+
+export function fetchMyProgress(): Promise<TrainerProgress[]> {
+  return request<TrainerProgress[]>('/api/client/progress')
 }

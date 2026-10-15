@@ -23,7 +23,7 @@ from trenio.db.models import (
     User,
 )
 from trenio.delivery.kick import kick
-from trenio.services import avatars, notifications
+from trenio.services import avatars, notifications, progress
 
 # Версия политики. Поменялся смысл текста — поднимаем, и согласие спросят у всех заново
 POLICY_VERSION = 1
@@ -43,7 +43,8 @@ _POLICY = "\n".join(
         "• Из Telegram: ID, имя, фамилия, username, фото профиля.",
         "• Имя и фото, которые вы указали сами.",
         "• Записи на занятия, блоки, оплаты и отметки о посещении.",
-        "• Заметки тренера о клиенте и телефон клиента, если тренер указал его с согласия клиента.",
+        "• Заметки тренера о клиенте и о занятиях, замеры, которые записал тренер (вес, обхваты).",
+        "• Телефон клиента, если тренер указал его с согласия клиента.",
         "",
         "Зачем",
         "Только чтобы работала запись к тренеру: расписание, напоминания, учёт блоков и оплат. "
@@ -51,7 +52,7 @@ _POLICY = "\n".join(
         "",
         "Кто их видит",
         "Ваш тренер видит ваши записи, блоки, оплаты и то, что записал о вас сам. "
-        "Клиент видит только свои записи и блоки. Третьим лицам данные не передаются. "
+        "Клиент видит только свои записи, блоки и замеры. Третьим лицам данные не передаются. "
         "Сообщения доставляются через Telegram.",
         "",
         "Где и сколько хранятся",
@@ -215,6 +216,7 @@ async def delete_account(session: AsyncSession, user: User, now: datetime) -> No
     await session.execute(delete(Notification).where(Notification.user_id == user.id))
     await session.execute(delete(ReminderSetting).where(ReminderSetting.user_id == user.id))
     await _cancel_upcoming(session, user, now)
+    await progress.forget(session, user)
 
     for link in (
         await session.scalars(select(TrainerClient).where(TrainerClient.user_id == user.id))

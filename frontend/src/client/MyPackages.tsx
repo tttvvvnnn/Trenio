@@ -1,13 +1,36 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMyPackages, type Package } from '../api'
+import { fetchMyPackages, fetchMyProgress, type Package, type TrainerProgress } from '../api'
 import { packageLine } from '../format'
-import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import { EmptyState, ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import PackageSummary, { PackageBadge } from '../ui/PackageSummary'
+import ProgressList from '../ui/Progress'
 import Screen from '../ui/Screen'
 
-/** Блоки клиента: сколько занятий пройдено и осталось, сколько оплачено. */
+type Tab = 'packages' | 'progress'
+
+/** Блоки клиента и, на второй вкладке, замеры, которые записал тренер. */
 export default function MyPackages() {
+  const [tab, setTab] = useState<Tab>('packages')
+  return (
+    <>
+      <PageHeader title="Блоки" subtitle="Занятия и оплаты по вашим блокам." />
+      <Segmented
+        label="Что показать"
+        value={tab}
+        options={[
+          ['packages', 'Блоки'],
+          ['progress', 'Прогресс'],
+        ]}
+        onChange={setTab}
+      />
+      {tab === 'packages' ? <Packages /> : <MyProgress />}
+    </>
+  )
+}
+
+/** Блоки клиента: сколько занятий пройдено и осталось, сколько оплачено. */
+function Packages() {
   const [packages, setPackages] = useState<Package[] | null>(null)
   const [opened, setOpened] = useState<Package | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -18,14 +41,8 @@ export default function MyPackages() {
       .catch((err: unknown) => setError(String(err)))
   }, [])
 
-  const header = <PageHeader title="Блоки" subtitle="Занятия и оплаты по вашим блокам." />
   if (packages === null) {
-    return (
-      <>
-        {header}
-        {error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />}
-      </>
-    )
+    return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />
   }
   if (packages.length === 0) {
     return (
@@ -58,7 +75,6 @@ export default function MyPackages() {
 
   return (
     <>
-      {header}
       {ended.length > 0 && (
         <p className="card-hint pending">
           Блок закончился. Записываться можно и дальше, но занятия будут без блока: о новом блоке
@@ -76,6 +92,47 @@ export default function MyPackages() {
           <PackageSummary pkg={opened} />
         </Screen>
       )}
+    </>
+  )
+}
+
+/** Замеры у каждого тренера, только чтение. */
+function MyProgress() {
+  const [progress, setProgress] = useState<TrainerProgress[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchMyProgress()
+      .then(setProgress)
+      .catch((err: unknown) => setError(String(err)))
+  }, [])
+
+  if (progress === null) {
+    return error ? <ErrorText>{error}</ErrorText> : <SkeletonList rows={2} />
+  }
+  if (progress.length === 0) {
+    return (
+      <EmptyState
+        icon="chart"
+        title="Пока нет замеров"
+        text="Когда тренер запишет ваш вес или обхваты, здесь появятся графики."
+      />
+    )
+  }
+  // Имя тренера в заголовке нужно, только если тренеров несколько
+  const manyTrainers = progress.length > 1
+  return (
+    <>
+      {progress.map((item) => (
+        <ProgressList
+          key={item.trainer_id}
+          series={
+            manyTrainers
+              ? item.series.map((one) => ({ ...one, label: `${one.label} · ${item.trainer_name}` }))
+              : item.series
+          }
+        />
+      ))}
     </>
   )
 }

@@ -276,3 +276,9 @@ export function shiftMonth(month: string, by: number): string {
   const index = year * 12 + number - 1 + by
   return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
 }
+
+// 77.4 -> "77,4"
+export function measure(value: number, unit: string | null): string {
+  const number = value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+  return unit ? `${number} ${unit}` : number
+}

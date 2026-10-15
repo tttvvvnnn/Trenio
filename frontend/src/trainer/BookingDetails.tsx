@@ -28,6 +28,7 @@ import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
 import StatusBadge from '../ui/StatusBadge'
 import BookingTerms from './BookingTerms'
+import NoteForm from './NoteForm'
 
 type Props = {
   booking: Booking
@@ -40,7 +41,9 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
   const [busy, setBusy] = useState<BookingAction | 'mark' | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Открытый поверх экран: отмена, отклонение или перенос
-  const [step, setStep] = useState<'cancel' | 'decline' | 'reschedule' | 'terms' | null>(null)
+  const [step, setStep] = useState<'cancel' | 'decline' | 'reschedule' | 'terms' | 'note' | null>(
+    null,
+  )
   const { client } = booking
   const timezone = booking.trainer.timezone
 
@@ -112,6 +115,22 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
         {inactive && booking.cancel_comment && (
           <Row title="Комментарий" subtitle={booking.cancel_comment} />
         )}
+      </Section>
+      <Section title="Заметка к занятию">
+        <Row
+          title={booking.note ?? 'Добавить заметку'}
+          subtitle={
+            booking.note
+              ? booking.note_private
+                ? 'Видите только вы'
+                : 'Клиент тоже видит'
+              : undefined
+          }
+          tone={booking.note ? undefined : 'accent'}
+          icon={{ name: 'note', color: 'var(--c-violet)' }}
+          chevron
+          onClick={busy ? undefined : () => setStep('note')}
+        />
       </Section>
       {booking.can_mark && (
         <Section title="Посещение" footer={chargeNote(booking)}>
@@ -200,6 +219,16 @@ export default function BookingDetails({ booking, onBack, onChanged }: Props) {
           onBack={() => setStep(null)}
           onSubmit={(startsAt, comment) => rescheduleTrainerBooking(booking.id, startsAt, comment)}
           onDone={(updated) => {
+            setStep(null)
+            onChanged(updated)
+          }}
+        />
+      )}
+      {step === 'note' && (
+        <NoteForm
+          booking={booking}
+          onBack={() => setStep(null)}
+          onSaved={(updated) => {
             setStep(null)
             onChanged(updated)
           }}
