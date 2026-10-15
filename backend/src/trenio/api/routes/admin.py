@@ -62,6 +62,9 @@ class MoneyOut(BaseModel):
 class OverviewOut(BaseModel):
     users: int
     users_seen_week: int
+    users_active_today: int
+    # Тренеры, которые заходили 10 из последних 14 дней
+    trainers_engaged: int
     trainers: int
     trainers_active: int
     trainers_disabled: int
@@ -86,6 +89,8 @@ async def get_overview(_: CurrentAdmin, session: SessionDep) -> OverviewOut:
     return OverviewOut(
         users=data.users,
         users_seen_week=data.users_seen_week,
+        users_active_today=data.users_active_today,
+        trainers_engaged=data.trainers_engaged,
         trainers=data.trainers,
         trainers_active=data.trainers_active,
         trainers_disabled=data.trainers_disabled,
@@ -137,6 +142,13 @@ class AdminTrainerOut(BaseModel):
     services: int
     last_booking_at: datetime | None
     last_seen_at: datetime | None
+    # Заходил ли в каждый из последних 14 дней, от старого к сегодняшнему
+    active_days: list[bool]
+    # Дней подряд
+    streak: int
+    # За 14 дней: записей поставил сам, занятий отметил
+    bookings_created: int
+    marks: int
 
 
 @router.get("/trainers")
@@ -161,6 +173,10 @@ async def get_trainers(
             services=row.services,
             last_booking_at=row.last_booking_at,
             last_seen_at=row.trainer.user.last_seen_at,
+            active_days=row.active_days,
+            streak=row.streak,
+            bookings_created=row.bookings_created,
+            marks=row.marks,
         )
         for row in rows
     ]

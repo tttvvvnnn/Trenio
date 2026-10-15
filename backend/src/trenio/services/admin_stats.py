@@ -11,6 +11,7 @@ from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import (
@@ -27,6 +28,7 @@ from trenio.db.models import (
     TrainerClient,
     TrainerInvite,
     User,
+    UserActivityDay,
 )
 from trenio.services.packages import CHARGED
 
@@ -35,6 +37,44 @@ ADMIN_TIMEZONE = ZoneInfo("Europe/Moscow")
 WEEKS = 8
 # Тренер без записей дольше этого — «затих»
 QUIET_DAYS = 14
+# Окно активности тренера: полоска дней в админке
+ACTIVITY_DAYS = 14
+# Тренер «пользуется» Trenio, если заходил хотя бы столько дней из окна: критерий беты
+ENGAGED_DAYS = 10
+
+
+async def mark_active(session: AsyncSession, user_id: int, now: datetime) -> None:
+    """Отмечает, что человек открывал приложение сегодня. Коммит — за вызывающим."""
+    day = now.astimezone(ADMIN_TIMEZONE).date()
+    await session.execute(
+        insert(UserActivityDay).values(user_id=user_id, day=day).on_conflict_do_nothing()
+    )
+
+
+def activity_window(now: datetime) -> list[date]:
+    """Дни окна активности, от самого старого до сегодняшнего."""
+    today = now.astimezone(ADMIN_TIMEZONE).date()
+    return [today - timedelta(days=offset) for offset in range(ACTIVITY_DAYS - 1, -1, -1)]
+
+
+async def _active_days(session: AsyncSession, since: date) -> dict[int, set[date]]:
+    rows = await session.execute(
+        select(UserActivityDay.user_id, UserActivityDay.day).where(UserActivityDay.day >= since)
+    )
+    result: dict[int, set[date]] = {}
+    for user_id, day in rows.all():
+        result.setdefault(int(user_id), set()).add(day)
+    return result
+
+
+def streak(days: set[date], today: date) -> int:
+    """Сколько дней подряд человек заходил. Сегодня ещё не заходил — считаем со вчера."""
+    day = today if today in days else today - timedelta(days=1)
+    count = 0
+    while day in days:
+        count += 1
+        day -= timedelta(days=1)
+    return count
 
 
 async def _count(session: AsyncSession, *conditions: ColumnElement[bool], of: object) -> int:
@@ -85,6 +125,9 @@ class Money:
 class Overview:
     users: int
     users_seen_week: int
+    users_active_today: int
+    # Действующие тренеры, которые заходили ENGAGED_DAYS из ACTIVITY_DAYS дней
+    trainers_engaged: int
     trainers: int
     trainers_active: int
     trainers_disabled: int
@@ -155,6 +198,7 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
     active_ids = {t.id for t in active}
 
     today = now.astimezone(ADMIN_TIMEZONE).date()
+    activity = await _active_days(session, activity_window(now)[0])
     monday = today - timedelta(days=today.weekday())
     weeks = []
     for offset in range(WEEKS - 1, -1, -1):
@@ -208,6 +252,12 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
     return Overview(
         users=await _count(session, User.telegram_id.is_not(None), of=User.id),
         users_seen_week=await _count(session, User.last_seen_at >= week_ago, of=User.id),
+        users_active_today=await _count(
+            session, UserActivityDay.day == today, of=UserActivityDay.user_id
+        ),
+        trainers_engaged=sum(
+            1 for t in active if len(activity.get(t.user_id, set())) >= ENGAGED_DAYS
+        ),
         trainers=len(trainers),
         trainers_active=len(active),
         trainers_disabled=len(trainers) - len(active),
@@ -267,6 +317,12 @@ class TrainerRow:
     attended_month: int
     services: int
     last_booking_at: datetime | None
+    # Заходил ли в каждый день окна, от старого к сегодняшнему
+    active_days: list[bool]
+    streak: int
+    # За окно активности: сколько записей поставил сам и сколько занятий отметил
+    bookings_created: int
+    marks: int
 
 
 async def _per_trainer(
@@ -317,9 +373,23 @@ async def trainer_rows(session: AsyncSession, now: datetime) -> list[TrainerRow]
             )
         ).all()
     }
+    window = activity_window(now)
+    window_start = _local_midnight(window[0])
+    activity = await _active_days(session, window[0])
+    created = await _per_trainer(
+        session,
+        Booking.trainer_id,
+        Booking.created_by == "trainer",
+        Booking.created_at >= window_start,
+        of=Booking.id,
+    )
+    marks = await _per_trainer(
+        session, Booking.trainer_id, Booking.attendance_marked_at >= window_start, of=Booking.id
+    )
     set_up = await _set_up_trainers(session)
     rows = []
     for trainer in trainers:
+        days = activity.get(trainer.user_id, set())
         last = last_booking.get(trainer.id)
         if not trainer.is_active:
             state = TrainerState.DISABLED
@@ -339,6 +409,10 @@ async def trainer_rows(session: AsyncSession, now: datetime) -> list[TrainerRow]
                 attended_month=attended.get(trainer.id, 0),
                 services=services.get(trainer.id, 0),
                 last_booking_at=last,
+                active_days=[day in days for day in window],
+                streak=streak(days, window[-1]),
+                bookings_created=created.get(trainer.id, 0),
+                marks=marks.get(trainer.id, 0),
             )
         )
     order = list(TrainerState)

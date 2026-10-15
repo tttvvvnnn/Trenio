@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from trenio.api.deps import SessionDep, SettingsDep
 from trenio.auth.telegram import InitDataError, validate_init_data
 from trenio.auth.tokens import create_access_token
-from trenio.services import avatars
+from trenio.services import admin_stats, avatars
 from trenio.services.trainers import ensure_admin_is_trainer
 from trenio.services.users import upsert_telegram_user
 
@@ -37,6 +37,8 @@ async def login_telegram(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверные данные Telegram") from None
     user = await upsert_telegram_user(session, tg_user)
     user.last_seen_at = datetime.now(UTC)
+    # Mini App входит заново при каждом открытии: это и есть «заходил в этот день»
+    await admin_stats.mark_active(session, user.id, user.last_seen_at)
     await session.commit()
     await ensure_admin_is_trainer(session, user, settings.admin_telegram_ids)
     # Фото из Telegram подтягиваем после ответа, чтобы не задерживать открытие Mini App
