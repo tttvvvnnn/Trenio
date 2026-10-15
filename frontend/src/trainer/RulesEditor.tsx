@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { updateTrainer, type Trainer } from '../api'
+import { errorText, updateTrainer, type Trainer } from '../api'
 import { haptic } from '../telegram'
 import { ErrorText } from '../ui/kit'
 import { MainButton } from '../ui/native'
@@ -31,7 +31,7 @@ export default function RulesEditor({ trainer, onSaved, onBack }: Props) {
       onBack()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

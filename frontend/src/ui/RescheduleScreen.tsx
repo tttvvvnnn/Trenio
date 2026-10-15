@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { type Booking, type Slot } from '../api'
+import { errorText, type Booking, type Slot } from '../api'
 import { dateTime, localDate } from '../format'
 import { haptic } from '../telegram'
 import CommentField from './CommentField'
@@ -49,7 +49,7 @@ export default function RescheduleScreen({
       onDone(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       // Окошко могли занять, пока выбирали: показываем свежие
       setStartsAt(null)
       setReloads((count) => count + 1)

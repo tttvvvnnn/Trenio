@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   fetchFinanceForecast,
   fetchFinanceMonth,
   fetchFinanceSummary,
@@ -18,6 +19,7 @@ import Icon from '../ui/icons'
 import { ErrorText, PageHeader, Row, Section, Segmented, SkeletonList } from '../ui/kit'
 import Screen from '../ui/Screen'
 import Stats from './Stats'
+import { useRefreshKey } from '../sync'
 
 type Props = {
   timezone: string
@@ -55,20 +57,21 @@ export default function Finance({ timezone }: Props) {
   const [yearData, setYearData] = useState<FinanceYear | null>(null)
   const [opened, setOpened] = useState<'details' | 'forecast' | 'stats' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     if (view !== 'month') return
     fetchFinanceSummary(month)
       .then(setSummary)
-      .catch((err: unknown) => setError(String(err)))
-  }, [view, month])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [view, month, refreshKey])
 
   useEffect(() => {
     if (view !== 'year') return
     fetchFinanceYear(year)
       .then(setYearData)
-      .catch((err: unknown) => setError(String(err)))
-  }, [view, year])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [view, year, refreshKey])
 
   function openMonth(next: string) {
     haptic.select()
@@ -369,12 +372,13 @@ function MonthDetails({ month, onBack }: { month: string; onBack: () => void }) 
   const [data, setData] = useState<FinanceMonth | null>(null)
   const [tab, setTab] = useState<'incomes' | 'clients'>('incomes')
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchFinanceMonth(month)
       .then(setData)
-      .catch((err: unknown) => setError(String(err)))
-  }, [month])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [month, refreshKey])
 
   return (
     <Screen title={monthTitle(`${month}-01`)} subtitle="Подробности месяца" onBack={onBack}>
@@ -432,12 +436,13 @@ function MonthDetails({ month, onBack }: { month: string; onBack: () => void }) 
 function Forecast({ onBack }: { onBack: () => void }) {
   const [data, setData] = useState<FinanceForecast | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchFinanceForecast()
       .then(setData)
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   return (
     <Screen

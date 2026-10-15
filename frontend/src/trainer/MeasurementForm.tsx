@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { addMeasurement, type MeasurementKind, type ProgressSeries } from '../api'
+import { errorText, addMeasurement, type MeasurementKind, type ProgressSeries } from '../api'
 import { localDate } from '../format'
 import { haptic } from '../telegram'
 import { Chips, ErrorText, InlineField, Section, TextField } from '../ui/kit'
@@ -67,7 +67,7 @@ export default function MeasurementForm({
       onSaved(saved)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

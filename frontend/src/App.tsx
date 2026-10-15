@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
+import { errorText, fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
 import ClientHome from './client/ClientHome'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
@@ -8,6 +8,7 @@ import TrainerHome from './trainer/TrainerHome'
 import BrandMark from './ui/BrandMark'
 import { EmptyState } from './ui/kit'
 import { ConsentGate } from './ui/Privacy'
+import Refresher, { OfflineBanner } from './ui/Refresh'
 import RolePicker from './ui/RolePicker'
 
 type State =
@@ -31,7 +32,7 @@ export default function App() {
     loginWithTelegram(initData)
       .then(fetchMe)
       .then((me) => setState({ kind: 'ready', me }))
-      .catch((error: unknown) => setState({ kind: 'error', message: String(error) }))
+      .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }))
   }, [])
 
   function setTourDone(role: TourRole) {
@@ -62,6 +63,12 @@ export default function App() {
     !(state.kind === 'ready' && state.me.consent_required)
   return (
     <main className={withTabbar ? 'app with-tabbar' : 'app'}>
+      {state.kind === 'ready' && (
+        <>
+          <Refresher />
+          <OfflineBanner />
+        </>
+      )}
       {state.kind === 'ready' && state.me.consent_required ? (
         <ConsentGate onAccepted={setConsented} />
       ) : (

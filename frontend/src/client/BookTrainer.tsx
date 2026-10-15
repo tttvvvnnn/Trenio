@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createMyBooking,
   fetchMyBookingsFor,
   fetchMyPackages,
@@ -29,6 +30,7 @@ import { haptic } from '../telegram'
 import { Chips, EmptyState, ErrorText, Row, SkeletonList } from '../ui/kit'
 import MonthGrid from '../ui/MonthGrid'
 import { MainButton } from '../ui/native'
+import { useRefreshKey } from '../sync'
 
 // Цвет плашки своей записи в списке дня
 const TONE_COLOR: Record<Tone, string> = {
@@ -66,16 +68,16 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
         setServices(loaded)
         setServiceId(loaded[0]?.id ?? null)
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [trainer.id])
 
   // Увеличиваем, чтобы перечитать окошки
   const [reloads, setReloads] = useState(0)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     if (serviceId === null) return
     let stale = false
-    setSelected(null)
     const days = monthDays(month)
     const last = days[days.length - 1]
     // В прошлое не записывают: окошки нужны с сегодняшнего дня
@@ -89,11 +91,16 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
       .then((loaded) => {
         if (!stale) setSlots({ month, items: loaded })
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
     return () => {
       stale = true
     }
-  }, [trainer.id, serviceId, month, today, reloads])
+  }, [trainer.id, serviceId, month, today, reloads, refreshKey])
+
+  // Другая услуга или месяц: выбранное время больше не подходит
+  useEffect(() => {
+    setSelected(null)
+  }, [serviceId, month])
 
   useEffect(() => {
     let stale = false
@@ -102,18 +109,18 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
       .then((loaded) => {
         if (!stale) setMine({ month, items: loaded })
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
     return () => {
       stale = true
     }
-  }, [trainer.id, month, reloads])
+  }, [trainer.id, month, reloads, refreshKey])
 
   useEffect(() => {
     // Блоки нужны только для подсказки: без них запись всё равно работает
     fetchMyPackages()
       .then((loaded) => setPackages(loaded.filter((pkg) => pkg.trainer.id === trainer.id)))
       .catch(() => setPackages([]))
-  }, [trainer.id, reloads])
+  }, [trainer.id, reloads, refreshKey])
 
   async function book() {
     if (selected === null || saving) return
@@ -131,7 +138,7 @@ export default function BookTrainer({ trainer, onBooked }: Props) {
       onBooked(booking)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       // Окошко могли занять, пока клиент выбирал: показываем свежие
       setReloads((count) => count + 1)
     } finally {

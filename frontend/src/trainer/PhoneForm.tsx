@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { saveClientPhone } from '../api'
+import { errorText, saveClientPhone } from '../api'
 import { confirmAction, haptic } from '../telegram'
 import { ErrorText, Row, Section, SwitchRow, TextField } from '../ui/kit'
 import { MainButton } from '../ui/native'
@@ -34,7 +34,7 @@ export default function PhoneForm({ clientId, clientName, phone, onBack, onSaved
       onSaved(saved.phone)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

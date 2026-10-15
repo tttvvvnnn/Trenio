@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
+  errorText,
   fetchClaimLink,
   fetchClientCard,
   saveClientNotes,
@@ -33,6 +34,7 @@ import NewBooking from './NewBooking'
 import PackageDetails from './PackageDetails'
 import PhoneForm from './PhoneForm'
 import SellPackage from './SellPackage'
+import { useRefreshKey } from '../sync'
 
 type Props = {
   client: Client
@@ -53,6 +55,8 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
   const [openedBooking, setOpenedBooking] = useState<Booking | null>(null)
   const [booking, setBooking] = useState(false)
   const [reloads, setReloads] = useState(0)
+  const refreshKey = useRefreshKey()
+  const notesLoaded = useRef(false)
   const [renaming, setRenaming] = useState(false)
   const [merging, setMerging] = useState(false)
   const [inviting, setInviting] = useState(false)
@@ -66,10 +70,12 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
     fetchClientCard(initial.id)
       .then((loaded) => {
         setCard(loaded)
-        setNotes((current) => (reloads === 0 ? (loaded.notes ?? '') : current))
+        // Заметки берём с сервера только при первой загрузке: дальше их может править тренер
+        if (!notesLoaded.current) setNotes(loaded.notes ?? '')
+        notesLoaded.current = true
       })
-      .catch((err: unknown) => setError(String(err)))
-  }, [initial.id, reloads])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [initial.id, reloads, refreshKey])
 
   function reload() {
     setReloads((count) => count + 1)
@@ -86,7 +92,7 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
     } catch (err) {
       haptic.error()
       setNotesState('idle')
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 
@@ -99,7 +105,7 @@ export default function ClientCard({ client: initial, timezone, onBack, onChange
       shareLink(url, 'Ваша ссылка в Trenio: откройте её, чтобы видеть свои записи и блоки')
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setInviting(false)
     }

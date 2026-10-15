@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createPackageTemplate,
   deletePackageTemplate,
   fetchPackageTemplates,
@@ -28,7 +29,7 @@ export default function PackageTemplates({ services }: Props) {
     try {
       setTemplates(await fetchPackageTemplates())
     } catch (err) {
-      setError(String(err))
+      setError(errorText(err))
     }
   }
 
@@ -128,7 +129,7 @@ function TemplateForm({ template, services, onDone, onCancel }: FormProps) {
       onDone()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
@@ -143,7 +144,7 @@ function TemplateForm({ template, services, onDone, onCancel }: FormProps) {
       onDone()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     }
   }
 

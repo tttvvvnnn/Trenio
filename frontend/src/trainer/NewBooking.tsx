@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   createTrainerBooking,
   fetchClients,
   fetchServices,
@@ -48,11 +49,11 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
         setServices(loaded)
         setServiceId(loaded[0]?.id ?? null)
       })
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
     if (!client) {
       fetchClients()
         .then(setClients)
-        .catch((err: unknown) => setError(String(err)))
+        .catch((err: unknown) => setError(errorText(err)))
     }
   }, [client])
 
@@ -77,7 +78,7 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
       onBooked(booking)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setStartsAt(null)
       setReloads((count) => count + 1)
     } finally {

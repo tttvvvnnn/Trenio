@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { deleteAccount, fetchPolicy, giveConsent, type Policy } from '../api'
+import { errorText, deleteAccount, fetchPolicy, giveConsent, type Policy } from '../api'
 import { closeApp, confirmAction, haptic } from '../telegram'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from './kit'
 import { MainButton } from './native'
@@ -13,7 +13,7 @@ function usePolicy(): [Policy | null, string | null] {
   useEffect(() => {
     fetchPolicy()
       .then(setPolicy)
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [])
   return [policy, error]
 }
@@ -34,7 +34,7 @@ export function ConsentGate({ onAccepted }: { onAccepted: () => void }) {
       onAccepted()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }
@@ -94,7 +94,7 @@ function DeleteAccountScreen({ trainer, onBack }: DeleteProps) {
       setDeleted(true)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setDeleting(false)
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   fetchPendingBookings,
   fetchServices,
   fetchSlots,
@@ -22,6 +23,7 @@ import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList }
 import BookClient from './BookClient'
 import BookingDetails from './BookingDetails'
 import NewBooking from './NewBooking'
+import { useRefreshKey } from '../sync'
 
 // Сколько неотмеченных занятий показываем сразу, остальные — по кнопке
 const UNMARKED_PREVIEW = 3
@@ -62,6 +64,7 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const [allUnmarked, setAllUnmarked] = useState(false)
   // Увеличиваем, чтобы перечитать данные после изменений
   const [reloads, setReloads] = useState(0)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     Promise.all([
@@ -73,23 +76,23 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       .then(([services, pending, unmarked, upcoming]) =>
         setData({ services, pending, unmarked, upcoming }),
       )
-      .catch((err: unknown) => setError(String(err)))
-  }, [reloads])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [reloads, refreshKey])
 
   useEffect(() => {
     const days = monthDays(month)
     fetchTrainerBookings(days.length, days[0])
       .then((items) => setMonthBookings({ month, items }))
-      .catch((err: unknown) => setError(String(err)))
-  }, [month, reloads])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [month, reloads, refreshKey])
 
   useEffect(() => {
     // В прошлое не записывают: окошки нужны только с сегодняшнего дня
     if (selected < today) return
     fetchSlots(1, selected)
       .then((items) => setSlots({ day: selected, items }))
-      .catch((err: unknown) => setError(String(err)))
-  }, [selected, today, reloads])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [selected, today, reloads, refreshKey])
 
   function reload() {
     setOpened(null)

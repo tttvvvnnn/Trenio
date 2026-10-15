@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   fetchMyBookings,
   fetchMyTrainers,
   finishTour,
@@ -23,6 +24,7 @@ import BookTrainer from './BookTrainer'
 import ClientProfile from './ClientProfile'
 import MyBookings from './MyBookings'
 import MyPackages from './MyPackages'
+import { useRefreshKey } from '../sync'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['book', 'Запись', 'calendar'],
@@ -49,19 +51,20 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
   const [error, setError] = useState<string | null>(null)
   // Ближайшее занятие для карточки наверху вкладки «Запись»
   const [next, setNext] = useState<Booking | null>(null)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchMyTrainers()
       .then(setTrainers)
-      .catch((err: unknown) => setError(String(err)))
-  }, [])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [refreshKey])
 
   useEffect(() => {
     // Карточка необязательная: если не загрузилась, просто не показываем
     fetchMyBookings()
       .then((items) => setNext(nextBooking(items, new Date())))
       .catch(() => setNext(null))
-  }, [booked])
+  }, [booked, refreshKey])
 
   function open(next: Tab) {
     if (next !== tab) haptic.select()

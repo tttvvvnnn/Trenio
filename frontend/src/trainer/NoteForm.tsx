@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 
-import { saveBookingNote, type Booking } from '../api'
+import { errorText, saveBookingNote, type Booking } from '../api'
 import { dateTime } from '../format'
 import { confirmAction, haptic } from '../telegram'
 import { ErrorText, Row, Section, SwitchRow } from '../ui/kit'
@@ -34,7 +34,7 @@ export default function NoteForm({ booking, onBack, onSaved }: Props) {
       onSaved(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setSaving(false)
     }
   }

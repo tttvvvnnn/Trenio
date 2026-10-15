@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  errorText,
   copyWeek,
   fetchDayHours,
   fetchServices,
@@ -17,6 +18,7 @@ import { AddRow, Chips, ErrorText, InlineField, Row, Section, SwitchRow } from '
 import MonthGrid from '../ui/MonthGrid'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
+import { useRefreshKey } from '../sync'
 
 // Сколько промежутков помещается в клетку, остальные — «+N»
 const WINDOWS_PER_DAY = 2
@@ -37,19 +39,20 @@ export default function ScheduleCalendar({ timezone }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloads, setReloads] = useState(0)
+  const refreshKey = useRefreshKey()
 
   useEffect(() => {
     fetchServices()
       .then(setServices)
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [])
 
   useEffect(() => {
     const days = monthDays(month)
     fetchDayHours(days[0], days.length)
       .then((loaded) => setHours({ month, days: loaded }))
-      .catch((err: unknown) => setError(String(err)))
-  }, [month, reloads])
+      .catch((err: unknown) => setError(errorText(err)))
+  }, [month, reloads, refreshKey])
 
   const byDay = new Map((hours?.days ?? []).map((item) => [item.day, item]))
   const chosen = selected.map((day) => byDay.get(day)).filter((item) => item !== undefined)
@@ -80,7 +83,7 @@ export default function ScheduleCalendar({ timezone }: Props) {
       setReloads((count) => count + 1)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

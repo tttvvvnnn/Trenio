@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { errorText } from '../api'
 
 import type { Booking } from '../api'
 import { dateTime } from '../format'
@@ -42,7 +43,7 @@ export default function CancelScreen({
       onDone(updated)
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
     } finally {
       setSaving(false)
     }

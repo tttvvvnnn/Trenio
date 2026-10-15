@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { fetchClients, mergeClient, type Client } from '../api'
+import { errorText, fetchClients, mergeClient, type Client } from '../api'
 import { fullName } from '../format'
 import { confirmAction, haptic } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
@@ -22,7 +22,7 @@ export default function MergeClient({ client, onBack, onMerged }: Props) {
   useEffect(() => {
     fetchClients()
       .then((loaded) => setClients(loaded.filter((item) => !item.offline)))
-      .catch((err: unknown) => setError(String(err)))
+      .catch((err: unknown) => setError(errorText(err)))
   }, [])
 
   async function merge(into: Client) {
@@ -41,7 +41,7 @@ export default function MergeClient({ client, onBack, onMerged }: Props) {
       onMerged()
     } catch (err) {
       haptic.error()
-      setError(err instanceof Error ? err.message : String(err))
+      setError(errorText(err))
       setBusy(false)
     }
   }
