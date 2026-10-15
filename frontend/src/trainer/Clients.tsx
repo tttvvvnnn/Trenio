@@ -4,8 +4,9 @@ import { fetchClients, fetchInviteLink, type Client } from '../api'
 import { fullName, rubles } from '../format'
 import { haptic, shareLink } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
-import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
+import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import ClientCard from './ClientCard'
+import ClientForm from './ClientForm'
 
 const SHARE_TEXT = 'Записывайтесь ко мне на тренировки в Trenio'
 
@@ -33,6 +34,12 @@ function clientBadge(client: Client) {
   return undefined
 }
 
+function clientSubtitle(client: Client): string {
+  if (client.offline) return `без Telegram · с ${since(client.since)}`
+  if (client.username) return `@${client.username} · с ${since(client.since)}`
+  return `с ${since(client.since)}`
+}
+
 type Props = {
   timezone: string
 }
@@ -40,6 +47,7 @@ type Props = {
 export default function Clients({ timezone }: Props) {
   const [clients, setClients] = useState<Client[] | null>(null)
   const [opened, setOpened] = useState<Client | null>(null)
+  const [adding, setAdding] = useState(false)
   const [link, setLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -101,26 +109,33 @@ export default function Clients({ timezone }: Props) {
         <EmptyState
           icon="users"
           title="Пока нет клиентов"
-          text="Отправьте ссылку, и клиенты появятся здесь после первого перехода."
+          text="Отправьте ссылку, и клиенты появятся здесь после первого перехода. Клиента без Telegram добавьте сами."
         />
       )}
-      {clients !== null && clients.length > 0 && (
-        <Section title={`Все клиенты · ${clients.length}`}>
+      {clients !== null && (
+        <Section title={clients.length > 0 ? `Все клиенты · ${clients.length}` : undefined}>
           {clients.map((client) => (
             <Row
               key={client.id}
               title={fullName(client)}
               leading={<PersonAvatar person={client} />}
-              subtitle={
-                client.username
-                  ? `@${client.username} · с ${since(client.since)}`
-                  : `с ${since(client.since)}`
-              }
+              subtitle={clientSubtitle(client)}
               onClick={() => setOpened(client)}
               badge={clientBadge(client)}
             />
           ))}
+          <AddRow title="Добавить клиента без Telegram" onClick={() => setAdding(true)} />
         </Section>
+      )}
+      {adding && (
+        <ClientForm
+          onBack={() => setAdding(false)}
+          onSaved={(created) => {
+            setAdding(false)
+            setOpened(created)
+            reloadClients()
+          }}
+        />
       )}
       {opened && (
         <ClientCard

@@ -11,9 +11,11 @@ from trenio.db.models import Trainer
 from trenio.db.session import get_sessionmaker
 from trenio.services import avatars
 from trenio.services.clients import (
+    CLAIM_PREFIX,
     CLIENT_INVITE_PREFIX,
     LinkError,
     LinkRejected,
+    claim,
     link_client,
     list_my_trainers,
 )
@@ -37,6 +39,14 @@ INVITE_ERROR_TEXT = {
 LINK_ERROR_TEXT = {
     LinkError.NOT_FOUND: "Ссылка тренера не найдена или больше не действует. Попросите новую.",
     LinkError.OWN_LINK: "Это ваша ссылка для клиентов. Отправьте её им, чтобы они записывались.",
+    LinkError.NOT_OFFLINE: "Эта ссылка уже использована. Попросите у тренера новую.",
+    LinkError.TARGET_OFFLINE: "Эта ссылка уже использована. Попросите у тренера новую.",
+}
+
+CLAIM_ERROR_TEXT = {
+    **LINK_ERROR_TEXT,
+    LinkError.NOT_FOUND: "Ссылка не найдена или уже использована. Попросите у тренера новую.",
+    LinkError.OWN_LINK: "Это ссылка для вашего клиента. Перешлите её ему.",
 }
 
 
@@ -62,6 +72,13 @@ def linked_text(trainer: Trainer) -> str:
     return (
         f"Готово, вы записываетесь к тренеру {trainer.display_name}. "
         "Откройте приложение и выберите удобное время."
+    )
+
+
+def claimed_text(trainer: Trainer) -> str:
+    return (
+        f"Готово, ваш Telegram привязан к тренеру {trainer.display_name}: "
+        "в приложении ваши записи и блоки. Напоминания о занятиях будут приходить сюда."
     )
 
 
@@ -107,6 +124,19 @@ async def on_start(message: Message, command: CommandObject) -> None:
             else:
                 await message.answer(
                     linked_text(linked), reply_markup=webapp_keyboard(settings.webapp_url)
+                )
+                return
+        elif payload.startswith(CLAIM_PREFIX):
+            try:
+                claimed = await claim(
+                    session, user, payload.removeprefix(CLAIM_PREFIX), datetime.now(UTC)
+                )
+            except LinkRejected as rejected:
+                await session.rollback()
+                await message.answer(CLAIM_ERROR_TEXT[rejected.reason])
+            else:
+                await message.answer(
+                    claimed_text(claimed), reply_markup=webapp_keyboard(settings.webapp_url)
                 )
                 return
         elif payload.startswith(TRAINER_INVITE_PREFIX):

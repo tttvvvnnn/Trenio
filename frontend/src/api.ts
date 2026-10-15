@@ -445,6 +445,8 @@ export type Client = Person & {
   has_packages: boolean
   // Сколько будущих записей не покрыто блоками: они будут разовыми
   upcoming_one_off: number
+  // Клиент без Telegram, которого тренер завёл сам: имя правит тренер, уведомлений нет
+  offline: boolean
 }
 
 export function fetchTrainerBookings(days = 14, from?: string): Promise<Booking[]> {
@@ -498,6 +500,31 @@ export function fetchClients(): Promise<Client[]> {
 
 export function fetchInviteLink(): Promise<string> {
   return request<{ url: string }>('/api/trainer/invite-link').then(({ url }) => url)
+}
+
+export type ClientName = {
+  first_name: string
+  last_name: string | null
+}
+
+export function createClient(data: ClientName & { notes: string | null }): Promise<Client> {
+  return send<Client>('POST', '/api/trainer/clients', data)
+}
+
+export function renameClient(clientId: number, data: ClientName): Promise<Client> {
+  return send<Client>('PATCH', `/api/trainer/clients/${clientId}`, data)
+}
+
+/** Личная ссылка клиента без Telegram: открыв её, он привяжет свой аккаунт. */
+export function fetchClaimLink(clientId: number): Promise<string> {
+  return send<{ url: string }>('POST', `/api/trainer/clients/${clientId}/claim-link`).then(
+    ({ url }) => url,
+  )
+}
+
+/** Клиент без Telegram и клиент из Telegram — один человек: история переезжает ко второму. */
+export function mergeClient(clientId: number, intoId: number): Promise<void> {
+  return send<void>('POST', `/api/trainer/clients/${clientId}/merge`, { into_id: intoId })
 }
 
 export function fetchUnmarkedBookings(): Promise<Booking[]> {

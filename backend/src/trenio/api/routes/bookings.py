@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import Booking, TrainerClient, User
-from trenio.services import avatars, bookings, packages
+from trenio.services import avatars, bookings, clients, packages
 from trenio.services.bookings import Actor, BookingError, BookingRejected, BookingStatus
-from trenio.services.clients import client_invite_link, list_clients
+from trenio.services.clients import LinkError, LinkRejected, client_invite_link, list_clients
 from trenio.services.users import get_user
 
 router = APIRouter(prefix="/trainer", tags=["bookings"])
@@ -355,12 +355,18 @@ class ClientOut(PersonOut):
     has_packages: bool = False
     # Сколько будущих записей не покрыто блоками: они будут разовыми
     upcoming_one_off: int = 0
+    # Клиент без Telegram, которого тренер завёл сам: имя правит тренер, уведомлений нет
+    offline: bool = False
 
     @classmethod
     def of_link(
         cls, link: TrainerClient, summary: packages.ClientSummary | None = None
     ) -> "ClientOut":
-        out = cls(**PersonOut.of(link.user).model_dump(), since=link.created_at)
+        out = cls(
+            **PersonOut.of(link.user).model_dump(),
+            since=link.created_at,
+            offline=link.user.is_offline,
+        )
         if summary is not None:
             out.sessions_left = summary.sessions_left
             out.debt = summary.debt
@@ -393,3 +399,90 @@ class InviteLinkOut(BaseModel):
 async def get_invite_link(trainer: CurrentTrainer) -> InviteLinkOut:
     """Персональная ссылка тренера: по ней клиент попадает к нему в бот."""
     return InviteLinkOut(url=client_invite_link(await get_bot_username(), trainer))
+
+
+# --- Клиенты без Telegram ---
+
+_LINK_ERRORS = {
+    LinkError.NOT_FOUND: (404, "Клиент не найден."),
+    LinkError.NOT_OFFLINE: (409, "Клиент уже пользуется Telegram."),
+    LinkError.TARGET_OFFLINE: (409, "Объединить можно только с клиентом из Telegram."),
+    LinkError.OWN_LINK: (409, "Это ваш собственный аккаунт."),
+}
+
+
+def link_error(rejected: LinkRejected) -> HTTPException:
+    code, message = _LINK_ERRORS[rejected.reason]
+    return HTTPException(code, message)
+
+
+class ClientNameIn(BaseModel):
+    first_name: str = Field(min_length=1, max_length=128)
+    last_name: str | None = Field(default=None, max_length=128)
+
+
+class NewClientIn(ClientNameIn):
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+def _clean(value: str | None) -> str | None:
+    return value.strip() or None if value else None
+
+
+@router.post("/clients", status_code=status.HTTP_201_CREATED)
+async def create_client(
+    body: NewClientIn, trainer: CurrentTrainer, session: SessionDep
+) -> ClientOut:
+    """Тренер заводит клиента, который не будет пользоваться ботом."""
+    first_name = body.first_name.strip()
+    if not first_name:
+        raise HTTPException(422, "Укажите имя")
+    link = await clients.create_offline_client(
+        session, trainer, first_name, _clean(body.last_name), _clean(body.notes)
+    )
+    return ClientOut.of_link(link)
+
+
+@router.patch("/clients/{client_id}")
+async def rename_client(
+    client_id: int, body: ClientNameIn, trainer: CurrentTrainer, session: SessionDep
+) -> ClientOut:
+    first_name = body.first_name.strip()
+    if not first_name:
+        raise HTTPException(422, "Укажите имя")
+    try:
+        link = await clients.rename_offline_client(
+            session, trainer, client_id, first_name, _clean(body.last_name)
+        )
+    except LinkRejected as rejected:
+        raise link_error(rejected) from None
+    return ClientOut.of_link(link)
+
+
+@router.post("/clients/{client_id}/claim-link")
+async def get_claim_link(
+    client_id: int, trainer: CurrentTrainer, session: SessionDep
+) -> InviteLinkOut:
+    """Личная ссылка для клиента без Telegram: открыв её, он заберёт свою историю."""
+    try:
+        code = await clients.claim_code(session, trainer, client_id)
+    except LinkRejected as rejected:
+        raise link_error(rejected) from None
+    return InviteLinkOut(url=clients.claim_link(await get_bot_username(), code))
+
+
+class MergeIn(BaseModel):
+    # Клиент с Telegram, который на самом деле тот же человек
+    into_id: int
+
+
+@router.post("/clients/{client_id}/merge", status_code=status.HTTP_204_NO_CONTENT)
+async def merge_client(
+    client_id: int, body: MergeIn, trainer: CurrentTrainer, session: SessionDep
+) -> None:
+    try:
+        await clients.merge_offline_client(
+            session, trainer, client_id, body.into_id, datetime.now(UTC)
+        )
+    except LinkRejected as rejected:
+        raise link_error(rejected) from None

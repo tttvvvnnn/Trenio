@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  fetchClaimLink,
   fetchClientCard,
   saveClientNotes,
   type Booking,
@@ -17,7 +18,7 @@ import {
   plural,
   sessionsLeft,
 } from '../format'
-import { haptic } from '../telegram'
+import { haptic, shareLink } from '../telegram'
 import { DateLeaf } from '../ui/BookingDays'
 import { PersonAvatar } from '../ui/Avatar'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
@@ -25,6 +26,8 @@ import { PackageBadge } from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
 import { BookingBadge } from '../ui/MonthCalendar'
 import BookingDetails from './BookingDetails'
+import ClientForm from './ClientForm'
+import MergeClient from './MergeClient'
 import NewBooking from './NewBooking'
 import PackageDetails from './PackageDetails'
 import SellPackage from './SellPackage'
@@ -38,7 +41,7 @@ type Props = {
 }
 
 /** Карточка клиента: блоки, заметки и история записей. */
-export default function ClientCard({ client, timezone, onBack, onChanged }: Props) {
+export default function ClientCard({ client: initial, timezone, onBack, onChanged }: Props) {
   const [card, setCard] = useState<Card | null>(null)
   const [notes, setNotes] = useState('')
   const [notesState, setNotesState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -48,15 +51,21 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
   const [openedBooking, setOpenedBooking] = useState<Booking | null>(null)
   const [booking, setBooking] = useState(false)
   const [reloads, setReloads] = useState(0)
+  const [renaming, setRenaming] = useState(false)
+  const [merging, setMerging] = useState(false)
+  const [inviting, setInviting] = useState(false)
+
+  // Имя клиента без Telegram тренер может поменять: свежие данные берём из карточки
+  const client = card?.client ?? initial
 
   useEffect(() => {
-    fetchClientCard(client.id)
+    fetchClientCard(initial.id)
       .then((loaded) => {
         setCard(loaded)
         setNotes((current) => (reloads === 0 ? (loaded.notes ?? '') : current))
       })
       .catch((err: unknown) => setError(String(err)))
-  }, [client.id, reloads])
+  }, [initial.id, reloads])
 
   function reload() {
     setReloads((count) => count + 1)
@@ -74,6 +83,21 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
       haptic.error()
       setNotesState('idle')
       setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  async function invite() {
+    if (inviting) return
+    setInviting(true)
+    try {
+      const url = await fetchClaimLink(client.id)
+      haptic.tap()
+      shareLink(url, 'Ваша ссылка в Trenio: откройте её, чтобы видеть свои записи и блоки')
+    } catch (err) {
+      haptic.error()
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setInviting(false)
     }
   }
 
@@ -106,7 +130,9 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
   return (
     <Screen
       title={name}
-      subtitle={client.username ? `@${client.username}` : undefined}
+      subtitle={
+        client.offline ? 'без Telegram' : client.username ? `@${client.username}` : undefined
+      }
       avatar={<PersonAvatar person={client} size="md" />}
       onBack={onBack}
     >
@@ -115,6 +141,29 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
       {card !== null && (
         <>
           {hint && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+          {client.offline && (
+            <Section
+              title="Без Telegram"
+              footer="Напоминания клиенту не приходят. Отправьте ему личную ссылку: когда он откроет её в Telegram, записи и блоки перейдут к нему."
+            >
+              <Row
+                title={inviting ? 'Готовим ссылку…' : 'Пригласить в Telegram'}
+                icon={{ name: 'share', color: 'var(--c-accent)' }}
+                onClick={() => void invite()}
+              />
+              <Row
+                title="Изменить имя"
+                icon={{ name: 'user', color: 'var(--c-violet)' }}
+                onClick={() => setRenaming(true)}
+              />
+              <Row
+                title="Уже есть в Telegram"
+                subtitle="Объединить с клиентом, который зашёл по ссылке"
+                icon={{ name: 'users', color: 'var(--c-success)' }}
+                onClick={() => setMerging(true)}
+              />
+            </Section>
+          )}
           <Section title="Блоки">
             {card.packages.map((item: Package) => (
               <Row
@@ -192,6 +241,26 @@ export default function ClientCard({ client, timezone, onBack, onChanged }: Prop
           onBooked={() => {
             setBooking(false)
             reload()
+          }}
+        />
+      )}
+      {renaming && (
+        <ClientForm
+          client={client}
+          onBack={() => setRenaming(false)}
+          onSaved={() => {
+            setRenaming(false)
+            reload()
+          }}
+        />
+      )}
+      {merging && (
+        <MergeClient
+          client={client}
+          onBack={() => setMerging(false)}
+          onMerged={() => {
+            onChanged()
+            onBack()
           }}
         />
       )}
