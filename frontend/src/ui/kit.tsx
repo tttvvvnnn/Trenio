@@ -411,9 +411,11 @@ type PageHeaderProps = {
   brand?: boolean
   // Фото слева от заголовка: на экране человека
   leading?: ReactNode
+  // Кнопка справа от заголовка, например «Пригласить»
+  action?: ReactNode
 }
 
-export function PageHeader({ title, subtitle, brand = false, leading }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, brand = false, leading, action }: PageHeaderProps) {
   const text = (
     <>
       <h1>{title}</h1>
@@ -423,10 +425,11 @@ export function PageHeader({ title, subtitle, brand = false, leading }: PageHead
   return (
     <header className="page-header">
       {brand && <BrandWordmark height={20} />}
-      {leading ? (
-        <div className="page-header-row">
+      {leading || action ? (
+        <div className={leading ? 'page-header-row with-leading' : 'page-header-row'}>
           {leading}
-          <div>{text}</div>
+          <div className="page-header-text">{text}</div>
+          {action}
         </div>
       ) : (
         text

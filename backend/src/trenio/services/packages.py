@@ -36,6 +36,8 @@ from trenio.services.clients import is_client
 
 # Сколько оставшихся занятий считается «блок заканчивается, предложите новый»
 ENDING_SOON_LEFT = 2
+# До конца срока блока меньше недели: тоже пора предложить новый
+ENDING_SOON_PERIOD = timedelta(days=7)
 
 
 class Attendance(StrEnum):
@@ -815,6 +817,10 @@ class ClientSummary:
     has_packages: bool
     # Сколько будущих записей не покрыто блоками, если клиент вообще покупал блоки
     upcoming_one_off: int = 0
+    # Блок, из которого сейчас списываются занятия: самый старый действующий
+    current: Package | None = None
+    # Блок кончается: осталось мало занятий или до конца срока меньше недели
+    ending_soon: bool = False
 
 
 def summarize(
@@ -833,7 +839,10 @@ def summarize(
     result = {}
     for client_id in clients:
         own = by_client.get(client_id, [])
-        active = [p for p in own if status(p, today) is PackageStatus.ACTIVE]
+        active = sorted(
+            (p for p in own if status(p, today) is PackageStatus.ACTIVE),
+            key=lambda p: (p.purchased_on, p.id),
+        )
         result[client_id] = ClientSummary(
             sessions_left=sum(left(p) for p in active) if active else None,
             debt=sum(due(p) for p in own if p.closed_at is None),
@@ -843,6 +852,12 @@ def summarize(
                 plan.one_off_after(client_id, now)
                 if own and plan is not None and now is not None
                 else 0
+            ),
+            current=active[0] if active else None,
+            ending_soon=any(
+                ending_soon(p, today)
+                or (p.valid_until is not None and p.valid_until - today < ENDING_SOON_PERIOD)
+                for p in active
             ),
         )
     return result

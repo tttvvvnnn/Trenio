@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { errorText, saveClientPhone } from '../api'
 import { haptic } from '../telegram'
+import Icon from '../ui/icons'
 import { ErrorText, Row, Section, SwitchRow, TextField } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import Screen from '../ui/Screen'
@@ -52,6 +53,23 @@ export default function PhoneForm({ clientId, clientName, phone, onBack, onSaved
 
   return (
     <Screen title="Телефон" subtitle={clientName} onBack={onBack}>
+      {phone !== null && (
+        <section className="section">
+          <div className="group">
+            <div className="row with-icon accent">
+              <a className="row-main" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>
+                <span className="row-icon" style={{ background: 'var(--c-success)' }}>
+                  <Icon name="phone" />
+                </span>
+                <span className="row-text">
+                  <span className="row-title">Позвонить</span>
+                  <span className="row-subtitle">{phone}</span>
+                </span>
+              </a>
+            </div>
+          </div>
+        </section>
+      )}
       <TextField
         label="Номер"
         value={value}

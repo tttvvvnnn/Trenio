@@ -33,7 +33,7 @@ export const TRAINER_TOUR: readonly TourStep<TrainerTab>[] = [
     tab: 'clients',
     target: 'invite-link',
     title: 'Пригласите клиентов',
-    text: 'Отправьте клиенту эту ссылку. Он откроет её в Telegram и сможет сам выбирать время.',
+    text: 'Здесь ваша ссылка для клиентов. Клиент откроет её в Telegram и сможет сам выбирать время.',
   },
   {
     tab: 'calendar',

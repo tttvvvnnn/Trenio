@@ -22,6 +22,7 @@ import Screen from '../ui/Screen'
 import { AddRow, EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import BookClient from './BookClient'
 import BookingDetails from './BookingDetails'
+import BookingSwipe from './BookingSwipe'
 import NewBooking from './NewBooking'
 import { useRefreshKey } from '../sync'
 
@@ -146,19 +147,20 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
   const dayBookings = bookingsByDay.get(selected) ?? []
   const loadingMonth = monthBookings?.month !== month
   const unmarkedRow = (item: Booking) => (
-    <Row
-      key={item.id}
-      leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
-      title={
-        <Named
-          avatar={<PersonAvatar person={item.client} size="xs" />}
-          name={fullName(item.client)}
-        />
-      }
-      subtitle={`${localTime(item.starts_at, timezone)} · ${bookingNote(item)}`}
-      chevron
-      onClick={() => setOpened(item)}
-    />
+    <BookingSwipe key={item.id} booking={item} onChanged={reload} onError={setError}>
+      <Row
+        leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
+        title={
+          <Named
+            avatar={<PersonAvatar person={item.client} size="xs" />}
+            name={fullName(item.client)}
+          />
+        }
+        subtitle={`${localTime(item.starts_at, timezone)} · ${bookingNote(item)}`}
+        chevron
+        onClick={() => setOpened(item)}
+      />
+    </BookingSwipe>
   )
   const serviceName = (id: number) => services.find((service) => service.id === id)?.name ?? ''
 
@@ -184,19 +186,20 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       {pending.length > 0 && (
         <Section title="Ждут подтверждения">
           {pending.map((item) => (
-            <Row
-              key={item.id}
-              leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
-              title={
-                <Named
-                  avatar={<PersonAvatar person={item.client} size="xs" />}
-                  name={fullName(item.client)}
-                />
-              }
-              subtitle={`${localTime(item.starts_at, timezone)} · ${item.service.name}`}
-              chevron
-              onClick={() => setOpened(item)}
-            />
+            <BookingSwipe key={item.id} booking={item} onChanged={reload} onError={setError}>
+              <Row
+                leading={<DateLeaf day={localDate(item.starts_at, timezone)} />}
+                title={
+                  <Named
+                    avatar={<PersonAvatar person={item.client} size="xs" />}
+                    name={fullName(item.client)}
+                  />
+                }
+                subtitle={`${localTime(item.starts_at, timezone)} · ${item.service.name}`}
+                chevron
+                onClick={() => setOpened(item)}
+              />
+            </BookingSwipe>
           ))}
         </Section>
       )}
@@ -233,20 +236,21 @@ export default function Calendar({ timezone, onGoToSetup }: Props) {
       {dayBookings.length > 0 && (
         <div className="group">
           {dayBookings.map((item) => (
-            <Row
-              key={item.id}
-              title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
-              subtitle={bookingNote(item, now)}
-              leading={<PersonAvatar person={item.client} />}
-              tone={isActive(item) || item.attendance ? undefined : 'muted'}
-              onClick={() => setOpened(item)}
-              badge={<BookingBadge booking={item} now={now} />}
-            />
+            <BookingSwipe key={item.id} booking={item} onChanged={reload} onError={setError}>
+              <Row
+                title={`${localTime(item.starts_at, timezone)} · ${fullName(item.client)}`}
+                subtitle={bookingNote(item, now)}
+                leading={<PersonAvatar person={item.client} />}
+                tone={isActive(item) || item.attendance ? undefined : 'muted'}
+                onClick={() => setOpened(item)}
+                badge={<BookingBadge booking={item} now={now} />}
+              />
+            </BookingSwipe>
           ))}
         </div>
       )}
       {selected >= today && (
-        <div className="group">
+        <div className="group day-add">
           <AddRow title="Записать клиента" onClick={() => setNewBooking(true)} />
         </div>
       )}
