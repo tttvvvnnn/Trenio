@@ -14,14 +14,20 @@ type Props = {
   children: ReactNode
 }
 
+// Сколько экранов открыто сейчас. Экраны вложены и могут закрыться одним махом
+// (отменили запись — закрылись и форма, и детали), а React снимает их в любом порядке.
+// Поэтому не запоминаем «как было» у каждого, а считаем: прокрутка вернётся с последним
+let openScreens = 0
+
 /** Вложенный экран поверх вкладки: форма или подробности, с кнопкой «Назад». */
 export default function Screen({ title, subtitle, avatar, onBack, header, children }: Props) {
   // Страница под экраном не должна прокручиваться вместе с ним
   useEffect(() => {
-    const { overflow } = document.body.style
+    openScreens += 1
     document.body.style.overflow = 'hidden'
     return () => {
-      document.body.style.overflow = overflow
+      openScreens -= 1
+      if (openScreens === 0) document.body.style.overflow = ''
     }
   }, [])
 

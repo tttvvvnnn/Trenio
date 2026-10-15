@@ -1800,6 +1800,11 @@ button.stat-tile:active {
   margin-top: var(--s-4);
 }
 
+/* «Записать клиента» под записями дня: отдельной карточкой, не впритык */
+.day-add {
+  margin-top: var(--s-3);
+}
+
 .booking-days > .group + .group {
   margin-top: var(--s-2);
 }
