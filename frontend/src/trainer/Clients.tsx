@@ -87,6 +87,7 @@ export default function Clients({ timezone }: Props) {
       {link && (
         <Section
           title="Ваша ссылка"
+          tourId="invite-link"
           footer="Клиент открывает ссылку, бот добавляет его к вам, и он может записываться в окошки."
         >
           <Row

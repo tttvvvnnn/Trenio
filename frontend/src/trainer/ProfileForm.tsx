@@ -16,6 +16,7 @@ import {
 import MyPhoto from '../ui/MyPhoto'
 import { MainButton } from '../ui/native'
 import ReminderSettings from '../ui/ReminderSettings'
+import { TourRow } from '../ui/Tour'
 import RulesEditor from './RulesEditor'
 
 // За сколько часов до начала клиент ещё может отменить запись
@@ -43,6 +44,8 @@ type Props = {
   onOpenAdmin?: () => void
   // Есть, когда тренер сам записан к другому тренеру
   onSwitchToClient?: () => void
+  // Запустить вводный тур заново
+  onStartTour?: () => void
 }
 
 // 795 -> "13:15"
@@ -57,6 +60,7 @@ export default function ProfileForm({
   onOpenServices,
   onOpenAdmin,
   onSwitchToClient,
+  onStartTour,
 }: Props) {
   const [displayName, setDisplayName] = useState(trainer.display_name)
   // При первом входе подставляем часовой пояс телефона, если он из списка
@@ -233,6 +237,7 @@ export default function ProfileForm({
         <Section footer="На услуги клиенты записываются, шаблоны блоков помогают их продавать.">
           <Row
             title="Услуги и блоки"
+            tourId="services"
             icon={{ name: 'ticket', color: 'var(--c-violet)' }}
             chevron
             onClick={onOpenServices}
@@ -251,6 +256,7 @@ export default function ProfileForm({
         </Section>
       )}
       {!onboarding && <ReminderSettings role="trainer" />}
+      {!onboarding && onStartTour && <TourRow onClick={onStartTour} />}
       {onSwitchToClient && !onboarding && (
         <Section footer="Ваши записи к другим тренерам.">
           <Row

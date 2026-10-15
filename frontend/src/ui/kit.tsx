@@ -7,14 +7,18 @@ import Icon, { type IconName } from './icons'
 type SectionProps = {
   title?: ReactNode
   footer?: ReactNode
+  // Метка для вводного тура: его шаг подсвечивает карточку секции
+  tourId?: string
   children: ReactNode
 }
 
-export function Section({ title, footer, children }: SectionProps) {
+export function Section({ title, footer, tourId, children }: SectionProps) {
   return (
     <section className="section">
       {title && <h2 className="section-title">{title}</h2>}
-      <div className="group">{children}</div>
+      <div className="group" data-tour={tourId}>
+        {children}
+      </div>
       {footer && <p className="section-footer">{footer}</p>}
     </section>
   )
@@ -37,6 +41,8 @@ type RowProps = {
   // Текст по центру, как у кнопки-действия
   centered?: boolean
   onClick?: () => void
+  // Метка для вводного тура: его шаг подсвечивает эту строку
+  tourId?: string
 }
 
 export function Row({
@@ -51,6 +57,7 @@ export function Row({
   tone,
   centered,
   onClick,
+  tourId,
 }: RowProps) {
   const content = (
     <>
@@ -79,7 +86,7 @@ export function Row({
     .filter(Boolean)
     .join(' ')
   return (
-    <div className={className}>
+    <div className={className} data-tour={tourId}>
       {onClick ? (
         <button type="button" className="row-main" onClick={onClick}>
           {content}

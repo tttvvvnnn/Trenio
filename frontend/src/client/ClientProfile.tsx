@@ -8,15 +8,18 @@ import { ErrorText, InlineField, Row, Section, SkeletonList } from '../ui/kit'
 import MyPhoto from '../ui/MyPhoto'
 import ReminderSettings from '../ui/ReminderSettings'
 import { RulesScreen } from '../ui/Rules'
+import { TourRow } from '../ui/Tour'
 
 type Props = {
   trainers: ClientTrainer[] | null
   // Есть, когда человек ещё и тренер
   onSwitchToTrainer?: () => void
+  // Запустить вводный тур заново
+  onStartTour?: () => void
 }
 
 /** Профиль клиента: фото и имя, которые видит тренер, тренеры с правилами, напоминания. */
-export default function ClientProfile({ trainers, onSwitchToTrainer }: Props) {
+export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour }: Props) {
   const [me, setMe] = useState<Me | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -144,6 +147,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer }: Props) {
         </Section>
       )}
       <ReminderSettings role="client" />
+      {onStartTour && <TourRow onClick={onStartTour} />}
       {onSwitchToTrainer && (
         <Section footer="Ваше расписание и клиенты остаются в профиле тренера.">
           <Row

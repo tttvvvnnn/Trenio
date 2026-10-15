@@ -32,6 +32,9 @@ class MeOut(BaseModel):
     is_client: bool
     # Профиль тренера, если есть доступ; onboarded_at=None значит, что нужна первая настройка
     trainer: TrainerOut | None
+    # Вводный тур пройден или пропущен; false — показать при входе в этот профиль
+    trainer_tour_done: bool
+    client_tour_done: bool
 
 
 @router.get("/me")
@@ -49,7 +52,18 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         is_admin=is_admin(user, settings.admin_telegram_ids),
         is_client=bool(await list_my_trainers(session, user)),
         trainer=TrainerOut.of(trainer) if trainer is not None else None,
+        trainer_tour_done=user.trainer_tour_at is not None,
+        client_tour_done=user.client_tour_at is not None,
     )
+
+
+# --- Вводный тур ---
+
+
+@router.post("/me/tour/{role}", status_code=status.HTTP_204_NO_CONTENT)
+async def finish_tour(role: Role, user: CurrentUser, session: SessionDep) -> None:
+    """Тур пройден или пропущен: больше не показываем его сам, только из Профиля."""
+    await users.finish_tour(session, user, role, datetime.now(UTC))
 
 
 # --- Имя ---

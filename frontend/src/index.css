@@ -1736,3 +1736,126 @@ button.stat-tile:active {
   border-radius: 999px;
   background: var(--brand-gradient);
 }
+
+/* ===== Вводный тур ===== */
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  touch-action: none;
+}
+
+/* Подсветка: прозрачное окно, а затемнение вокруг рисует огромная тень */
+.tour-spot,
+.tour-dim {
+  position: fixed;
+  border-radius: var(--r-group);
+  transition-property: top, left, width, height, border-radius;
+  transition-duration: 300ms;
+  transition-timing-function: var(--ease);
+}
+
+.tour-spot {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.55),
+    0 0 0 9999px rgba(0, 0, 0, 0.62);
+}
+
+.tour-dim {
+  inset: 0;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.tour-card {
+  position: fixed;
+  right: var(--s-4);
+  left: var(--s-4);
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--s-4);
+  border-radius: var(--r-group);
+  color: var(--c-text);
+  /* Плотная карточка: на затемнении стекло читается плохо */
+  background: var(--c-section);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  animation: tour-in 220ms var(--ease);
+}
+
+.tour-card-centered {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.tour-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.tour-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--c-fill);
+  transition: width 200ms var(--ease);
+}
+
+.tour-dots i.active {
+  width: 18px;
+  background: var(--brand-gradient);
+}
+
+.tour-skip,
+.tour-back {
+  padding: var(--s-1) 0;
+  border: 0;
+  font: inherit;
+  color: var(--c-hint);
+  background: none;
+}
+
+.tour-card h2 {
+  margin: var(--s-3) 0 var(--s-1);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.tour-card p {
+  margin: 0;
+  line-height: 1.4;
+  color: var(--c-subtitle);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.tour-back {
+  margin-right: auto;
+  font-weight: 600;
+  color: var(--c-link);
+}
+
+.tour-actions .button {
+  min-height: 44px;
+  min-width: 120px;
+}

@@ -35,6 +35,9 @@ export type Me = {
   // Есть хотя бы один тренер, к которому можно записаться
   is_client: boolean
   trainer: Trainer | null
+  // Вводный тур пройден или пропущен; false — показать при входе в этот профиль
+  trainer_tour_done: boolean
+  client_tour_done: boolean
 }
 
 export type TrainerProfileInput = Partial<
@@ -247,6 +250,13 @@ export function saveMyName(firstName: string, lastName: string | null): Promise<
 
 export function resetMyName(): Promise<MyName> {
   return send<MyName>('DELETE', '/api/me/name')
+}
+
+export type TourRole = 'trainer' | 'client'
+
+// Тур пройден или пропущен: сам больше не покажется, только из Профиля
+export function finishTour(role: TourRole): Promise<void> {
+  return send<void>('POST', `/api/me/tour/${role}`)
 }
 
 export type AvatarState = { avatar_url: string | null; avatar_mode: AvatarMode }

@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMyBookings, fetchMyTrainers, type Booking, type ClientTrainer } from '../api'
+import {
+  fetchMyBookings,
+  fetchMyTrainers,
+  finishTour,
+  type Booking,
+  type ClientTrainer,
+} from '../api'
 import { nextBooking } from '../calendar'
 import { dateTime } from '../format'
 import { haptic } from '../telegram'
+import { CLIENT_TOUR, type ClientTab as Tab } from '../tour'
 import Icon, { type IconName } from '../ui/icons'
 import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
@@ -11,12 +18,11 @@ import { MainButton } from '../ui/native'
 import NextSession from '../ui/NextSession'
 import { RulesGate } from '../ui/Rules'
 import Screen from '../ui/Screen'
+import Tour from '../ui/Tour'
 import BookTrainer from './BookTrainer'
 import ClientProfile from './ClientProfile'
 import MyBookings from './MyBookings'
 import MyPackages from './MyPackages'
-
-type Tab = 'book' | 'bookings' | 'packages' | 'profile'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['book', 'Запись', 'calendar'],
@@ -28,10 +34,14 @@ const TABS: readonly (readonly [Tab, string, IconName])[] = [
 type Props = {
   // Есть, когда человек ещё и тренер
   onSwitchToTrainer?: () => void
+  // false — при входе показываем вводный тур
+  tourDone: boolean
+  onTourDone: () => void
 }
 
-export default function ClientHome({ onSwitchToTrainer }: Props) {
+export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: Props) {
   const [tab, setTab] = useState<Tab>('book')
+  const [touring, setTouring] = useState(!tourDone)
   const [trainers, setTrainers] = useState<ClientTrainer[] | null>(null)
   // Выбранный тренер, когда их несколько
   const [opened, setOpened] = useState<ClientTrainer | null>(null)
@@ -57,6 +67,18 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
     if (next !== tab) haptic.select()
     setTab(next)
     window.scrollTo(0, 0)
+  }
+
+  function startTour() {
+    setOpened(null)
+    setTouring(true)
+  }
+
+  function endTour() {
+    setTouring(false)
+    onTourDone()
+    // Не сохранилось — покажем ещё раз при следующем входе, не страшно
+    finishTour('client').catch(() => {})
   }
 
   function onBooked(booking: Booking) {
@@ -96,7 +118,11 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
       {tab === 'bookings' && <MyBookings onBook={() => open('book')} />}
       {tab === 'packages' && <MyPackages />}
       {tab === 'profile' && (
-        <ClientProfile trainers={trainers} onSwitchToTrainer={onSwitchToTrainer} />
+        <ClientProfile
+          trainers={trainers}
+          onSwitchToTrainer={onSwitchToTrainer}
+          onStartTour={startTour}
+        />
       )}
       {opened && (
         <Screen
@@ -123,6 +149,7 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
             key={value}
             type="button"
             className="tab"
+            data-tour={`tab-${value}`}
             aria-current={value === tab ? 'page' : undefined}
             onClick={() => open(value)}
           >
@@ -131,6 +158,17 @@ export default function ClientHome({ onSwitchToTrainer }: Props) {
           </button>
         ))}
       </nav>
+      {/* Тур ждёт, пока клиент примет правила тренера: они показываются выше вместо вкладок */}
+      {touring && trainers !== null && (
+        <Tour
+          steps={CLIENT_TOUR}
+          onTab={(next) => {
+            setTab(next)
+            window.scrollTo(0, 0)
+          }}
+          onFinish={endTour}
+        />
+      )}
     </>
   )
 }
