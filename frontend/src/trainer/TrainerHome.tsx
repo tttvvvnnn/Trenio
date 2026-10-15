@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { finishTour, type Trainer } from '../api'
+import { localDate } from '../format'
 import { haptic } from '../telegram'
 import { TRAINER_TOUR, type TrainerTab as Tab } from '../tour'
 import Icon, { type IconName } from '../ui/icons'
@@ -13,6 +14,7 @@ import Finance from './Finance'
 import ProfileForm from './ProfileForm'
 import Schedule from './Schedule'
 import Services from './Services'
+import Stats from './Stats'
 
 const TABS: readonly (readonly [Tab, string, IconName])[] = [
   ['calendar', 'Записи', 'calendar'],
@@ -47,6 +49,7 @@ export default function TrainerHome({
   // Услуги и шаблоны блоков открываются из Профиля
   const [services, setServices] = useState(false)
   const [admin, setAdmin] = useState(false)
+  const [stats, setStats] = useState(false)
 
   function open(next: Tab) {
     if (next !== tab) haptic.select()
@@ -57,6 +60,7 @@ export default function TrainerHome({
   function startTour() {
     setServices(false)
     setAdmin(false)
+    setStats(false)
     setTouring(true)
   }
 
@@ -81,6 +85,7 @@ export default function TrainerHome({
           onSaved={onTrainerChange}
           onOpenServices={() => setServices(true)}
           onOpenAdmin={isAdmin ? () => setAdmin(true) : undefined}
+          onOpenStats={() => setStats(true)}
           onSwitchToClient={onSwitchToClient}
           onStartTour={startTour}
         />
@@ -95,6 +100,13 @@ export default function TrainerHome({
         </Screen>
       )}
       {tab === 'profile' && admin && <AdminPanel onBack={() => setAdmin(false)} />}
+      {tab === 'profile' && stats && (
+        <Stats
+          timezone={trainer.timezone}
+          month={localDate(new Date(), trainer.timezone).slice(0, 7)}
+          onBack={() => setStats(false)}
+        />
+      )}
       <nav className="tabbar" aria-label="Разделы">
         {TABS.map(([value, title, icon]) => (
           <button
