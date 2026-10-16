@@ -180,10 +180,19 @@ export default function NewBooking({ timezone, client, day, onBack, onBooked }: 
         </>
       )}
       {error && <ErrorText>{error}</ErrorText>}
+      {/* Кнопка видна сразу и подсказывает, чего не хватает: клиент выше по экрану и легко
+          прокручивается из виду, а спрятанная кнопка выглядит как «записать нельзя» */}
       <MainButton
-        text={startsAt ? `Записать: ${dateTime(startsAt, timezone)}` : 'Записать'}
+        text={
+          clientId === null
+            ? 'Выберите клиента'
+            : startsAt === null
+              ? 'Выберите время'
+              : `Записать: ${dateTime(startsAt, timezone)}`
+        }
         onClick={() => void book()}
-        visible={clientId !== null && startsAt !== null}
+        disabled={clientId === null || startsAt === null}
+        visible={service !== null && clients !== null && clients.length > 0}
         loading={saving}
       />
     </Screen>

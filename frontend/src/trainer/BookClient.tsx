@@ -92,9 +92,10 @@ export default function BookClient({ slot, serviceName, timezone, onBack, onBook
       )}
       {error && <ErrorText>{error}</ErrorText>}
       <MainButton
-        text="Записать"
+        text={clientId === null ? 'Выберите клиента' : 'Записать'}
         onClick={() => void book()}
-        visible={clientId !== null}
+        disabled={clientId === null}
+        visible={clients !== null && clients.length > 0}
         loading={saving}
       />
     </Screen>
