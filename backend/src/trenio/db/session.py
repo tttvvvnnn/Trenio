@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+# realtime подписывается на commit всех сессий: сигналы «данные поменялись»
+import trenio.realtime  # noqa: F401
 from trenio.config import get_settings
 
 

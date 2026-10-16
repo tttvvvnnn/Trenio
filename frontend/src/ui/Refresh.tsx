@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { startRealtime } from '../realtime'
 import { emitRefresh, invalidate, pendingCount, subscribePending, useOnline } from '../sync'
 import { haptic } from '../telegram'
 import { flushUndo } from '../undo'
@@ -28,14 +29,17 @@ function scrollTop(target: EventTarget | null): number {
 }
 
 /**
- * Обновление данных: жестом «потянуть вниз» с крутящимся секундомером
- * и само, когда приложение снова открыли после сворачивания.
+ * Обновление данных: жестом «потянуть вниз» с крутящимся секундомером,
+ * само, когда приложение снова открыли после сворачивания,
+ * и по сигналу сервера, когда данные поменял кто-то другой.
  */
 export default function Refresher() {
   const [pull, setPull] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const start = useRef<number | null>(null)
   const pulled = useRef(0)
+
+  useEffect(() => startRealtime(), [])
 
   useEffect(() => {
     let hiddenAt: number | null = null
