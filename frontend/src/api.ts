@@ -289,6 +289,17 @@ export async function loginWithTelegram(initData: string): Promise<void> {
   accessToken = access_token
 }
 
+// Живые обновления: токен уходит первым сообщением, а не в адресе, чтобы не попасть в логи
+export function realtimeToken(): string | null {
+  return accessToken
+}
+
+export function realtimeUrl(): string {
+  const url = new URL(`${API_URL}/api/ws`, window.location.href)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
 export function fetchMe(): Promise<Me> {
   return request<Me>('/api/me')
 }

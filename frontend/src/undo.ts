@@ -52,6 +52,11 @@ function commit(action: UndoAction) {
     })
 }
 
+// Висит плашка «Отменить»: экран показывает то, чего на сервере ещё нет
+export function undoPending(): boolean {
+  return current !== null
+}
+
 // Отправить отложенное прямо сейчас
 export function flushUndo() {
   if (!current) return

@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trenio import realtime
 from trenio.db.models import (
     ACTIVE_BOOKING_STATUSES,
     Booking,
@@ -327,6 +328,8 @@ async def reset_days(session: AsyncSession, trainer: Trainer, days: Sequence[dat
             ScheduleDay.trainer_id == trainer.id, ScheduleDay.day.in_(set(days))
         )
     )
+    # Массовое удаление идёт мимо ORM-объектов: об изменении сообщаем сами
+    realtime.mark(session, trainer.id)
     await session.commit()
 
 
