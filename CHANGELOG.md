@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/tttvvvnnn/Trenio/compare/v0.11.0...v0.12.0) (2026-10-16)
+
+
+### Новое
+
+* живые обновления по WebSocket ([#70](https://github.com/tttvvvnnn/Trenio/issues/70)) ([ee94b0c](https://github.com/tttvvvnnn/Trenio/commit/ee94b0cef3a531fcf24ae9c41782f54d06b5d46d))
+
+
+### Исправления
+
+* кнопка новой записи видна сразу и подсказывает, что выбрать ([#72](https://github.com/tttvvvnnn/Trenio/issues/72)) ([8ed9f81](https://github.com/tttvvvnnn/Trenio/commit/8ed9f81d73748c125ee69cd594806d9e3b70a1eb))
+
 ## [0.11.0](https://github.com/tttvvvnnn/Trenio/compare/v0.10.0...v0.11.0) (2026-10-15)
 
 
