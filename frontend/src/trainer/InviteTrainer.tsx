@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { errorText, fetchReferrals, type Referrals } from '../api'
-import { localDate, longDate, plural } from '../format'
+import { localDate, longDate, plural, rubles } from '../format'
 import { useRefreshKey } from '../sync'
 import { haptic, shareLink } from '../telegram'
 import Avatar from '../ui/Avatar'
@@ -52,7 +52,9 @@ export default function InviteTrainer({ timezone, onBack }: Props) {
       {data === null && !error && <SkeletonList rows={2} />}
       {data && (
         <>
-          <Section footer="Ссылка постоянная: по ней можно пригласить сколько угодно тренеров.">
+          <Section
+            footer={`Ссылка постоянная: по ней можно пригласить сколько угодно тренеров. С каждой их оплаты Pro вам на баланс идёт ${data.percent}%, балансом можно оплатить свою подписку.`}
+          >
             <Row
               title="Отправить ссылку"
               subtitle="В чат коллеге через Telegram"
@@ -69,6 +71,16 @@ export default function InviteTrainer({ timezone, onBack }: Props) {
               onClick={() => void copy(data.url)}
             />
           </Section>
+          {data.earned > 0 && (
+            <Section>
+              <Row
+                title="Баланс"
+                subtitle={`Всего начислено ${rubles(data.earned)}`}
+                value={rubles(data.balance)}
+                icon={{ name: 'wallet', color: 'var(--c-success)' }}
+              />
+            </Section>
+          )}
           {data.trainers.length > 0 ? (
             <Section
               title={`Пришли по ссылке · ${plural(data.trainers.length, 'тренер', 'тренера', 'тренеров')}`}
@@ -78,6 +90,8 @@ export default function InviteTrainer({ timezone, onBack }: Props) {
                   key={trainer.id}
                   title={trainer.display_name}
                   subtitle={`С ${longDate(localDate(trainer.joined_at, timezone))}`}
+                  value={trainer.earned > 0 ? `+${rubles(trainer.earned)}` : undefined}
+                  badge={trainer.paid ? <span className="badge success">Pro</span> : undefined}
                   leading={
                     <Avatar
                       name={trainer.display_name}

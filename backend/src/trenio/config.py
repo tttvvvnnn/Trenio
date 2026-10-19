@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     privacy_operator: str = ""
     privacy_contact: str = ""
 
+    # Platega: приём оплаты подписки по СБП. Пустой PLATEGA_MERCHANT_ID — оплата выключена
+    platega_merchant_id: str = ""
+    platega_api_key: SecretStr = SecretStr("")
+
+    @property
+    def payments_enabled(self) -> bool:
+        return bool(self.platega_merchant_id and self.platega_api_key.get_secret_value())
+
     @field_validator("admin_telegram_ids", mode="before")
     @classmethod
     def _parse_ids(cls, value: object) -> object:

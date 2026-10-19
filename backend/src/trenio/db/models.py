@@ -208,6 +208,9 @@ class Trainer(TimestampMixin, Base):
     # не больше трёх клиентов. Подробнее в trenio.services.subscription
     trial_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pro_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Баланс в рублях: 20% с оплат приглашённых тренеров. Тратится только на подписку,
+    # история — в balance_entries
+    balance: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
 
     user: Mapped[User] = relationship(lazy="joined", foreign_keys=[user_id])
 
@@ -223,6 +226,63 @@ class TrainerInvite(TimestampMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SubscriptionPayment(TimestampMixin, Base):
+    """Оплата Pro: часть списывается с баланса, остальное — через Platega по СБП."""
+
+    __tablename__ = "subscription_payments"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'paid', 'canceled')", name="status"),
+        CheckConstraint("amount >= 0 AND balance_used >= 0", name="amounts"),
+        Index(
+            "ix_subscription_payments_pending",
+            "created_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"), index=True
+    )
+    # month или year, см. trenio.services.subscription.PLANS
+    plan: Mapped[str] = mapped_column(String(16))
+    days: Mapped[int] = mapped_column(Integer)
+    # Цена тарифа = amount + balance_used, в рублях
+    price: Mapped[int] = mapped_column(Integer)
+    # Сколько платится деньгами через Platega; 0 — всё покрыл баланс
+    amount: Mapped[int] = mapped_column(Integer)
+    # Сколько списано с баланса; при отмене возвращается
+    balance_used: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    transaction_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # Страница оплаты Platega: открыть ещё раз, если человек закрыл её
+    redirect_url: Mapped[str | None] = mapped_column(Text)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BalanceEntry(Base):
+    """Движение по балансу тренера: начисление за приглашённого, оплата, возврат."""
+
+    __tablename__ = "balance_entries"
+    __table_args__ = (CheckConstraint("kind IN ('referral', 'payment', 'refund')", name="kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trainer_id: Mapped[int] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"), index=True
+    )
+    # Плюс — начисление, минус — списание
+    amount: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(16))
+    payment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("subscription_payments.id", ondelete="SET NULL")
+    )
+    # За чью оплату начислено: приглашённый тренер
+    from_trainer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trainers.id", ondelete="SET NULL"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Service(TimestampMixin, Base):
