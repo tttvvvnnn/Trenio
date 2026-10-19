@@ -9,7 +9,7 @@ from trenio.auth.telegram import TelegramUser
 from trenio.config import get_settings
 from trenio.db.models import Trainer
 from trenio.db.session import get_sessionmaker
-from trenio.services import avatars, privacy
+from trenio.services import avatars, legal
 from trenio.services.clients import (
     CLAIM_PREFIX,
     CLIENT_INVITE_PREFIX,
@@ -179,7 +179,21 @@ async def on_start(message: Message, command: CommandObject) -> None:
     )
 
 
+async def send_document(message: Message, doc: legal.Document) -> None:
+    """Документ целиком длиннее сообщения Telegram: отдаём ссылку на страницу сайта."""
+    url = legal.page_url(get_settings(), doc)
+    button = InlineKeyboardButton(text="Открыть", url=url)
+    await message.answer(
+        f"{legal.TITLES[doc]} Trenio: {url}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[button]]),
+    )
+
+
 @router.message(Command("privacy"))
 async def on_privacy(message: Message) -> None:
-    settings = get_settings()
-    await message.answer(privacy.policy_text(settings.privacy_operator, settings.privacy_contact))
+    await send_document(message, legal.Document.PRIVACY)
+
+
+@router.message(Command("terms"))
+async def on_terms(message: Message) -> None:
+    await send_document(message, legal.Document.TERMS)

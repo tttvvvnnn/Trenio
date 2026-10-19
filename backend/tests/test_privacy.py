@@ -21,7 +21,21 @@ async def test_policy_is_public(client: AsyncClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["version"] == POLICY_VERSION
-    assert "Политика обработки персональных данных" in body["text"]
+    assert "Политика конфиденциальности Trenio" in body["text"]
+
+
+async def test_legal_documents_are_public(client: AsyncClient) -> None:
+    terms = await client.get("/api/legal/terms")
+    assert terms.status_code == 200
+    body = terms.json()
+    assert body["title"] == "Пользовательское соглашение"
+    assert body["url"].endswith("/terms")
+    # Все подстановки заполнены, цены взяты из тарифов
+    assert "{" not in body["text"]
+    assert "349 ₽" in body["text"]
+    privacy = (await client.get("/api/legal/privacy")).json()
+    assert "{" not in privacy["text"]
+    assert (await client.get("/api/legal/other")).status_code == 422
 
 
 async def test_consent_asked_once_per_version(client: AsyncClient, session: AsyncSession) -> None:

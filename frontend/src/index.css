@@ -1887,6 +1887,59 @@ button.time:active,
   color: var(--c-text);
 }
 
+/* ===== Документы: соглашение и политика ===== */
+
+.legal-text {
+  padding: var(--s-3) var(--s-4);
+  overflow-wrap: anywhere;
+}
+
+.legal-text h3 {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.legal-text h3:first-child {
+  margin-top: 0;
+}
+
+.legal-text p {
+  margin: 0 0 var(--s-2);
+}
+
+.legal-text .legal-item {
+  padding-left: var(--s-3);
+}
+
+/* Ссылка внутри текста: кнопка, которая выглядит как ссылка */
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--c-accent);
+  cursor: pointer;
+}
+
+/* Публичная страница документа на сайте, вне Telegram */
+.legal-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s-4) 0 var(--s-6);
+}
+
+.legal-page-nav {
+  display: flex;
+  gap: var(--s-4);
+  padding: 0 var(--s-4) var(--s-2);
+  font-size: 14px;
+}
+
+.legal-page-nav a {
+  color: var(--c-accent);
+}
+
 /* ===== Правила занятий ===== */
 
 .rules-text {

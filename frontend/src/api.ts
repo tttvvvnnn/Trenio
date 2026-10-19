@@ -317,10 +317,14 @@ export function resetMyName(): Promise<MyName> {
 
 // --- Персональные данные ---
 
-export type Policy = { version: number; text: string }
+export type LegalDoc = 'privacy' | 'terms'
 
-export function fetchPolicy(): Promise<Policy> {
-  return request<Policy>('/api/privacy')
+// url — публичная страница документа на сайте
+export type Policy = { version: number; title: string; text: string; url: string }
+
+// Открыт всем: читается и до входа, и на странице сайта
+export function fetchLegal(doc: LegalDoc): Promise<Policy> {
+  return request<Policy>(`/api/legal/${doc}`)
 }
 
 export function giveConsent(): Promise<void> {

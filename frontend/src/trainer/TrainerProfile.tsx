@@ -197,7 +197,7 @@ export default function TrainerProfile({
           />
         )}
         <Row
-          title="Данные и аккаунт"
+          title="Документы и аккаунт"
           icon={{ name: 'shield', color: 'var(--c-hint)' }}
           chevron
           onClick={() => setOpened('account')}
