@@ -108,7 +108,10 @@ def start_text(
     else:
         text = f"Привет, {first_name}! Расписание, услуги и клиенты живут в приложении."
     if admin:
-        text += "\n\nКоманды админа: /invite — ссылка для нового тренера, /trainers — список."
+        text += (
+            "\n\nКоманды админа: /invite — ссылка для нового тренера, /trainers — список, "
+            "/digest — сводка за неделю."
+        )
     return text
 
 

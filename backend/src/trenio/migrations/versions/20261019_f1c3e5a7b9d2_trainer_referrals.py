@@ -1,7 +1,7 @@
 """trainer referrals
 
 Revision ID: f1c3e5a7b9d2
-Revises: e3a7c5f9b2d8
+Revises: f1b5d3a7c9e2
 Create Date: 2026-10-19 10:00:00.000000
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "f1c3e5a7b9d2"
-down_revision: str | None = "e3a7c5f9b2d8"
+down_revision: str | None = "f1b5d3a7c9e2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

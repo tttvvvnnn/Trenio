@@ -2,11 +2,13 @@ import { useState } from 'react'
 
 import { finishTour, type Trainer } from '../api'
 import { takeLink } from '../deeplink'
+import { usePromo } from '../promo'
 import { haptic } from '../telegram'
 import { TRAINER_TOUR, type TrainerTab as Tab } from '../tour'
 import Icon, { type IconName } from '../ui/icons'
 import AdminPanel from '../admin/AdminPanel'
 import Screen from '../ui/Screen'
+import { PromoCard } from '../ui/Promo'
 import Tour from '../ui/Tour'
 import Calendar from './Calendar'
 import Clients from './Clients'
@@ -55,6 +57,7 @@ export default function TrainerHome({
   // Услуги и шаблоны блоков открываются из Профиля
   const [services, setServices] = useState(false)
   const [admin, setAdmin] = useState(false)
+  const promo = usePromo()
 
   function open(next: Tab) {
     if (next !== tab) haptic.select()
@@ -81,7 +84,12 @@ export default function TrainerHome({
         <Calendar
           timezone={trainer.timezone}
           onGoToSetup={() => open('schedule')}
-          tip={<HomeScreenTip trainer={trainer} />}
+          tip={
+            <>
+              {!touring && <PromoCard promo={promo} />}
+              <HomeScreenTip trainer={trainer} />
+            </>
+          }
         />
       )}
       {tab === 'clients' && <Clients timezone={trainer.timezone} />}
@@ -95,6 +103,7 @@ export default function TrainerHome({
           onOpenAdmin={isAdmin ? () => setAdmin(true) : undefined}
           onSwitchToClient={onSwitchToClient}
           onStartTour={startTour}
+          promo={promo}
           openInvite={link?.tab === 'referrals'}
         />
       )}

@@ -1204,6 +1204,226 @@ button.time:active,
   height: 18px;
 }
 
+/* ===== Промо от автора Trenio: в цветах партнёра, чтобы не путать с карточками Trenio ===== */
+
+.promo-card {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: var(--s-2) var(--s-4) 0;
+  padding: 14px;
+  overflow: hidden;
+  border-radius: var(--r-group);
+  color: #fff;
+  background:
+    radial-gradient(260px 160px at 0% 0%, rgba(214, 90, 255, 0.55), transparent),
+    linear-gradient(135deg, #2a0f45, #521b86 60%, #7a2bb8);
+  box-shadow:
+    0 12px 28px -12px rgba(122, 43, 184, 0.8),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  animation: promo-in 320ms var(--ease);
+}
+
+@keyframes promo-in {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+}
+
+.promo-card > img {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 0 24px rgba(214, 90, 255, 0.5);
+}
+
+.promo-card-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding-right: 20px;
+}
+
+.promo-card-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.promo-card-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.promo-card-subtitle {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.promo-card-claim {
+  justify-self: start;
+  margin-top: var(--s-2);
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #521b86;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.promo-card-claim:active {
+  opacity: 0.8;
+}
+
+.promo-card-close {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.promo-card-close .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.promo-row-image {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.promo-hero {
+  padding: var(--s-2) var(--s-4) 0;
+  text-align: center;
+}
+
+.promo-hero img {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: var(--s-4) auto;
+  border-radius: 34px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.25),
+    0 16px 40px -8px rgba(122, 43, 184, 0.75);
+}
+
+.promo-hero h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.promo-hero p {
+  margin: var(--s-2) var(--s-2) 0;
+  font-size: 15px;
+  color: var(--c-hint);
+}
+
+.promo-code {
+  --promo-ink: #6a25a8;
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  margin: var(--s-6) var(--s-4) 0;
+  padding: var(--s-3) var(--s-3) var(--s-3) 18px;
+  border-radius: var(--r-group);
+  background: var(--c-card);
+  box-shadow: inset 0 0 0 1.5px rgba(122, 43, 184, 0.45);
+}
+
+:root[data-scheme='dark'] .promo-code {
+  --promo-ink: #d59cff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-scheme]) .promo-code {
+    --promo-ink: #d59cff;
+  }
+}
+
+.promo-code > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.promo-code-label {
+  font-size: 12px;
+  color: var(--c-hint);
+}
+
+.promo-code-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--promo-ink);
+}
+
+.promo-code button {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding: var(--s-2) 14px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--promo-ink) 16%, transparent);
+  color: var(--promo-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.promo-code button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.promo-step {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #7a2bb8;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.promo-fine {
+  margin: var(--s-4) 28px 0;
+  font-size: 12px;
+  text-align: center;
+  color: var(--c-hint);
+}
+
 /* ===== Экран ошибки ===== */
 
 .crash {
@@ -2633,4 +2853,114 @@ a.row-main {
 
 .pill-button:disabled {
   opacity: 0.6;
+}
+
+/* Админка: главный экран */
+.pulse-tile {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.pulse-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pulse-value {
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.sparkline {
+  flex: none;
+}
+
+.sparkline-area {
+  fill: color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+
+.sparkline-line {
+  fill: none;
+  stroke: var(--c-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkline-dot {
+  fill: var(--c-accent);
+}
+
+.stat-note.success {
+  color: var(--c-success);
+}
+
+.stat-hint {
+  grid-column: 1 / -1;
+  margin: 0 var(--s-1);
+  font-size: 13px;
+  color: var(--c-hint);
+}
+
+.feed-dot,
+.health-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s-1);
+  border-radius: 50%;
+  background: var(--c-hint);
+}
+
+.feed-dot.joined,
+.feed-dot.first_client,
+.feed-dot.first_client_booking,
+.feed-dot.first_package,
+.health-dot.ok {
+  background: var(--c-success);
+}
+
+.feed-dot.quiet {
+  background: var(--c-warning);
+}
+
+.feed-dot.error,
+.health-dot.bad {
+  background: var(--c-alert);
+}
+
+.cohort-card {
+  padding: var(--s-2) var(--s-3);
+  overflow-x: auto;
+}
+
+.cohort-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cohort-table th,
+.cohort-table td {
+  padding: 6px 4px;
+  text-align: right;
+}
+
+.cohort-table th:first-child,
+.cohort-table td:first-child {
+  text-align: left;
+}
+
+.cohort-table th {
+  font-weight: 500;
+  color: var(--c-hint);
+}
+
+.cohort-table td.muted {
+  color: var(--c-hint);
 }

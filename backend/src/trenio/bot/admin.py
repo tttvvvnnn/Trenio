@@ -1,7 +1,7 @@
 """Команды админа: выдача и отключение доступа тренеров без правки .env и перезапуска."""
 
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Router
@@ -12,6 +12,7 @@ from trenio.bot.handlers import to_telegram_user
 from trenio.config import get_settings
 from trenio.db.models import Trainer
 from trenio.db.session import get_sessionmaker
+from trenio.services.admin_digest import digest_text
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
     create_invite,
@@ -70,6 +71,14 @@ async def on_invite(message: Message, bot: Bot) -> None:
         "Ссылка для нового тренера. Она одноразовая и действует до "
         f"{until} МСК, перешлите её одному человеку:\n\n{link}"
     )
+
+
+@router.message(Command("digest"))
+async def on_digest(message: Message) -> None:
+    """Та же сводка, что приходит по понедельникам, но прямо сейчас."""
+    async with get_sessionmaker()() as session:
+        text = await digest_text(session, datetime.now(UTC), get_settings().admin_telegram_ids)
+    await message.answer(text)
 
 
 @router.message(Command("trainers"))

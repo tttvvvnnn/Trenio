@@ -67,6 +67,7 @@ async def clean_db(migrated_db: None) -> None:
     # CASCADE чистит и всё, что ссылается на users: тренеров, приглашения
     async with get_engine().begin() as conn:
         await conn.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
+        await conn.execute(text("TRUNCATE app_settings"))
 
 
 @pytest.fixture
