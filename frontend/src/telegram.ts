@@ -16,6 +16,7 @@ import {
   mountMiniAppSync,
   mountSwipeBehavior,
   mountThemeParamsSync,
+  openLink,
   openTelegramLink,
   popup,
   retrieveRawInitData,
@@ -189,6 +190,19 @@ export function shareLink(url: string, text: string): void {
 export function openTelegram(url: string): void {
   if (openTelegramLink.isAvailable()) {
     openTelegramLink(url)
+    return
+  }
+  window.open(url, '_blank')
+}
+
+/** Открыть ссылку: t.me — внутри Telegram, сайт — во встроенном браузере Telegram. */
+export function openUrl(url: string): void {
+  if (/^https:\/\/t\.me\//.test(url)) {
+    openTelegram(url)
+    return
+  }
+  if (openLink.isAvailable()) {
+    openLink(url)
     return
   }
   window.open(url, '_blank')

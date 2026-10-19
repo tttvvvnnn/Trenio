@@ -114,6 +114,37 @@ class UserActivityDay(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
 
 
+class AppSetting(Base):
+    """Настройки, которые админ меняет в админ-панели без деплоя. Значение — JSON."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PromoView(Base):
+    """Что человек сделал с промо-предложением: для счётчиков в админке
+    и чтобы карточка на главном экране больше не появлялась после закрытия."""
+
+    __tablename__ = "promo_views"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Карточку впервые показали на главном экране
+    shown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Закрыл карточку крестиком
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Открыл экран с промокодом
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Нажал кнопку перехода в бота
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ClientError(Base):
     """Ошибка из Mini App: для ленты и строки «Состояние» в админке. Хранится 90 дней."""
 

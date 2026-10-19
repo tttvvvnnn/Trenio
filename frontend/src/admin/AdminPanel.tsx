@@ -28,6 +28,7 @@ import { confirmAction, haptic, openTelegram, shareLink } from '../telegram'
 import { TrainerAvatar } from '../ui/Avatar'
 import { AddRow, ErrorText, Row, Section, SkeletonList } from '../ui/kit'
 import Screen from '../ui/Screen'
+import AdminPromo from './AdminPromo'
 
 // Даты в админке по Москве, как в боте
 const TIMEZONE = 'Europe/Moscow'
@@ -62,6 +63,7 @@ export default function AdminPanel({ onBack }: Props) {
   const [invite, setInvite] = useState<{ url: string; expires_at: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reloads, setReloads] = useState(0)
+  const [promo, setPromo] = useState(false)
   const [allFeed, setAllFeed] = useState(false)
   const [allNumbers, setAllNumbers] = useState(false)
 
@@ -234,6 +236,13 @@ export default function AdminPanel({ onBack }: Props) {
           </Section>
           <Section>
             <Row
+              title="Промо от автора"
+              subtitle="Карточка с промокодом у тренеров и клиентов"
+              icon={{ name: 'ticket', color: 'var(--c-violet)' }}
+              chevron
+              onClick={() => setPromo(true)}
+            />
+            <Row
               title="Все цифры"
               subtitle="Пользователи, клиенты, деньги платформы, воронка"
               chevron={!allNumbers}
@@ -243,6 +252,7 @@ export default function AdminPanel({ onBack }: Props) {
           {allNumbers && <AllNumbers overview={overview} />}
         </>
       )}
+      {promo && <AdminPromo onBack={() => setPromo(false)} />}
       {opened && (
         <TrainerScreen
           trainer={opened}

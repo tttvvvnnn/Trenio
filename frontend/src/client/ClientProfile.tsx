@@ -9,6 +9,7 @@ import {
   type ClientTrainer,
   type Me,
   type MyName,
+  type Promo,
 } from '../api'
 import { fullName } from '../format'
 import { confirmAction, haptic } from '../telegram'
@@ -16,6 +17,7 @@ import { TrainerAvatar } from '../ui/Avatar'
 import { ErrorText, InlineField, Row, Section, SkeletonList } from '../ui/kit'
 import MyPhoto from '../ui/MyPhoto'
 import { PrivacySection } from '../ui/Privacy'
+import { PromoSection } from '../ui/Promo'
 import ReminderSettings from '../ui/ReminderSettings'
 import { RulesScreen } from '../ui/Rules'
 import { TourRow } from '../ui/Tour'
@@ -26,10 +28,17 @@ type Props = {
   onSwitchToTrainer?: () => void
   // Запустить вводный тур заново
   onStartTour?: () => void
+  // Предложение от автора внизу Профиля; null — выключено
+  promo?: Promo | null
 }
 
 /** Профиль клиента: фото и имя, которые видит тренер, тренеры с правилами, напоминания. */
-export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour }: Props) {
+export default function ClientProfile({
+  trainers,
+  onSwitchToTrainer,
+  onStartTour,
+  promo = null,
+}: Props) {
   const [me, setMe] = useState<Me | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -211,6 +220,7 @@ export default function ClientProfile({ trainers, onSwitchToTrainer, onStartTour
         </Section>
       )}
       <PrivacySection trainer={onSwitchToTrainer !== undefined} />
+      <PromoSection promo={promo} />
       {rulesOf && <RulesScreen trainer={rulesOf} onBack={() => setRulesOf(null)} />}
     </>
   )

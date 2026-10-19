@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   errorText,
@@ -10,6 +10,7 @@ import {
 } from '../api'
 import { nextBooking } from '../calendar'
 import { takeLink } from '../deeplink'
+import { usePromo } from '../promo'
 import { dateTime } from '../format'
 import { haptic } from '../telegram'
 import { CLIENT_TOUR, type ClientTab as Tab } from '../tour'
@@ -18,6 +19,7 @@ import { TrainerAvatar } from '../ui/Avatar'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '../ui/kit'
 import { MainButton } from '../ui/native'
 import NextSession from '../ui/NextSession'
+import { PromoCard } from '../ui/Promo'
 import { RulesGate } from '../ui/Rules'
 import Screen from '../ui/Screen'
 import Tour from '../ui/Tour'
@@ -55,6 +57,7 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
   // Ближайшее занятие для карточки наверху вкладки «Запись»
   const [next, setNext] = useState<Booking | null>(null)
   const refreshKey = useRefreshKey()
+  const promo = usePromo()
 
   useEffect(() => {
     fetchMyTrainers()
@@ -116,6 +119,7 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
           trainers={trainers}
           error={error}
           next={next}
+          promo={!touring && <PromoCard promo={promo} />}
           onNext={() => open('sessions')}
           onOpen={setOpened}
           onBooked={onBooked}
@@ -127,6 +131,7 @@ export default function ClientHome({ onSwitchToTrainer, tourDone, onTourDone }: 
           trainers={trainers}
           onSwitchToTrainer={onSwitchToTrainer}
           onStartTour={startTour}
+          promo={promo}
         />
       )}
       {opened && (
@@ -188,12 +193,14 @@ type BookTabProps = {
   trainers: ClientTrainer[] | null
   error: string | null
   next: Booking | null
+  // Карточка предложения от автора под ближайшим занятием
+  promo: ReactNode
   onNext: () => void
   onOpen: (trainer: ClientTrainer) => void
   onBooked: (booking: Booking) => void
 }
 
-function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabProps) {
+function BookTab({ trainers, error, next, promo, onNext, onOpen, onBooked }: BookTabProps) {
   const nextCard = next && (
     <NextSession
       booking={next}
@@ -232,6 +239,7 @@ function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabPro
           brand
         />
         {nextCard}
+        {promo}
         <BookTrainer trainer={trainer} onBooked={onBooked} />
       </>
     )
@@ -240,6 +248,7 @@ function BookTab({ trainers, error, next, onNext, onOpen, onBooked }: BookTabPro
     <>
       <PageHeader title="Запись" subtitle="Выберите тренера." brand />
       {nextCard}
+      {promo}
       <Section>
         {trainers.map((trainer) => (
           <Row

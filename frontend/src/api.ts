@@ -1167,3 +1167,46 @@ export async function reportClientError(report: ClientErrorReport): Promise<void
   if (!accessToken) return
   await rawRequest<void>('/api/client-errors', { method: 'POST', body: JSON.stringify(report) })
 }
+
+// --- Промо от автора Trenio ---
+
+export type Promo = {
+  title: string
+  subtitle: string
+  text: string
+  code: string
+  url: string
+  button: string
+  // Показать карточку на главном экране; строка в Профиле есть, пока промо включено
+  card: boolean
+}
+
+export type PromoEvent = 'shown' | 'dismissed' | 'claimed' | 'opened'
+
+export type PromoSettings = Omit<Promo, 'card'> & {
+  enabled: boolean
+  // Через сколько дней после первого входа показать карточку
+  delay_days: number
+}
+
+export type AdminPromo = {
+  settings: PromoSettings
+  stats: Record<PromoEvent, number>
+}
+
+// null — промо выключено
+export function fetchPromo(): Promise<Promo | null> {
+  return request<Promo | null>('/api/me/promo')
+}
+
+export function sendPromoEvent(event: PromoEvent): Promise<void> {
+  return send<void>('POST', `/api/me/promo/${event}`)
+}
+
+export function fetchAdminPromo(): Promise<AdminPromo> {
+  return request<AdminPromo>('/api/admin/promo')
+}
+
+export function saveAdminPromo(settings: PromoSettings): Promise<AdminPromo> {
+  return send<AdminPromo>('PUT', '/api/admin/promo', settings)
+}
