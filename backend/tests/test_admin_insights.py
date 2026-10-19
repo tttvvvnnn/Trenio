@@ -123,3 +123,33 @@ async def test_quiet_and_unmarked(client: AsyncClient, session: AsyncSession) ->
 async def test_insights_admin_only(client: AsyncClient, session: AsyncSession) -> None:
     other = await second_trainer(client, session)
     assert (await client.get("/api/admin/insights", headers=other)).status_code == 403
+
+
+def test_plural() -> None:
+    from trenio.services.admin_digest import plural
+
+    assert plural(1, "день", "дня", "дней") == "1 день"
+    assert plural(3, "день", "дня", "дней") == "3 дня"
+    assert plural(11, "день", "дня", "дней") == "11 дней"
+    assert plural(22, "день", "дня", "дней") == "22 дня"
+
+
+async def test_digest(client: AsyncClient, session: AsyncSession) -> None:
+    from trenio.services.admin_digest import digest_text
+
+    _, trainer_id, service_id = await setup_trainer(client)
+    other = await second_trainer(client, session)
+    other_id = (await client.get("/api/me", headers=other)).json()["trainer"]["id"]
+    anna = await client_id_of(client, await new_client(client, session, trainer_id, 501))
+    now = datetime.now(UTC).replace(microsecond=0)
+    await booking_at(session, trainer_id, anna, service_id, now - timedelta(days=1))
+    await session.execute(
+        update(Trainer).where(Trainer.id == other_id).values(created_at=now - timedelta(days=5))
+    )
+    await session.commit()
+
+    text = await digest_text(session, datetime.now(UTC), frozenset({1001}))
+    assert "Живые тренеры: 1 (+1 к прошлой неделе)" in text
+    assert "Занятий: 1 (+1 к прошлой неделе)" in text
+    assert "Записались сами: 100%" in text
+    assert "• Иван @ivan: не настроил услуги и часы, 5 дней" in text
