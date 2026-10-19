@@ -39,6 +39,11 @@ function stateHint(sub: Sub, timezone: string): { tone: string; text: string } |
             tone: 'alert',
             text: `Бесплатный тариф: у вас ${plural(sub.clients, 'клиент', 'клиента', 'клиентов')}, это лимит. Записи и блоки работают как раньше, но новых клиентов не добавить.`,
           }
+    case 'admin':
+      return {
+        tone: 'done',
+        text: 'Вы админ: Pro всегда и без оплаты. Тарифы ниже работают как у тренеров, ими можно проверить оплату.',
+      }
     default:
       return null
   }
@@ -171,7 +176,7 @@ export default function Subscription({ timezone, onBack }: Props) {
           />
         </Section>
       )}
-      {sub && sub.state !== 'admin' && (
+      {sub && (
         <>
           <Section title="Тарифы">
             <Row

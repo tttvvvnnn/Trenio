@@ -71,6 +71,6 @@ export function subscriptionLine(
         subtitle: `${sub.clients} из ${plural(sub.client_limit ?? 0, 'клиента', 'клиентов', 'клиентов')}`,
       }
     default:
-      return { title: 'Pro', subtitle: 'Без ограничений' }
+      return { title: 'Pro', subtitle: 'Всегда, вы админ' }
   }
 }
