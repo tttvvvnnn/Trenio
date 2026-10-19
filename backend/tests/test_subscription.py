@@ -46,7 +46,6 @@ async def test_new_trainer_gets_trial(client: AsyncClient, session: AsyncSession
     assert timedelta(days=29) < left <= timedelta(days=30)
     assert sub["plans"] == [
         {"key": "month", "days": 30, "price": 349, "balance_used": 0, "amount": 349},
-        {"key": "year", "days": 365, "price": 2990, "balance_used": 0, "amount": 2990},
     ]
     # Админ всегда на Pro
     assert (await get_sub(client, await auth(client)))["state"] == "admin"
