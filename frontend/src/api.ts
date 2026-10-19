@@ -1016,6 +1016,57 @@ export type AdminTrainer = {
   // За 14 дней: записей поставил сам, занятий отметил
   bookings_created: number
   marks: number
+  // Первые шаги; null — шага ещё не было
+  journey: {
+    onboarded_at: string | null
+    first_client_at: string | null
+    first_client_booking_at: string | null
+    first_package_at: string | null
+  }
+}
+
+export type AdminAttentionReason = 'not_set_up' | 'no_clients' | 'quiet' | 'unmarked'
+
+export type AdminFeature =
+  | 'packages'
+  | 'self_booking'
+  | 'reschedule'
+  | 'notes'
+  | 'measurements'
+  | 'rules'
+
+export type AdminInsights = {
+  // По окнам в 7 дней, от старого к последнему, которое кончается сейчас
+  pulse: {
+    live_trainers: number[]
+    sessions: number[]
+    // Процент записей, которые клиенты сделали сами; null — записей не было
+    self_booked: (number | null)[]
+  }
+  // count — сколько дней, для unmarked — сколько занятий без отметки
+  attention: { trainer_id: number; reason: AdminAttentionReason; count: number }[]
+  feed: {
+    at: string
+    kind: 'joined' | 'first_client' | 'first_client_booking' | 'first_package' | 'quiet' | 'error'
+    text: string
+    trainer_id: number | null
+  }[]
+  // Через сколько недель проверяем, жив ли тренер
+  cohort_points: number[]
+  // alive — по точкам из cohort_points; null — ещё рано
+  cohorts: { start: string; trainers: number; alive: (number | null)[] }[]
+  // base — тренеры с занятиями за 30 дней; features — сколько из них пользуются функцией
+  usage: { base: number; features: Record<AdminFeature, number> }
+  health: {
+    version: string
+    errors_day: number
+    notifications_sent_day: number
+    notifications_failed_day: number
+  }
+}
+
+export function fetchAdminInsights(): Promise<AdminInsights> {
+  return request<AdminInsights>('/api/admin/insights')
 }
 
 export function fetchAdminOverview(): Promise<AdminOverview> {
