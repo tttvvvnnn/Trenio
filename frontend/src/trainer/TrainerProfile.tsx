@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, fetchReminders, type Promo, type ReminderPrefs, type Trainer } from '../api'
+import {
+  fetchMe,
+  fetchReminders,
+  fetchSubscription,
+  type Promo,
+  type ReminderPrefs,
+  type Subscription as Sub,
+  type Trainer,
+} from '../api'
 import { timezoneOptions } from '../format'
 import { useRefreshKey } from '../sync'
 import { homeScreen } from '../telegram'
@@ -10,12 +18,13 @@ import { Row, Section } from '../ui/kit'
 import { AccountDataScreen } from '../ui/Privacy'
 import { PromoSection } from '../ui/Promo'
 import ReminderSettings from '../ui/ReminderSettings'
-import { bookingSettingsLine, reminderLine } from '../settings'
+import { bookingSettingsLine, reminderLine, subscriptionLine } from '../settings'
 import Screen from '../ui/Screen'
 import BookingSettings from './BookingSettings'
 import InviteTrainer from './InviteTrainer'
 import ProfileForm from './ProfileForm'
 import RulesEditor from './RulesEditor'
+import Subscription from './Subscription'
 
 type Props = {
   trainer: Trainer
@@ -30,11 +39,19 @@ type Props = {
   onStartTour: () => void
   // Предложение от автора внизу Профиля; null — выключено
   promo: Promo | null
-  // Открыли кнопкой из уведомления «по вашей ссылке пришёл тренер»
-  openInvite?: boolean
+  // Открыли кнопкой из уведомления: сразу на приглашения тренеров или подписку
+  initialOpened?: 'invite' | 'subscription'
 }
 
-type Opened = 'edit' | 'booking' | 'rules' | 'reminders' | 'invite' | 'account' | null
+type Opened =
+  | 'edit'
+  | 'booking'
+  | 'rules'
+  | 'reminders'
+  | 'invite'
+  | 'subscription'
+  | 'account'
+  | null
 
 /** Профиль тренера: кто вы, настройки работы, уведомления и остальное. */
 export default function TrainerProfile({
@@ -45,11 +62,12 @@ export default function TrainerProfile({
   onSwitchToClient,
   onStartTour,
   promo,
-  openInvite = false,
+  initialOpened,
 }: Props) {
-  const [opened, setOpened] = useState<Opened>(openInvite ? 'invite' : null)
+  const [opened, setOpened] = useState<Opened>(initialOpened ?? null)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [reminders, setReminders] = useState<ReminderPrefs | null>(null)
+  const [sub, setSub] = useState<Sub | null>(null)
   const [onHomeScreen, setOnHomeScreen] = useState(true)
   const refreshKey = useRefreshKey()
 
@@ -61,6 +79,9 @@ export default function TrainerProfile({
       .catch(() => {})
     fetchReminders()
       .then((all) => setReminders(all.trainer))
+      .catch(() => {})
+    fetchSubscription()
+      .then(setSub)
       .catch(() => {})
   }, [opened, refreshKey])
 
@@ -88,6 +109,16 @@ export default function TrainerProfile({
           Изменить
         </button>
       </div>
+      {sub && sub.state !== 'admin' && (
+        <Section title="Подписка">
+          <Row
+            {...subscriptionLine(sub, trainer.timezone)}
+            icon={{ name: 'star', color: 'var(--c-warning)' }}
+            chevron
+            onClick={() => setOpened('subscription')}
+          />
+        </Section>
+      )}
       <Section title="Работа">
         <Row
           title="Услуги и блоки"
@@ -188,6 +219,9 @@ export default function TrainerProfile({
         <Screen title="Напоминания" onBack={() => setOpened(null)}>
           <ReminderSettings role="trainer" />
         </Screen>
+      )}
+      {opened === 'subscription' && (
+        <Subscription timezone={trainer.timezone} onBack={() => setOpened(null)} />
       )}
       {opened === 'invite' && (
         <InviteTrainer timezone={trainer.timezone} onBack={() => setOpened(null)} />

@@ -121,7 +121,7 @@ export function parsePrice(price: string): number | null {
 }
 
 export function rubles(amount: number): string {
-  return `${amount.toLocaleString('ru-RU')} ₽`
+  return `${amount.toLocaleString('ru-RU')}\u00a0₽`
 }
 
 function utcNoon(day: string): Date {

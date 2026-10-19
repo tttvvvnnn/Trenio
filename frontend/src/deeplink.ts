@@ -1,6 +1,6 @@
 /*
  * Кнопки в уведомлениях бота открывают Trenio сразу на нужном:
- * ?role=trainer&booking=12, ?role=trainer&client=5, ?role=trainer&tab=referrals,
+ * ?role=trainer&booking=12, ?role=trainer&client=5, ?role=trainer&tab=referrals|subscription,
  * ?role=client&tab=book.
  * Ссылку читаем один раз при запуске и отдаём экрану той роли, для которой она.
  */

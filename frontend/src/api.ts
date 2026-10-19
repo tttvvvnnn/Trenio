@@ -647,6 +647,26 @@ export function fetchReferrals(): Promise<Referrals> {
   return request<Referrals>('/api/trainer/referrals')
 }
 
+export type SubscriptionState = 'admin' | 'pro' | 'trial' | 'free'
+
+export type SubscriptionPlan = { key: 'month' | 'year'; days: number; price: number }
+
+export type Subscription = {
+  state: SubscriptionState
+  // Когда закончится Pro или пробный период
+  until: string | null
+  clients: number
+  // Сколько клиентов можно на текущем тарифе; null — без ограничений
+  client_limit: number | null
+  can_add_client: boolean
+  free_client_limit: number
+  plans: SubscriptionPlan[]
+}
+
+export function fetchSubscription(): Promise<Subscription> {
+  return request<Subscription>('/api/trainer/subscription')
+}
+
 export type ClientName = {
   first_name: string
   last_name: string | null

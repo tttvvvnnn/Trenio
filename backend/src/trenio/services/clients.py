@@ -6,7 +6,7 @@
 
 import secrets
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import and_, delete, exists, select, update
@@ -25,7 +25,8 @@ from trenio.db.models import (
     TrainerClient,
     User,
 )
-from trenio.services import notifications
+from trenio.delivery.kick import kick
+from trenio.services import notifications, subscription
 
 # Префикс параметра /start в ссылке тренера для клиентов: t.me/бот?start=c_<код>
 CLIENT_INVITE_PREFIX = "c_"
@@ -61,6 +62,21 @@ async def link_client(session: AsyncSession, user: User, invite_code: str) -> Tr
         raise LinkRejected(LinkError.NOT_FOUND)
     if trainer.user_id == user.id:
         raise LinkRejected(LinkError.OWN_LINK)
+    linked = await session.scalar(
+        select(TrainerClient.id).where(
+            TrainerClient.trainer_id == trainer.id, TrainerClient.user_id == user.id
+        )
+    )
+    if linked is None:
+        now = datetime.now(UTC)
+        try:
+            await subscription.ensure_client_slot(session, trainer, now)
+        except subscription.ClientLimitReached:
+            # Тренер узнает, что клиент не смог присоединиться, и сможет оформить Pro
+            await notifications.client_limit(session, trainer, user, now)
+            await session.commit()
+            kick()
+            raise
     await session.execute(
         insert(TrainerClient)
         .values(trainer_id=trainer.id, user_id=user.id)
@@ -97,6 +113,7 @@ async def create_offline_client(
     notes: str | None,
 ) -> TrainerClient:
     """Клиент, который не пользуется ботом: тренер записывает его и ведёт блоки сам."""
+    await subscription.ensure_client_slot(session, trainer, datetime.now(UTC))
     user = User(
         first_name=first_name,
         last_name=last_name,

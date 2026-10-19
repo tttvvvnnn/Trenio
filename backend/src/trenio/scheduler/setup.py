@@ -9,6 +9,7 @@ from trenio.delivery.channel import TelegramChannel
 from trenio.delivery.sender import Sender
 from trenio.services.admin_digest import digest_text
 from trenio.services.packages import schedule_expiry_alerts
+from trenio.services.subscription import schedule_ending_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,14 @@ async def send_admin_digest() -> None:
         logger.exception("Admin digest failed")
 
 
+async def plan_subscription_alerts() -> None:
+    try:
+        async with get_sessionmaker()() as session:
+            await schedule_ending_alerts(session, datetime.now(UTC))
+    except Exception:
+        logger.exception("Subscription alerts planning failed")
+
+
 def create_scheduler() -> tuple[AsyncIOScheduler, Sender]:
     """Планировщик с отправкой уведомлений раз в минуту.
 
@@ -79,6 +88,15 @@ def create_scheduler() -> tuple[AsyncIOScheduler, Sender]:
         hour=9,
         timezone="Europe/Moscow",
         id="send_admin_digest",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        plan_subscription_alerts,
+        "interval",
+        seconds=EXPIRY_INTERVAL_SECONDS,
+        id="plan_subscription_alerts",
+        next_run_time=datetime.now(UTC),
         max_instances=1,
         coalesce=True,
     )

@@ -1,4 +1,5 @@
-import type { ReminderPrefs, ReminderRole, Trainer } from './api'
+import type { ReminderPrefs, ReminderRole, Subscription, Trainer } from './api'
+import { localDate, longDate, plural } from './format'
 
 // Варианты настроек и их запись одной строкой для Профиля
 
@@ -44,4 +45,32 @@ export function reminderLine(prefs: ReminderPrefs, role: ReminderRole): string {
   const parts = [prefs.enabled && offsets.length > 0 ? offsets.join(', ') : 'напоминания выкл.']
   if (role === 'trainer' && prefs.attendance_prompt) parts.push('спрашивать про посещение')
   return parts.join(' · ')
+}
+
+// «до 18 ноября 2026»
+export function untilText(until: string | null, timezone: string): string {
+  return until ? `до ${longDate(localDate(until, timezone))}` : ''
+}
+
+/** Строка в Профиле: какой тариф и до какого числа. */
+export function subscriptionLine(
+  sub: Subscription,
+  timezone: string,
+): { title: string; subtitle: string } {
+  switch (sub.state) {
+    case 'pro':
+      return { title: 'Pro', subtitle: untilText(sub.until, timezone) }
+    case 'trial':
+      return {
+        title: 'Пробный период',
+        subtitle: `Всё без ограничений ${untilText(sub.until, timezone)}`,
+      }
+    case 'free':
+      return {
+        title: 'Бесплатный тариф',
+        subtitle: `${sub.clients} из ${plural(sub.client_limit ?? 0, 'клиента', 'клиентов', 'клиентов')}`,
+      }
+    default:
+      return { title: 'Pro', subtitle: 'Без ограничений' }
+  }
 }

@@ -15,6 +15,7 @@ from trenio.db.models import Booking, TrainerClient, User
 from trenio.services import avatars, bookings, clients, packages, progress
 from trenio.services.bookings import Actor, BookingError, BookingRejected, BookingStatus
 from trenio.services.clients import LinkError, LinkRejected, client_invite_link, list_clients
+from trenio.services.subscription import FREE_CLIENT_LIMIT, ClientLimitReached
 from trenio.services.users import get_user
 
 router = APIRouter(prefix="/trainer", tags=["bookings"])
@@ -522,6 +523,12 @@ def _clean(value: str | None) -> str | None:
     return value.strip() or None if value else None
 
 
+CLIENT_LIMIT_DETAIL = (
+    f"На бесплатном тарифе можно вести до {FREE_CLIENT_LIMIT} клиентов. "
+    "Оформите Pro в Профиле, чтобы добавлять новых."
+)
+
+
 @router.post("/clients", status_code=status.HTTP_201_CREATED)
 async def create_client(
     body: NewClientIn, trainer: CurrentTrainer, session: SessionDep
@@ -530,9 +537,12 @@ async def create_client(
     first_name = body.first_name.strip()
     if not first_name:
         raise HTTPException(422, "Укажите имя")
-    link = await clients.create_offline_client(
-        session, trainer, first_name, _clean(body.last_name), _clean(body.notes)
-    )
+    try:
+        link = await clients.create_offline_client(
+            session, trainer, first_name, _clean(body.last_name), _clean(body.notes)
+        )
+    except ClientLimitReached:
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, CLIENT_LIMIT_DETAIL) from None
     return ClientOut.of_link(link)
 
 

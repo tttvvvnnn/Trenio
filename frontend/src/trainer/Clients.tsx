@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 
-import { errorText, fetchClients, fetchInviteLink, type Client } from '../api'
-import { fullName, rubles } from '../format'
+import {
+  errorText,
+  fetchClients,
+  fetchInviteLink,
+  fetchSubscription,
+  type Client,
+  type Subscription as Sub,
+} from '../api'
+import { fullName, plural, rubles } from '../format'
 import { useRefreshKey } from '../sync'
 import { haptic, shareLink } from '../telegram'
 import { PersonAvatar } from '../ui/Avatar'
@@ -9,6 +16,7 @@ import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from '.
 import Screen from '../ui/Screen'
 import ClientCard from './ClientCard'
 import ClientForm from './ClientForm'
+import Subscription from './Subscription'
 
 const SHARE_TEXT = 'Записывайтесь ко мне на тренировки в Trenio'
 
@@ -78,6 +86,9 @@ export default function Clients({ timezone }: Props) {
   const [inviting, setInviting] = useState(false)
   const [adding, setAdding] = useState(false)
   const [link, setLink] = useState<string | null>(null)
+  // Тариф: на бесплатном после лимита вместо приглашения предлагаем Pro
+  const [sub, setSub] = useState<Sub | null>(null)
+  const [upgrading, setUpgrading] = useState(false)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +98,9 @@ export default function Clients({ timezone }: Props) {
     fetchClients()
       .then(setClients)
       .catch((err: unknown) => setError(errorText(err)))
+    fetchSubscription()
+      .then(setSub)
+      .catch(() => {})
   }
 
   useEffect(() => {
@@ -96,7 +110,13 @@ export default function Clients({ timezone }: Props) {
         setLink(loadedLink)
       })
       .catch((err: unknown) => setError(errorText(err)))
+    fetchSubscription()
+      .then(setSub)
+      .catch(() => {})
   }, [refreshKey])
+
+  // Нет подписки — не ограничиваем: сервер всё равно не пустит сверх лимита
+  const limited = sub !== null && !sub.can_add_client
 
   const empty = clients !== null && clients.length === 0
   const counts = new Map(
@@ -136,7 +156,13 @@ export default function Clients({ timezone }: Props) {
             title="Пока нет клиентов"
             text="Отправьте ссылку, и клиенты появятся здесь после первого перехода. Клиента без Telegram добавьте сами."
           />
-          <InviteRows link={link} tourId="invite-link" onAdd={() => setAdding(true)} />
+          <InviteRows
+            link={link}
+            tourId="invite-link"
+            limit={limited ? sub : null}
+            onAdd={() => setAdding(true)}
+            onUpgrade={() => setUpgrading(true)}
+          />
         </>
       )}
       {clients !== null && !empty && (
@@ -190,7 +216,12 @@ export default function Clients({ timezone }: Props) {
       )}
       {inviting && (
         <Screen title="Пригласить клиента" onBack={() => setInviting(false)}>
-          <InviteRows link={link} onAdd={() => setAdding(true)} />
+          <InviteRows
+            link={link}
+            limit={limited ? sub : null}
+            onAdd={() => setAdding(true)}
+            onUpgrade={() => setUpgrading(true)}
+          />
         </Screen>
       )}
       {adding && (
@@ -204,6 +235,7 @@ export default function Clients({ timezone }: Props) {
           }}
         />
       )}
+      {upgrading && <Subscription timezone={timezone} onBack={() => setUpgrading(false)} />}
       {opened && (
         <ClientCard
           client={opened}
@@ -219,11 +251,14 @@ export default function Clients({ timezone }: Props) {
 type InviteProps = {
   link: string | null
   tourId?: string
+  // Бесплатный тариф и лимит исчерпан: вместо приглашения предлагаем Pro
+  limit: Sub | null
   onAdd: () => void
+  onUpgrade: () => void
 }
 
 /** Ссылка тренера и клиент без Telegram: на экране «Пригласить» и в пустом списке. */
-function InviteRows({ link, tourId, onAdd }: InviteProps) {
+function InviteRows({ link, tourId, limit, onAdd, onUpgrade }: InviteProps) {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -237,6 +272,26 @@ function InviteRows({ link, tourId, onAdd }: InviteProps) {
       haptic.error()
       setError('Не удалось скопировать. Ссылка: ' + link)
     }
+  }
+
+  if (limit) {
+    return (
+      <Section
+        tourId={tourId}
+        footer={`На бесплатном тарифе можно вести до ${plural(limit.free_client_limit, 'клиента', 'клиентов', 'клиентов')}. Уже добавленные клиенты, записи и блоки работают как раньше.`}
+      >
+        <Row
+          title="Оформить Pro"
+          subtitle="Чтобы добавлять новых клиентов"
+          icon={{ name: 'star', color: 'var(--c-warning)' }}
+          chevron
+          onClick={() => {
+            haptic.tap()
+            onUpgrade()
+          }}
+        />
+      </Section>
+    )
   }
 
   return (

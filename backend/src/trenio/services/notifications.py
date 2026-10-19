@@ -42,6 +42,11 @@ class Kind(StrEnum):
     PACKAGE_EXPIRING = "package_expiring"
     # Тренеру: по его личной ссылке пришёл новый тренер, payload: trainer_id
     TRAINER_JOINED = "trainer_joined"
+    # Тренеру: Pro или пробный период скоро закончится или закончился.
+    # payload: until (момент окончания, ISO) и days (за сколько дней предупреждаем)
+    SUBSCRIPTION_ENDING = "subscription_ending"
+    # Тренеру: на бесплатном тарифе к нему не смог присоединиться клиент, payload: user_id
+    CLIENT_LIMIT = "client_limit"
 
 
 # Уведомления о будущем занятии: при отмене записи они больше не нужны
@@ -336,6 +341,30 @@ async def trainer_joined(
         dedup_key=f"{Kind.TRAINER_JOINED.value}:{joined.id}",
         send_at=now,
         payload={"trainer_id": joined.id},
+    )
+
+
+async def subscription_ending(
+    session: AsyncSession, trainer: Trainer, until: datetime, before: timedelta, at: datetime
+) -> None:
+    await _enqueue(
+        session,
+        user_id=trainer.user_id,
+        kind=Kind.SUBSCRIPTION_ENDING,
+        dedup_key=f"{Kind.SUBSCRIPTION_ENDING.value}:{trainer.id}:{until.timestamp():.0f}:{before.days}",
+        send_at=at,
+        payload={"until": until.isoformat(), "days": before.days},
+    )
+
+
+async def client_limit(session: AsyncSession, trainer: Trainer, user: User, now: datetime) -> None:
+    await _enqueue(
+        session,
+        user_id=trainer.user_id,
+        kind=Kind.CLIENT_LIMIT,
+        dedup_key=f"{Kind.CLIENT_LIMIT.value}:{trainer.id}:{user.id}",
+        send_at=now,
+        payload={"user_id": user.id},
     )
 
 

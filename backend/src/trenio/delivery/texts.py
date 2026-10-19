@@ -23,6 +23,7 @@ from trenio.db.models import (
     User,
 )
 from trenio.delivery.channel import Button, OutMessage
+from trenio.services import subscription
 from trenio.services.bookings import client_can_cancel
 from trenio.services.notifications import Kind, Role, Status
 from trenio.services.packages import due, left
@@ -322,10 +323,70 @@ async def _trainer_joined(session: AsyncSession, row: Notification) -> OutMessag
     )
 
 
+def open_subscription(text: str = "Оформить Pro") -> list[list[Button]]:
+    return open_app(text, role=Role.TRAINER.value, tab="subscription")
+
+
+async def _subscription_ending(
+    session: AsyncSession, row: Notification, now: datetime
+) -> OutMessage | None:
+    trainer = await session.scalar(select(Trainer).where(Trainer.user_id == row.user_id))
+    # Тренер успел продлить Pro или его отключили: предупреждение уже неверно
+    if (
+        trainer is None
+        or not trainer.is_active
+        or subscription.is_admin_trainer(trainer)
+        or (until := subscription.ends_at(trainer)) is None
+        or until.isoformat() != row.payload["until"]
+    ):
+        return None
+    paid = trainer.pro_until is not None and trainer.pro_until >= until
+    what = "Подписка Pro" if paid else "Пробный период Trenio"
+    clients = await subscription.count_clients(session, trainer)
+    limit = subscription.FREE_CLIENT_LIMIT
+    price = rubles(subscription.PLANS["month"].price)
+    if row.payload["days"] and until <= now:
+        # Предупреждение опоздало: об окончании скажет следующее
+        return None
+    if row.payload["days"] == 0:
+        head = f"⏳ {what} " + ("закончилась" if paid else "закончился")
+        body = (
+            "Всё, что уже есть, работает как раньше. "
+            f"Но на бесплатном тарифе новых клиентов сверх {limit} не добавить"
+        )
+        tail = f"Pro без ограничений — {price} в месяц"
+    else:
+        day = until.astimezone(ZoneInfo(trainer.timezone)).date()
+        days = (day - now.astimezone(ZoneInfo(trainer.timezone)).date()).days
+        head = f"⏳ {what} закончится {in_days(max(days, 1))}, {day_month(day)}"
+        body = f"Потом на бесплатном тарифе можно вести до {limit} клиентов, сейчас у вас {clients}"
+        tail = f"Продлить Pro — {price} в месяц" if paid else f"Pro — {price} в месяц"
+    return OutMessage(_lines(head, body, tail), open_subscription())
+
+
+async def _client_limit(session: AsyncSession, row: Notification) -> OutMessage | None:
+    client = await session.get(User, row.payload["user_id"])
+    if client is None:
+        return None
+    limit = subscription.FREE_CLIENT_LIMIT
+    return OutMessage(
+        _lines(
+            f"🔒 {person(client)} хотел(а) стать вашим клиентом, но не смог(ла)",
+            f"На бесплатном тарифе можно вести до {limit} клиентов. С Pro ограничений нет",
+            "Когда оформите Pro, отправьте клиенту ссылку ещё раз",
+        ),
+        open_subscription(),
+    )
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
     if kind is Kind.TRAINER_JOINED:
         return await _trainer_joined(session, row)
+    if kind is Kind.SUBSCRIPTION_ENDING:
+        return await _subscription_ending(session, row, now)
+    if kind is Kind.CLIENT_LIMIT:
+        return await _client_limit(session, row)
     if kind is Kind.PACKAGE_LEFT:
         return await _package_left(session, row)
     if kind is Kind.PACKAGE_EXPIRING:
