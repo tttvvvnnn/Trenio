@@ -1639,7 +1639,7 @@ wheels = [
 
 [[package]]
 name = "trenio"
-version = "0.12.0"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
