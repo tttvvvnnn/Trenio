@@ -109,7 +109,7 @@ export default function TrainerProfile({
           Изменить
         </button>
       </div>
-      {sub && sub.state !== 'admin' && (
+      {sub && (
         <Section title="Подписка">
           <Row
             {...subscriptionLine(sub, trainer.timezone)}
