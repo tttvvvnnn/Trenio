@@ -5,8 +5,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from trenio.api.deps import CurrentTrainer, SessionDep
+from trenio.bot.setup import get_bot_username
 from trenio.db.models import Trainer
-from trenio.services.trainers import InvalidTimezone, TrainerProfileUpdate, update_profile
+from trenio.services import avatars
+from trenio.services.trainers import (
+    InvalidTimezone,
+    TrainerProfileUpdate,
+    list_referrals,
+    referral_link,
+    update_profile,
+)
 
 router = APIRouter(prefix="/trainer", tags=["trainer"])
 
@@ -72,3 +80,34 @@ async def patch_profile(
         # 422, как и для остальных ошибок валидации тела запроса
         raise HTTPException(422, "Неизвестный часовой пояс") from None
     return TrainerOut.of(trainer)
+
+
+class ReferralOut(BaseModel):
+    id: int
+    display_name: str
+    avatar_url: str | None
+    joined_at: datetime
+
+
+class ReferralsOut(BaseModel):
+    # Личная ссылка для коллег: многоразовая и бессрочная
+    url: str
+    trainers: list[ReferralOut]
+
+
+@router.get("/referrals")
+async def get_referrals(trainer: CurrentTrainer, session: SessionDep) -> ReferralsOut:
+    """Ссылка «Пригласить тренера» и кто по ней пришёл."""
+    invited = await list_referrals(session, trainer)
+    return ReferralsOut(
+        url=referral_link(await get_bot_username(), trainer),
+        trainers=[
+            ReferralOut(
+                id=t.id,
+                display_name=t.display_name,
+                avatar_url=avatars.avatar_url(t.user),
+                joined_at=t.created_at,
+            )
+            for t in invited
+        ],
+    )

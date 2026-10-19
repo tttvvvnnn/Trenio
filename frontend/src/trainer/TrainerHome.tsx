@@ -47,7 +47,9 @@ export default function TrainerHome({
 }: Props) {
   // Открыли кнопкой из уведомления: сразу на нужную запись или клиента
   const [link] = useState(() => takeLink('trainer'))
-  const [tab, setTab] = useState<Tab>(link?.client !== undefined ? 'clients' : 'calendar')
+  const [tab, setTab] = useState<Tab>(
+    link?.client !== undefined ? 'clients' : link?.tab === 'referrals' ? 'profile' : 'calendar',
+  )
   // Тур не перекрывает то, ради чего открыли приложение: покажем при следующем входе
   const [touring, setTouring] = useState(!tourDone && link === null)
   // Услуги и шаблоны блоков открываются из Профиля
@@ -93,6 +95,7 @@ export default function TrainerHome({
           onOpenAdmin={isAdmin ? () => setAdmin(true) : undefined}
           onSwitchToClient={onSwitchToClient}
           onStartTour={startTour}
+          openInvite={link?.tab === 'referrals'}
         />
       )}
       {tab === 'profile' && services && (

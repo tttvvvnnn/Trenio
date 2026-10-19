@@ -20,10 +20,12 @@ from trenio.services.clients import (
     list_my_trainers,
 )
 from trenio.services.trainers import (
+    REFERRAL_PREFIX,
     TRAINER_INVITE_PREFIX,
     InviteError,
     InviteRejected,
     accept_invite,
+    accept_referral,
     ensure_admin_is_trainer,
 )
 from trenio.services.users import upsert_telegram_user
@@ -34,6 +36,12 @@ INVITE_ERROR_TEXT = {
     InviteError.NOT_FOUND: "Ссылка-приглашение не найдена. Попросите новую.",
     InviteError.EXPIRED: "Срок действия ссылки истёк. Попросите новую.",
     InviteError.USED: "По этой ссылке уже зарегистрировался другой тренер. Попросите новую.",
+    InviteError.DISABLED: "Ваш доступ тренера отключён. Напишите администратору Trenio.",
+}
+
+REFERRAL_ERROR_TEXT = {
+    **INVITE_ERROR_TEXT,
+    InviteError.NOT_FOUND: "Ссылка-приглашение не найдена или больше не действует.",
 }
 
 LINK_ERROR_TEXT = {
@@ -144,6 +152,11 @@ async def on_start(message: Message, command: CommandObject) -> None:
                 await accept_invite(session, user, payload.removeprefix(TRAINER_INVITE_PREFIX))
             except InviteRejected as rejected:
                 await message.answer(INVITE_ERROR_TEXT[rejected.reason])
+        elif payload.startswith(REFERRAL_PREFIX):
+            try:
+                await accept_referral(session, user, payload.removeprefix(REFERRAL_PREFIX))
+            except InviteRejected as rejected:
+                await message.answer(REFERRAL_ERROR_TEXT[rejected.reason])
         trainer = await ensure_admin_is_trainer(session, user, settings.admin_telegram_ids)
         has_trainers = bool(await list_my_trainers(session, user))
 

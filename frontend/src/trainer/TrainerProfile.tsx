@@ -12,6 +12,7 @@ import ReminderSettings from '../ui/ReminderSettings'
 import { bookingSettingsLine, reminderLine } from '../settings'
 import Screen from '../ui/Screen'
 import BookingSettings from './BookingSettings'
+import InviteTrainer from './InviteTrainer'
 import ProfileForm from './ProfileForm'
 import RulesEditor from './RulesEditor'
 
@@ -26,9 +27,11 @@ type Props = {
   onSwitchToClient?: () => void
   // Запустить вводный тур заново
   onStartTour: () => void
+  // Открыли кнопкой из уведомления «по вашей ссылке пришёл тренер»
+  openInvite?: boolean
 }
 
-type Opened = 'edit' | 'booking' | 'rules' | 'reminders' | 'account' | null
+type Opened = 'edit' | 'booking' | 'rules' | 'reminders' | 'invite' | 'account' | null
 
 /** Профиль тренера: кто вы, настройки работы, уведомления и остальное. */
 export default function TrainerProfile({
@@ -38,8 +41,9 @@ export default function TrainerProfile({
   onOpenAdmin,
   onSwitchToClient,
   onStartTour,
+  openInvite = false,
 }: Props) {
-  const [opened, setOpened] = useState<Opened>(null)
+  const [opened, setOpened] = useState<Opened>(openInvite ? 'invite' : null)
   const [avatar, setAvatar] = useState<string | null>(null)
   const [reminders, setReminders] = useState<ReminderPrefs | null>(null)
   const [onHomeScreen, setOnHomeScreen] = useState(true)
@@ -113,6 +117,13 @@ export default function TrainerProfile({
         />
       </Section>
       <Section title="Ещё">
+        <Row
+          title="Пригласить тренера"
+          subtitle="Личная ссылка для коллег"
+          icon={{ name: 'share', color: 'var(--c-violet)' }}
+          chevron
+          onClick={() => setOpened('invite')}
+        />
         {!onHomeScreen && (
           <Row
             title="Trenio на экране телефона"
@@ -172,6 +183,9 @@ export default function TrainerProfile({
         <Screen title="Напоминания" onBack={() => setOpened(null)}>
           <ReminderSettings role="trainer" />
         </Screen>
+      )}
+      {opened === 'invite' && (
+        <InviteTrainer timezone={trainer.timezone} onBack={() => setOpened(null)} />
       )}
       {opened === 'account' && <AccountDataScreen trainer onBack={() => setOpened(null)} />}
     </>

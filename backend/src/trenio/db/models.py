@@ -152,6 +152,12 @@ class Trainer(TimestampMixin, Base):
     one_off_mode: Mapped[str] = mapped_column(
         String(16), default="allow", server_default=text("'allow'")
     )
+    # Код личной ссылки, по которой тренер приглашает других тренеров: t.me/бот?start=r_<код>
+    referral_code: Mapped[str] = mapped_column(String(32), unique=True)
+    # Тренер, по чьей ссылке пришёл этот; None — пришёл по ссылке админа или сам админ
+    referred_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trainers.id", ondelete="SET NULL"), index=True
+    )
 
     user: Mapped[User] = relationship(lazy="joined", foreign_keys=[user_id])
 

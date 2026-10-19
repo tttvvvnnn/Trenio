@@ -40,6 +40,8 @@ class Kind(StrEnum):
     # Клиенту и тренеру: срок блока скоро кончится, а занятия ещё остались.
     # payload: role, days и valid_until (дата окончания, по которой ставили)
     PACKAGE_EXPIRING = "package_expiring"
+    # Тренеру: по его личной ссылке пришёл новый тренер, payload: trainer_id
+    TRAINER_JOINED = "trainer_joined"
 
 
 # Уведомления о будущем занятии: при отмене записи они больше не нужны
@@ -322,6 +324,19 @@ async def package_expiring(
 
 
 # --- Настройки напоминаний ---
+
+
+async def trainer_joined(
+    session: AsyncSession, inviter: Trainer, joined: Trainer, now: datetime
+) -> None:
+    await _enqueue(
+        session,
+        user_id=inviter.user_id,
+        kind=Kind.TRAINER_JOINED,
+        dedup_key=f"{Kind.TRAINER_JOINED.value}:{joined.id}",
+        send_at=now,
+        payload={"trainer_id": joined.id},
+    )
 
 
 async def get_prefs(session: AsyncSession, user_id: int, role: Role) -> ReminderPrefs:
