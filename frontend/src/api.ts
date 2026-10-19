@@ -630,6 +630,23 @@ export function fetchInviteLink(): Promise<string> {
   return request<{ url: string }>('/api/trainer/invite-link').then(({ url }) => url)
 }
 
+export type Referral = {
+  id: number
+  display_name: string
+  avatar_url: string | null
+  joined_at: string
+}
+
+// Личная ссылка «Пригласить тренера» и кто по ней пришёл, от новых к старым
+export type Referrals = {
+  url: string
+  trainers: Referral[]
+}
+
+export function fetchReferrals(): Promise<Referrals> {
+  return request<Referrals>('/api/trainer/referrals')
+}
+
 export type ClientName = {
   first_name: string
   last_name: string | null

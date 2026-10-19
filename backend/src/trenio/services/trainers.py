@@ -1,7 +1,9 @@
-"""Доступ тренеров: приглашения от админа, профиль и его настройка.
+"""Доступ тренеров: приглашения от админа и от других тренеров, профиль и его настройка.
 
-Бета-доступ живёт в базе: строка в trainers с is_active=True. Админы (ADMIN_TELEGRAM_IDS)
-становятся тренерами автоматически и выдают доступ другим одноразовыми ссылками.
+Доступ живёт в базе: строка в trainers с is_active=True. Админы (ADMIN_TELEGRAM_IDS)
+становятся тренерами автоматически и выдают доступ другим одноразовыми ссылками. Каждый
+тренер может пригласить коллегу своей постоянной личной ссылкой: пригласивший запоминается
+в referred_by_id.
 """
 
 import secrets
@@ -16,15 +18,21 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import Trainer, TrainerInvite, User
+from trenio.delivery.kick import kick
+from trenio.services import notifications
 
 # Префикс параметра /start в ссылке-приглашении тренера: t.me/бот?start=tr_<код>
 TRAINER_INVITE_PREFIX = "tr_"
+# Личная ссылка тренера для коллег: t.me/бот?start=r_<код>
+REFERRAL_PREFIX = "r_"
 
 
 class InviteError(StrEnum):
     NOT_FOUND = "not_found"
     EXPIRED = "expired"
     USED = "used"
+    # Доступ этого человека отключил админ: чужая ссылка его не возвращает
+    DISABLED = "disabled"
 
 
 class InviteRejected(Exception):
@@ -71,11 +79,19 @@ async def get_active_trainer(session: AsyncSession, user_id: int) -> Trainer | N
     )
 
 
-async def grant_trainer(session: AsyncSession, user: User) -> Trainer:
+async def grant_trainer(
+    session: AsyncSession, user: User, referred_by: Trainer | None = None
+) -> Trainer:
     """Делает пользователя тренером или возвращает доступ отключённому. Коммит за вызывающим."""
     stmt = (
         insert(Trainer)
-        .values(user_id=user.id, display_name=_full_name(user), invite_code=_new_code())
+        .values(
+            user_id=user.id,
+            display_name=_full_name(user),
+            invite_code=_new_code(),
+            referral_code=_new_code(),
+            referred_by_id=referred_by.id if referred_by is not None else None,
+        )
         # Повторная выдача только включает доступ: профиль и ссылка для клиентов сохраняются
         .on_conflict_do_update(
             index_elements=[Trainer.user_id],
@@ -148,6 +164,44 @@ async def _accept_invite(session: AsyncSession, user: User, code: str) -> Traine
     invite.used_at = datetime.now(UTC)
     await session.commit()
     return trainer
+
+
+def referral_link(bot_username: str, trainer: Trainer) -> str:
+    return f"https://t.me/{bot_username}?start={REFERRAL_PREFIX}{trainer.referral_code}"
+
+
+async def accept_referral(session: AsyncSession, user: User, code: str) -> Trainer:
+    """Выдаёт доступ тренера по личной ссылке коллеги. Ссылка многоразовая и бессрочная.
+
+    Возвращает профиль нового тренера. Кто уже тренер, остаётся как был: пригласившим
+    засчитывается только тот, по чьей ссылке человек пришёл впервые.
+    """
+    existing = await get_trainer(session, user.id)
+    if existing is not None:
+        if not existing.is_active:
+            raise InviteRejected(InviteError.DISABLED)
+        return existing
+    inviter = await session.scalar(
+        select(Trainer).where(Trainer.referral_code == code, Trainer.is_active.is_(True))
+    )
+    if inviter is None:
+        raise InviteRejected(InviteError.NOT_FOUND)
+    trainer = await grant_trainer(session, user, referred_by=inviter)
+    await notifications.trainer_joined(session, inviter, trainer, datetime.now(UTC))
+    await session.commit()
+    kick()
+    return trainer
+
+
+async def list_referrals(session: AsyncSession, trainer: Trainer) -> Sequence[Trainer]:
+    """Тренеры, пришедшие по ссылке этого тренера, от новых к старым."""
+    return (
+        await session.scalars(
+            select(Trainer)
+            .where(Trainer.referred_by_id == trainer.id)
+            .order_by(Trainer.created_at.desc(), Trainer.id.desc())
+        )
+    ).all()
 
 
 async def list_trainers(session: AsyncSession) -> Sequence[Trainer]:

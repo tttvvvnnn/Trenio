@@ -14,7 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.bot.callbacks import Action, BookingAction
 from trenio.config import get_settings
-from trenio.db.models import ACTIVE_BOOKING_STATUSES, Booking, Notification, Package, User
+from trenio.db.models import (
+    ACTIVE_BOOKING_STATUSES,
+    Booking,
+    Notification,
+    Package,
+    Trainer,
+    User,
+)
 from trenio.delivery.channel import Button, OutMessage
 from trenio.services.bookings import client_can_cancel
 from trenio.services.notifications import Kind, Role, Status
@@ -302,8 +309,23 @@ async def _package_expiring(
     return OutMessage(_lines(f"⏳ {head}", body, tail), link)
 
 
+async def _trainer_joined(session: AsyncSession, row: Notification) -> OutMessage | None:
+    joined = await session.get(Trainer, row.payload["trainer_id"])
+    if joined is None:
+        return None
+    return OutMessage(
+        _lines(
+            f"🤝 По вашей ссылке в Trenio пришёл тренер {person(joined.user)}",
+            "Список приглашённых — в Профиле, «Пригласить тренера»",
+        ),
+        open_app("Кто пришёл по ссылке", role=Role.TRAINER.value, tab="referrals"),
+    )
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
+    if kind is Kind.TRAINER_JOINED:
+        return await _trainer_joined(session, row)
     if kind is Kind.PACKAGE_LEFT:
         return await _package_left(session, row)
     if kind is Kind.PACKAGE_EXPIRING:
