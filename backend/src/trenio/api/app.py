@@ -28,6 +28,7 @@ from trenio.api.routes import (
     packages,
     privacy,
     progress,
+    promo,
     realtime,
     schedule,
     stats,
@@ -106,6 +107,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
         api.include_router(privacy.router)
         api.include_router(stats.router)
         api.include_router(progress.router)
+        api.include_router(promo.router)
         api.include_router(client_errors.router)
         api.include_router(realtime.router)
         app.include_router(api)

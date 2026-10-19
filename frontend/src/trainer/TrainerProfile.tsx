@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { fetchMe, fetchReminders, type ReminderPrefs, type Trainer } from '../api'
+import { fetchMe, fetchReminders, type Promo, type ReminderPrefs, type Trainer } from '../api'
 import { timezoneOptions } from '../format'
 import { useRefreshKey } from '../sync'
 import { homeScreen } from '../telegram'
@@ -8,6 +8,7 @@ import { TOUR_REPLAY } from '../tour'
 import Avatar from '../ui/Avatar'
 import { Row, Section } from '../ui/kit'
 import { AccountDataScreen } from '../ui/Privacy'
+import { PromoSection } from '../ui/Promo'
 import ReminderSettings from '../ui/ReminderSettings'
 import { bookingSettingsLine, reminderLine } from '../settings'
 import Screen from '../ui/Screen'
@@ -26,6 +27,8 @@ type Props = {
   onSwitchToClient?: () => void
   // Запустить вводный тур заново
   onStartTour: () => void
+  // Предложение от автора внизу Профиля; null — выключено
+  promo: Promo | null
 }
 
 type Opened = 'edit' | 'booking' | 'rules' | 'reminders' | 'account' | null
@@ -38,6 +41,7 @@ export default function TrainerProfile({
   onOpenAdmin,
   onSwitchToClient,
   onStartTour,
+  promo,
 }: Props) {
   const [opened, setOpened] = useState<Opened>(null)
   const [avatar, setAvatar] = useState<string | null>(null)
@@ -157,6 +161,7 @@ export default function TrainerProfile({
           onClick={() => setOpened('account')}
         />
       </Section>
+      <PromoSection promo={promo} />
       {opened === 'edit' && (
         <Screen title="Мой профиль" onBack={() => setOpened(null)}>
           <ProfileForm trainer={trainer} onSaved={saved} />
