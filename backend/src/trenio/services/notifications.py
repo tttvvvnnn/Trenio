@@ -90,11 +90,11 @@ class ReminderPrefs:
     attendance_prompt: bool = True
 
 
-# Клиенту по умолчанию напоминаем за сутки и за 2 часа. Тренеру — нет: при восьми занятиях
-# в день это восемь сообщений, пусть включит сам
+# По умолчанию все уведомления включены: клиенту напоминаем за сутки и за 2 часа,
+# тренеру — за час. Кому много, выключит в профиле
 DEFAULT_PREFS = {
     Role.CLIENT: ReminderPrefs(enabled=True, offsets=[1440, 120]),
-    Role.TRAINER: ReminderPrefs(enabled=False, offsets=[60]),
+    Role.TRAINER: ReminderPrefs(enabled=True, offsets=[60]),
 }
 
 
