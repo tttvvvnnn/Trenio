@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/tttvvvnnn/Trenio/compare/v0.13.0...v0.13.1) (2026-10-19)
+
+
+### Исправления
+
+* временно убрать годовой тариф Pro ([#84](https://github.com/tttvvvnnn/Trenio/issues/84)) ([6ef95e2](https://github.com/tttvvvnnn/Trenio/commit/6ef95e2efd10bed7f986fc8812aedd047fed756a))
+
 ## [0.13.0](https://github.com/tttvvvnnn/Trenio/compare/v0.12.0...v0.13.0) (2026-10-19)
 
 
