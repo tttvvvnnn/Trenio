@@ -52,10 +52,14 @@ async def queue(session: AsyncSession) -> list[tuple[int, str, str, str]]:
     return [(tg, kind, payload.get("role", ""), st) for tg, kind, payload, st in rows.all()]
 
 
-async def reminder_times(session: AsyncSession) -> list[datetime]:
+async def reminder_times(session: AsyncSession, role: str = "client") -> list[datetime]:
     rows = await session.scalars(
         select(Notification.send_at)
-        .where(Notification.kind == "reminder", Notification.status == "pending")
+        .where(
+            Notification.kind == "reminder",
+            Notification.status == "pending",
+            Notification.payload["role"].astext == role,
+        )
         .order_by(Notification.send_at)
     )
     return list(rows.all())
@@ -67,12 +71,13 @@ async def test_client_books_trainer_is_told(client: AsyncClient, session: AsyncS
     code, _ = await book(client, headers, trainer_id, service_id)
     assert code == 201
 
-    # Тренеру — о записи и просьба отметить занятие после него, клиенту — два напоминания
-    # по умолчанию, тренеру напоминаний нет
+    # Тренеру — о записи, напоминание за час и просьба отметить занятие после него,
+    # клиенту — два напоминания по умолчанию
     assert await queue(session) == [
         (ADMIN_TELEGRAM_ID, "new_booking", "", "pending"),
         (CLIENT_TG, "reminder", "client", "pending"),
         (CLIENT_TG, "reminder", "client", "pending"),
+        (ADMIN_TELEGRAM_ID, "reminder", "trainer", "pending"),
         (ADMIN_TELEGRAM_ID, "attendance_prompt", "", "pending"),
     ]
     assert await reminder_times(session) == [START - timedelta(days=1), START - timedelta(hours=2)]
@@ -189,12 +194,16 @@ async def test_stale_reminders(client: AsyncClient, session: AsyncSession) -> No
     await dispatch(channel, datetime.now(UTC))
     channel.sent.clear()
 
-    # Сервис лежал больше суток: о 10:00 уже поздно, об 11:00 — одно напоминание вместо двух
+    # Сервис лежал больше суток: о 10:00 уже поздно, об 11:00 — одно напоминание клиенту
+    # вместо двух и одно тренеру
     await dispatch(channel, START + timedelta(minutes=5))
-    assert channel.sent == [(CLIENT_TG, "⏰ Напоминание: сегодня в 11:00 тренировка\n"
-                                        "Персональная, тренер Иван")]  # fmt: skip
+    assert channel.sent == [
+        (CLIENT_TG, "⏰ Напоминание: сегодня в 11:00 тренировка\nПерсональная, тренер Иван"),
+        (ADMIN_TELEGRAM_ID, "⏰ Сегодня в 11:00: Иван\nПерсональная"),
+    ]
     assert [row[3] for row in await queue(session)] == [
-        "sent", "sent", "skipped", "skipped", "skipped", "sent", "pending", "pending",
+        "sent", "sent", "skipped", "skipped", "skipped", "skipped", "sent", "sent",
+        "pending", "pending",
     ]  # fmt: skip
 
 
@@ -260,15 +269,15 @@ async def test_reminder_settings(client: AsyncClient, session: AsyncSession) -> 
     )
     assert await reminder_times(session) == []
 
-    # Тренер включает напоминания себе
+    # Тренеру напоминания включены по умолчанию, он меняет настройки
     theirs = (await client.get("/api/me/reminders", headers=trainer_headers)).json()
-    assert theirs["trainer"] == {"enabled": False, "offsets": [60], "attendance_prompt": True}
+    assert theirs["trainer"] == {"enabled": True, "offsets": [60], "attendance_prompt": True}
     await client.put(
         "/api/me/reminders/trainer",
         headers=trainer_headers,
         json={"enabled": True, "offsets": [60], "attendance_prompt": False},
     )
-    assert await reminder_times(session) == [START - timedelta(hours=1)]
+    assert await reminder_times(session, "trainer") == [START - timedelta(hours=1)]
     channel = FakeChannel()
     await dispatch(channel, START - timedelta(minutes=59))
     assert (ADMIN_TELEGRAM_ID, "⏰ Сегодня в 10:00: Иван\nПерсональная") in channel.sent
@@ -279,7 +288,7 @@ async def test_reminder_settings(client: AsyncClient, session: AsyncSession) -> 
         headers=trainer_headers,
         json={"enabled": True, "offsets": [60]},
     )
-    assert await reminder_times(session) == []
+    assert await reminder_times(session, "trainer") == []
 
 
 async def test_kick_sends_right_away(client: AsyncClient, session: AsyncSession) -> None:

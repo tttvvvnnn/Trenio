@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.conftest import ADMIN_TELEGRAM_ID
 from tests.test_bookings import ELEVEN, TEN, me_id, new_client, setup_trainer, trainer_row
 from tests.test_notifications import FakeChannel, dispatch
 from tests.test_packages import sell
@@ -75,10 +76,11 @@ async def test_trainer_adds_and_books_offline_client(
     assert renamed.json()["last_name"] is None
 
     await trainer_books(client, headers, created["id"], service_id)
-    # Писать клиенту без Telegram некуда: сообщения пропускаются, а не падают
+    # Писать клиенту без Telegram некуда: сообщения пропускаются, а не падают.
+    # Тренеру напоминание о занятии приходит как обычно
     channel = FakeChannel()
     await dispatch(channel, datetime(2030, 1, 7, 6, tzinfo=UTC))
-    assert channel.sent == []
+    assert channel.sent == [(ADMIN_TELEGRAM_ID, "⏰ Сегодня в 10:00: Мария\nПерсональная")]
     statuses = (
         await session.scalars(
             select(Notification.status).where(Notification.user_id == created["id"])
