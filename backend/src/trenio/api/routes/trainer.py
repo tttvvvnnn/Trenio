@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
+from trenio.config import get_settings
 from trenio.db.models import Trainer
-from trenio.services import avatars, subscription
+from trenio.services import avatars, billing, subscription
 from trenio.services.trainers import (
     InvalidTimezone,
     TrainerProfileUpdate,
@@ -87,18 +88,27 @@ class ReferralOut(BaseModel):
     display_name: str
     avatar_url: str | None
     joined_at: datetime
+    # Оплачивал ли Pro и сколько рублей принёс на баланс
+    paid: bool
+    earned: int
 
 
 class ReferralsOut(BaseModel):
     # Личная ссылка для коллег: многоразовая и бессрочная
     url: str
     trainers: list[ReferralOut]
+    # Сколько процентов с оплат приглашённых идёт на баланс
+    percent: int
+    balance: int
+    earned: int
 
 
 @router.get("/referrals")
 async def get_referrals(trainer: CurrentTrainer, session: SessionDep) -> ReferralsOut:
     """Ссылка «Пригласить тренера» и кто по ней пришёл."""
     invited = await list_referrals(session, trainer)
+    earnings = await billing.referral_earnings(session, trainer)
+    paid = await billing.paid_trainers(session, [t.id for t in invited])
     return ReferralsOut(
         url=referral_link(await get_bot_username(), trainer),
         trainers=[
@@ -107,9 +117,14 @@ async def get_referrals(trainer: CurrentTrainer, session: SessionDep) -> Referra
                 display_name=t.display_name,
                 avatar_url=avatars.avatar_url(t.user),
                 joined_at=t.created_at,
+                paid=t.id in paid,
+                earned=earnings.get(t.id, 0),
             )
             for t in invited
         ],
+        percent=billing.REFERRAL_PERCENT,
+        balance=trainer.balance,
+        earned=sum(earnings.values()),
     )
 
 
@@ -117,6 +132,9 @@ class PlanOut(BaseModel):
     key: str
     days: int
     price: int
+    # С учётом баланса: сколько спишется с него и сколько заплатить деньгами
+    balance_used: int
+    amount: int
 
 
 class SubscriptionOut(BaseModel):
@@ -130,6 +148,10 @@ class SubscriptionOut(BaseModel):
     can_add_client: bool
     free_client_limit: int
     plans: list[PlanOut]
+    # Рубли на балансе: спишутся при оплате
+    balance: int
+    # Можно ли сейчас оплатить по СБП
+    payments_enabled: bool
 
 
 @router.get("/subscription")
@@ -143,7 +165,15 @@ async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> Subs
         can_add_client=sub.can_add_client,
         free_client_limit=subscription.FREE_CLIENT_LIMIT,
         plans=[
-            PlanOut(key=key, days=plan.days, price=plan.price)
+            PlanOut(
+                key=key,
+                days=plan.days,
+                price=plan.price,
+                balance_used=(split := billing.split_price(plan.price, trainer.balance))[0],
+                amount=split[1],
+            )
             for key, plan in subscription.PLANS.items()
         ],
+        balance=trainer.balance,
+        payments_enabled=get_settings().payments_enabled,
     )

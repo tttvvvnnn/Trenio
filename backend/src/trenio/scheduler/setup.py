@@ -8,6 +8,7 @@ from trenio.db.session import get_sessionmaker
 from trenio.delivery.channel import TelegramChannel
 from trenio.delivery.sender import Sender
 from trenio.services.admin_digest import digest_text
+from trenio.services.billing import sweep_pending
 from trenio.services.packages import schedule_expiry_alerts
 from trenio.services.subscription import schedule_ending_alerts
 
@@ -54,6 +55,14 @@ async def plan_subscription_alerts() -> None:
         logger.exception("Subscription alerts planning failed")
 
 
+async def check_payments() -> None:
+    try:
+        async with get_sessionmaker()() as session:
+            await sweep_pending(session, datetime.now(UTC))
+    except Exception:
+        logger.exception("Payment check failed")
+
+
 def create_scheduler() -> tuple[AsyncIOScheduler, Sender]:
     """Планировщик с отправкой уведомлений раз в минуту.
 
@@ -97,6 +106,14 @@ def create_scheduler() -> tuple[AsyncIOScheduler, Sender]:
         seconds=EXPIRY_INTERVAL_SECONDS,
         id="plan_subscription_alerts",
         next_run_time=datetime.now(UTC),
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        check_payments,
+        "interval",
+        seconds=DISPATCH_INTERVAL_SECONDS,
+        id="check_payments",
         max_instances=1,
         coalesce=True,
     )

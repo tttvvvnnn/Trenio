@@ -18,6 +18,7 @@ from trenio.api.routes import (
     admin,
     auth,
     avatars,
+    billing,
     bookings,
     bot_webhook,
     client,
@@ -98,6 +99,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
         api.include_router(me.router)
         api.include_router(avatars.router)
         api.include_router(trainer.router)
+        api.include_router(billing.router)
         api.include_router(schedule.router)
         api.include_router(bookings.router)
         api.include_router(client.router)

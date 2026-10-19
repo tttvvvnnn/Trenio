@@ -14,7 +14,15 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from trenio.db.models import Booking, Notification, Package, ReminderSetting, Trainer, User
+from trenio.db.models import (
+    Booking,
+    Notification,
+    Package,
+    ReminderSetting,
+    SubscriptionPayment,
+    Trainer,
+    User,
+)
 
 
 class Kind(StrEnum):
@@ -47,6 +55,10 @@ class Kind(StrEnum):
     SUBSCRIPTION_ENDING = "subscription_ending"
     # Тренеру: на бесплатном тарифе к нему не смог присоединиться клиент, payload: user_id
     CLIENT_LIMIT = "client_limit"
+    # Тренеру: оплата Pro прошла, payload: payment_id
+    SUBSCRIPTION_PAID = "subscription_paid"
+    # Тренеру: приглашённый им тренер оплатил Pro, payload: payment_id и bonus (рубли)
+    REFERRAL_BONUS = "referral_bonus"
 
 
 # Уведомления о будущем занятии: при отмене записи они больше не нужны
@@ -365,6 +377,32 @@ async def client_limit(session: AsyncSession, trainer: Trainer, user: User, now:
         dedup_key=f"{Kind.CLIENT_LIMIT.value}:{trainer.id}:{user.id}",
         send_at=now,
         payload={"user_id": user.id},
+    )
+
+
+async def subscription_paid(
+    session: AsyncSession, trainer: Trainer, payment: SubscriptionPayment, now: datetime
+) -> None:
+    await _enqueue(
+        session,
+        user_id=trainer.user_id,
+        kind=Kind.SUBSCRIPTION_PAID,
+        dedup_key=f"{Kind.SUBSCRIPTION_PAID.value}:{payment.id}",
+        send_at=now,
+        payload={"payment_id": payment.id},
+    )
+
+
+async def referral_bonus(
+    session: AsyncSession, inviter: Trainer, payment: SubscriptionPayment, bonus: int, now: datetime
+) -> None:
+    await _enqueue(
+        session,
+        user_id=inviter.user_id,
+        kind=Kind.REFERRAL_BONUS,
+        dedup_key=f"{Kind.REFERRAL_BONUS.value}:{payment.id}",
+        send_at=now,
+        payload={"payment_id": payment.id, "bonus": bonus},
     )
 
 

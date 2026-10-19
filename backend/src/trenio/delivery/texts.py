@@ -19,6 +19,7 @@ from trenio.db.models import (
     Booking,
     Notification,
     Package,
+    SubscriptionPayment,
     Trainer,
     User,
 )
@@ -379,8 +380,54 @@ async def _client_limit(session: AsyncSession, row: Notification) -> OutMessage 
     )
 
 
+def full_date(day: date) -> str:
+    """«17 окт 2026»."""
+    return f"{day_month(day)} {day.year}"
+
+
+async def _subscription_paid(session: AsyncSession, row: Notification) -> OutMessage | None:
+    payment = await session.get(SubscriptionPayment, row.payload["payment_id"])
+    if payment is None or payment.status != "paid":
+        return None
+    trainer = await session.get(Trainer, payment.trainer_id)
+    if trainer is None or trainer.pro_until is None:
+        return None
+    until = trainer.pro_until.astimezone(ZoneInfo(trainer.timezone)).date()
+    paid = rubles(payment.amount) if payment.amount else None
+    used = f"с баланса {rubles(payment.balance_used)}" if payment.balance_used else None
+    how = ", ".join(part for part in (paid, used) if part)
+    return OutMessage(
+        _lines(
+            f"✅ Pro оплачен, теперь он действует до {full_date(until)}",
+            f"Оплачено: {how}",
+            "Клиентов можно добавлять без ограничений. Спасибо, что вы с Trenio!",
+        ),
+        open_subscription("Открыть подписку"),
+    )
+
+
+async def _referral_bonus(session: AsyncSession, row: Notification) -> OutMessage | None:
+    payment = await session.get(SubscriptionPayment, row.payload["payment_id"])
+    inviter = await session.scalar(select(Trainer).where(Trainer.user_id == row.user_id))
+    if payment is None or inviter is None:
+        return None
+    payer = await session.get(Trainer, payment.trainer_id)
+    name = person(payer.user) if payer is not None else "Приглашённый тренер"
+    return OutMessage(
+        _lines(
+            f"💰 {name} оплатил(а) Pro, вам начислено {rubles(row.payload['bonus'])}",
+            f"Баланс: {rubles(inviter.balance)}. Он спишется, когда будете оплачивать подписку",
+        ),
+        open_app("Кто пришёл по ссылке", role=Role.TRAINER.value, tab="referrals"),
+    )
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
+    if kind is Kind.SUBSCRIPTION_PAID:
+        return await _subscription_paid(session, row)
+    if kind is Kind.REFERRAL_BONUS:
+        return await _referral_bonus(session, row)
     if kind is Kind.TRAINER_JOINED:
         return await _trainer_joined(session, row)
     if kind is Kind.SUBSCRIPTION_ENDING:

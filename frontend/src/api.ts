@@ -635,12 +635,18 @@ export type Referral = {
   display_name: string
   avatar_url: string | null
   joined_at: string
+  // Оплачивал ли Pro и сколько рублей принёс на баланс
+  paid: boolean
+  earned: number
 }
 
 // Личная ссылка «Пригласить тренера» и кто по ней пришёл, от новых к старым
 export type Referrals = {
   url: string
   trainers: Referral[]
+  percent: number
+  balance: number
+  earned: number
 }
 
 export function fetchReferrals(): Promise<Referrals> {
@@ -649,7 +655,14 @@ export function fetchReferrals(): Promise<Referrals> {
 
 export type SubscriptionState = 'admin' | 'pro' | 'trial' | 'free'
 
-export type SubscriptionPlan = { key: 'month' | 'year'; days: number; price: number }
+export type SubscriptionPlan = {
+  key: 'month' | 'year'
+  days: number
+  price: number
+  // С учётом баланса: сколько спишется с него и сколько заплатить по СБП
+  balance_used: number
+  amount: number
+}
 
 export type Subscription = {
   state: SubscriptionState
@@ -661,6 +674,28 @@ export type Subscription = {
   can_add_client: boolean
   free_client_limit: number
   plans: SubscriptionPlan[]
+  // Рубли на балансе: 20% с оплат приглашённых тренеров
+  balance: number
+  payments_enabled: boolean
+}
+
+export type SubscriptionPayment = {
+  id: number
+  status: 'pending' | 'paid' | 'canceled'
+  plan: 'month' | 'year'
+  price: number
+  amount: number
+  balance_used: number
+  // Страница оплаты по СБП; null — платить деньгами не нужно
+  redirect_url: string | null
+}
+
+export function startPayment(plan: 'month' | 'year'): Promise<SubscriptionPayment> {
+  return send<SubscriptionPayment>('POST', '/api/trainer/subscription/pay', { plan })
+}
+
+export function fetchPayment(id: number): Promise<SubscriptionPayment> {
+  return request<SubscriptionPayment>(`/api/trainer/subscription/payments/${id}`)
 }
 
 export function fetchSubscription(): Promise<Subscription> {
