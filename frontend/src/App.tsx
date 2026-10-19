@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import AdminPanel from './admin/AdminPanel'
 import { errorText, fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
 import ClientHome from './client/ClientHome'
 import { linkRole } from './deeplink'
@@ -10,7 +11,7 @@ import BrandMark from './ui/BrandMark'
 import { EmptyState } from './ui/kit'
 import { ConsentGate } from './ui/Privacy'
 import Refresher, { OfflineBanner } from './ui/Refresh'
-import RolePicker from './ui/RolePicker'
+import RolePicker, { type Mode } from './ui/RolePicker'
 import UndoToast from './ui/Undo'
 
 type State =
@@ -21,13 +22,10 @@ type State =
 
 export default function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
-  // Тренер, который сам ходит к другому тренеру, выбирает профиль при каждом входе.
+  // Тренер, который сам ходит к другому тренеру, и админ выбирают профиль при каждом входе.
   // null — ещё не выбрал
   // Кнопка из уведомления сама говорит, какой профиль открыть
-  const [clientMode, setClientMode] = useState<boolean | null>(() => {
-    const role = linkRole()
-    return role === null ? null : role === 'client'
-  })
+  const [mode, setMode] = useState<Mode | null>(() => linkRole())
 
   useEffect(() => {
     const initData = setupTelegram()
@@ -63,7 +61,7 @@ export default function App() {
     )
   }
 
-  const view = state.kind === 'ready' ? chooseView(state.me, clientMode) : null
+  const view = state.kind === 'ready' ? chooseView(state.me, mode) : null
   const withTabbar =
     (view === 'client' || view === 'trainer') &&
     !(state.kind === 'ready' && state.me.consent_required)
@@ -79,27 +77,31 @@ export default function App() {
       {state.kind === 'ready' && state.me.consent_required ? (
         <ConsentGate onAccepted={setConsented} />
       ) : (
-        render(state, view, setTrainer, setClientMode, setTourDone)
+        render(state, view, setTrainer, setMode, setTourDone)
       )}
     </main>
   )
 }
 
-type View = 'client' | 'trainer' | 'onboarding' | 'stranger' | 'choose'
+type View = 'client' | 'trainer' | 'admin' | 'onboarding' | 'stranger' | 'choose'
 
-function chooseView(me: Me, clientMode: boolean | null): View {
-  if (me.trainer === null) return me.is_client ? 'client' : 'stranger'
+function chooseView(me: Me, mode: Mode | null): View {
+  if (mode === 'admin' && me.is_admin) return 'admin'
+  if (me.trainer === null) {
+    if (me.is_admin && mode === null) return 'choose'
+    return me.is_client ? 'client' : 'stranger'
+  }
   if (me.trainer.onboarded_at === null) return 'onboarding'
-  if (!me.is_client) return 'trainer'
-  if (clientMode === null) return 'choose'
-  return clientMode ? 'client' : 'trainer'
+  if (!me.is_client && !me.is_admin) return 'trainer'
+  if (mode === null) return 'choose'
+  return mode === 'client' && me.is_client ? 'client' : 'trainer'
 }
 
 function render(
   state: State,
   view: View | null,
   setTrainer: (trainer: Trainer) => void,
-  setClientMode: (clientMode: boolean) => void,
+  setMode: (mode: Mode | null) => void,
   setTourDone: (role: TourRole) => void,
 ) {
   switch (state.kind) {
@@ -116,12 +118,23 @@ function render(
     case 'ready': {
       const { me } = state
       if (view === 'choose') {
-        return <RolePicker name={me.first_name} onChoose={setClientMode} />
+        return (
+          <RolePicker
+            name={me.first_name}
+            trainer={me.trainer !== null}
+            client={me.is_client}
+            admin={me.is_admin}
+            onChoose={setMode}
+          />
+        )
+      }
+      if (view === 'admin') {
+        return <AdminPanel onBack={() => setMode(null)} />
       }
       if (view === 'client') {
         return (
           <ClientHome
-            onSwitchToTrainer={me.trainer ? () => setClientMode(false) : undefined}
+            onSwitchToTrainer={me.trainer ? () => setMode('trainer') : undefined}
             tourDone={me.client_tour_done}
             onTourDone={() => setTourDone('client')}
           />
@@ -144,7 +157,7 @@ function render(
           trainer={me.trainer}
           isAdmin={me.is_admin}
           onTrainerChange={setTrainer}
-          onSwitchToClient={me.is_client ? () => setClientMode(true) : undefined}
+          onSwitchToClient={me.is_client ? () => setMode('client') : undefined}
           tourDone={me.trainer_tour_done}
           onTourDone={() => setTourDone('trainer')}
         />

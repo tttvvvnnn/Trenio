@@ -2,17 +2,22 @@ import { haptic } from '../telegram'
 import BrandMark from './BrandMark'
 import { PageHeader, Row, Section } from './kit'
 
+export type Mode = 'trainer' | 'client' | 'admin'
+
 type Props = {
   name: string
-  // true — профиль клиента, false — профиль тренера
-  onChoose: (clientMode: boolean) => void
+  // Какие профили есть у человека
+  trainer: boolean
+  client: boolean
+  admin: boolean
+  onChoose: (mode: Mode) => void
 }
 
-// Выбор профиля при входе для тех, кто одновременно тренер и клиент
-export default function RolePicker({ name, onChoose }: Props) {
-  function choose(clientMode: boolean) {
+// Выбор профиля при входе для тех, у кого их несколько: тренер, клиент, админ
+export default function RolePicker({ name, trainer, client, admin, onChoose }: Props) {
+  function choose(mode: Mode) {
     haptic.select()
-    onChoose(clientMode)
+    onChoose(mode)
   }
 
   return (
@@ -22,20 +27,33 @@ export default function RolePicker({ name, onChoose }: Props) {
       </div>
       <PageHeader title={`Привет, ${name}!`} subtitle="В какой профиль войти?" />
       <Section>
-        <Row
-          title="Тренер"
-          subtitle="Расписание, записи и клиенты"
-          icon={{ name: 'user', color: 'var(--c-violet)' }}
-          chevron
-          onClick={() => choose(false)}
-        />
-        <Row
-          title="Клиент"
-          subtitle="Запись к своим тренерам"
-          icon={{ name: 'calendar', color: 'var(--c-accent)' }}
-          chevron
-          onClick={() => choose(true)}
-        />
+        {trainer && (
+          <Row
+            title="Тренер"
+            subtitle="Расписание, записи и клиенты"
+            icon={{ name: 'user', color: 'var(--c-violet)' }}
+            chevron
+            onClick={() => choose('trainer')}
+          />
+        )}
+        {client && (
+          <Row
+            title="Клиент"
+            subtitle="Запись к своим тренерам"
+            icon={{ name: 'calendar', color: 'var(--c-accent)' }}
+            chevron
+            onClick={() => choose('client')}
+          />
+        )}
+        {admin && (
+          <Row
+            title="Админ-панель"
+            subtitle="Как идут дела у Trenio"
+            icon={{ name: 'chart', color: 'var(--c-planned)' }}
+            chevron
+            onClick={() => choose('admin')}
+          />
+        )}
       </Section>
     </>
   )
