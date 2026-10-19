@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import Trainer, TrainerInvite, User
+from trenio.delivery.kick import kick
 from trenio.services import notifications
 
 # Префикс параметра /start в ссылке-приглашении тренера: t.me/бот?start=tr_<код>
@@ -188,6 +189,7 @@ async def accept_referral(session: AsyncSession, user: User, code: str) -> Train
     trainer = await grant_trainer(session, user, referred_by=inviter)
     await notifications.trainer_joined(session, inviter, trainer, datetime.now(UTC))
     await session.commit()
+    kick()
     return trainer
 
 
