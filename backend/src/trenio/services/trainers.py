@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import Trainer, TrainerInvite, User
 from trenio.delivery.kick import kick
-from trenio.services import notifications
+from trenio.services import notifications, subscription
 
 # Префикс параметра /start в ссылке-приглашении тренера: t.me/бот?start=tr_<код>
 TRAINER_INVITE_PREFIX = "tr_"
@@ -91,8 +91,9 @@ async def grant_trainer(
             invite_code=_new_code(),
             referral_code=_new_code(),
             referred_by_id=referred_by.id if referred_by is not None else None,
+            trial_until=subscription.trial_until(datetime.now(UTC)),
         )
-        # Повторная выдача только включает доступ: профиль и ссылка для клиентов сохраняются
+        # Повторная выдача только включает доступ: профиль, ссылки и подписка сохраняются
         .on_conflict_do_update(
             index_elements=[Trainer.user_id],
             set_={"is_active": True, "updated_at": func.now()},

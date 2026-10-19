@@ -19,6 +19,7 @@ from trenio.services.clients import (
     link_client,
     list_my_trainers,
 )
+from trenio.services.subscription import ClientLimitReached
 from trenio.services.trainers import (
     REFERRAL_PREFIX,
     TRAINER_INVITE_PREFIX,
@@ -50,6 +51,11 @@ LINK_ERROR_TEXT = {
     LinkError.NOT_OFFLINE: "Эта ссылка уже использована. Попросите у тренера новую.",
     LinkError.TARGET_OFFLINE: "Эта ссылка уже использована. Попросите у тренера новую.",
 }
+
+CLIENT_LIMIT_TEXT = (
+    "Тренер пока не может принять новых клиентов в Trenio. Мы сообщили ему об этом. "
+    "Когда он всё уладит, откройте эту же ссылку ещё раз."
+)
 
 CLAIM_ERROR_TEXT = {
     **LINK_ERROR_TEXT,
@@ -132,6 +138,9 @@ async def on_start(message: Message, command: CommandObject) -> None:
                 )
             except LinkRejected as rejected:
                 await message.answer(LINK_ERROR_TEXT[rejected.reason])
+            except ClientLimitReached:
+                await message.answer(CLIENT_LIMIT_TEXT)
+                return
             else:
                 await message.answer(
                     linked_text(linked), reply_markup=webapp_keyboard(settings.webapp_url)

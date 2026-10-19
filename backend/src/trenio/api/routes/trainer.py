@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import Trainer
-from trenio.services import avatars
+from trenio.services import avatars, subscription
 from trenio.services.trainers import (
     InvalidTimezone,
     TrainerProfileUpdate,
@@ -109,5 +109,41 @@ async def get_referrals(trainer: CurrentTrainer, session: SessionDep) -> Referra
                 joined_at=t.created_at,
             )
             for t in invited
+        ],
+    )
+
+
+class PlanOut(BaseModel):
+    key: str
+    days: int
+    price: int
+
+
+class SubscriptionOut(BaseModel):
+    # admin, pro, trial или free
+    state: str
+    # Когда закончится Pro или пробный период
+    until: datetime | None
+    clients: int
+    # Сколько клиентов можно на текущем тарифе; None — без ограничений
+    client_limit: int | None
+    can_add_client: bool
+    free_client_limit: int
+    plans: list[PlanOut]
+
+
+@router.get("/subscription")
+async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> SubscriptionOut:
+    sub = await subscription.get_subscription(session, trainer, datetime.now(UTC))
+    return SubscriptionOut(
+        state=sub.state.value,
+        until=sub.until,
+        clients=sub.clients,
+        client_limit=sub.client_limit,
+        can_add_client=sub.can_add_client,
+        free_client_limit=subscription.FREE_CLIENT_LIMIT,
+        plans=[
+            PlanOut(key=key, days=plan.days, price=plan.price)
+            for key, plan in subscription.PLANS.items()
         ],
     )

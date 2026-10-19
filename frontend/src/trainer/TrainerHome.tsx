@@ -49,8 +49,11 @@ export default function TrainerHome({
 }: Props) {
   // Открыли кнопкой из уведомления: сразу на нужную запись или клиента
   const [link] = useState(() => takeLink('trainer'))
+  // Экран Профиля, на который ведёт кнопка из уведомления
+  const profileScreen =
+    link?.tab === 'referrals' ? 'invite' : link?.tab === 'subscription' ? 'subscription' : undefined
   const [tab, setTab] = useState<Tab>(
-    link?.client !== undefined ? 'clients' : link?.tab === 'referrals' ? 'profile' : 'calendar',
+    link?.client !== undefined ? 'clients' : profileScreen ? 'profile' : 'calendar',
   )
   // Тур не перекрывает то, ради чего открыли приложение: покажем при следующем входе
   const [touring, setTouring] = useState(!tourDone && link === null)
@@ -104,7 +107,7 @@ export default function TrainerHome({
           onSwitchToClient={onSwitchToClient}
           onStartTour={startTour}
           promo={promo}
-          openInvite={link?.tab === 'referrals'}
+          initialOpened={profileScreen}
         />
       )}
       {tab === 'profile' && services && (

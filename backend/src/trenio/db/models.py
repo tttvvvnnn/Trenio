@@ -204,6 +204,10 @@ class Trainer(TimestampMixin, Base):
     referred_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("trainers.id", ondelete="SET NULL"), index=True
     )
+    # Конец пробного периода и оплаченного Pro. После обоих тренер на бесплатном тарифе:
+    # не больше трёх клиентов. Подробнее в trenio.services.subscription
+    trial_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pro_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(lazy="joined", foreign_keys=[user_id])
 
