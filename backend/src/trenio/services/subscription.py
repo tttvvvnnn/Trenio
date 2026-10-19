@@ -28,8 +28,8 @@ class Plan:
     price: int
 
 
-# Цены в рублях
-PLANS = {"month": Plan(days=30, price=349), "year": Plan(days=365, price=2990)}
+# Цены в рублях. Годовой тариф (365 дней, 2 990 ₽) временно убран
+PLANS = {"month": Plan(days=30, price=349)}
 
 
 class State(StrEnum):

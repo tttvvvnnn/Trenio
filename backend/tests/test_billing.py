@@ -197,7 +197,7 @@ async def test_payment_errors(
     headers, _, _ = await invited_trainer(client, session)
     fake.fail = True
     response = await client.post(
-        "/api/trainer/subscription/pay", headers=headers, json={"plan": "year"}
+        "/api/trainer/subscription/pay", headers=headers, json={"plan": "month"}
     )
     assert response.status_code == 503
 
@@ -213,7 +213,7 @@ async def test_payment_errors(
 async def test_sweep_pending(client: AsyncClient, session: AsyncSession, fake: FakePlatega) -> None:
     headers, _, boris = await invited_trainer(client, session)
     first = await pay(client, headers)
-    second = await pay(client, headers, "year")
+    second = await pay(client, headers)
     fake.statuses["tx-1"] = "CONFIRMED"
     now = datetime.now(UTC)
     await billing.sweep_pending(session, now)

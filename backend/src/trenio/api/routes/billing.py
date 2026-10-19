@@ -17,7 +17,7 @@ router = APIRouter(tags=["billing"])
 
 
 class PayIn(BaseModel):
-    plan: Literal["month", "year"]
+    plan: Literal["month"]
 
 
 class PaymentOut(BaseModel):

@@ -60,6 +60,5 @@ def text(settings: Settings, doc: Document) -> str:
         trial_days=subscription.TRIAL_DAYS,
         free_clients=subscription.FREE_CLIENT_LIMIT,
         price_month=subscription.PLANS["month"].price,
-        price_year=subscription.PLANS["year"].price,
         referral_percent=billing.REFERRAL_PERCENT,
     )
