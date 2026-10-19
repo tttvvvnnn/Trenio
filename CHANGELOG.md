@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.13.0](https://github.com/tttvvvnnn/Trenio/compare/v0.12.0...v0.13.0) (2026-10-19)
+
+
+### Новое
+
+* **admin:** new admin home, attention list, feed and weekly digest ([#75](https://github.com/tttvvvnnn/Trenio/issues/75)) ([8cf0bf1](https://github.com/tttvvvnnn/Trenio/commit/8cf0bf1a40a34c75495b5b4373e45a127064f9e1))
+* **miniapp:** admin panel entry on the role picker ([#73](https://github.com/tttvvvnnn/Trenio/issues/73)) ([cbfc15b](https://github.com/tttvvvnnn/Trenio/commit/cbfc15bdeeda2ac6f14e7cdf5e59878f167712f1))
+* админ видит раздел «Подписка» и может проверить оплату ([#81](https://github.com/tttvvvnnn/Trenio/issues/81)) ([3bf613f](https://github.com/tttvvvnnn/Trenio/commit/3bf613f17385e0e051700ff3ff01d1458f5d59f3))
+* напоминания тренеру о занятиях включены по умолчанию ([#83](https://github.com/tttvvvnnn/Trenio/issues/83)) ([912cc0c](https://github.com/tttvvvnnn/Trenio/commit/912cc0c0eb88b590605345575eb5372f8fe4c3f2))
+* оплата Pro по СБП через Platega и 20% пригласившему ([#79](https://github.com/tttvvvnnn/Trenio/issues/79)) ([2190e7c](https://github.com/tttvvvnnn/Trenio/commit/2190e7cf23f34c7f2663aefea14145c1c80f78b4))
+* подписка тренера, пробный период 30 дней и лимит 3 клиента ([#78](https://github.com/tttvvvnnn/Trenio/issues/78)) ([39a840f](https://github.com/tttvvvnnn/Trenio/commit/39a840f622fd4d3b3414b9e831af8454935e4e57))
+* пользовательское соглашение и политика конфиденциальности ([#82](https://github.com/tttvvvnnn/Trenio/issues/82)) ([57e6eb0](https://github.com/tttvvvnnn/Trenio/commit/57e6eb0f611ed7e0c82b9839fef6bf60e6e18634))
+* промо от автора Trenio с промокодом TVPN ([#76](https://github.com/tttvvvnnn/Trenio/issues/76)) ([972aa0a](https://github.com/tttvvvnnn/Trenio/commit/972aa0a041bec1889b481fc3b4232c0bfe79bc89))
+* тренер приглашает коллег своей личной ссылкой ([#77](https://github.com/tttvvvnnn/Trenio/issues/77)) ([a516ad5](https://github.com/tttvvvnnn/Trenio/commit/a516ad5591d8d1883e58bf72bd658e264e1f3278))
+
+
+### Исправления
+
+* httpx в основных зависимостях, без него бэкенд не запускается ([#80](https://github.com/tttvvvnnn/Trenio/issues/80)) ([0b0e09e](https://github.com/tttvvvnnn/Trenio/commit/0b0e09e2be29a9d7016772113ff029b4fcdb7ddf))
+
 ## [0.12.0](https://github.com/tttvvvnnn/Trenio/compare/v0.11.0...v0.12.0) (2026-10-16)
 
 
