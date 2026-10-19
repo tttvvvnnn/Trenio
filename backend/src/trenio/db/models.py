@@ -114,6 +114,21 @@ class UserActivityDay(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
 
 
+class ClientError(Base):
+    """Ошибка из Mini App: для ленты и строки «Состояние» в админке. Хранится 90 дней."""
+
+    __tablename__ = "client_errors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    message: Mapped[str] = mapped_column(String(500))
+    # Где случилось: компонент или «window»
+    screen: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
 class Trainer(TimestampMixin, Base):
     """Профиль тренера. Есть строка и is_active — значит, у пользователя есть бета-доступ."""
 

@@ -9,8 +9,15 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from trenio.db.models import ClientError
+
 SAME_ERROR_PAUSE = timedelta(minutes=10)
 HOURLY_LIMIT = 30
+# Сколько хранить ошибки для админки
+KEEP = timedelta(days=90)
 
 
 @dataclass
@@ -35,6 +42,14 @@ class Limiter:
 
 
 limiter = Limiter()
+
+
+async def save(
+    session: AsyncSession, user_id: int, message: str, screen: str | None, now: datetime
+) -> None:
+    """Запоминает ошибку для админки и заодно убирает старые. Коммит — за вызывающим."""
+    session.add(ClientError(user_id=user_id, message=message, screen=screen, created_at=now))
+    await session.execute(delete(ClientError).where(ClientError.created_at < now - KEEP))
 
 
 def error_text(

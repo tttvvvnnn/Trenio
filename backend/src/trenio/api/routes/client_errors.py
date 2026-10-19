@@ -41,9 +41,12 @@ async def report_client_error(
 ) -> None:
     """Mini App сообщает о своей ошибке; админы получают её в Telegram."""
     logger.warning("client error from user %s: %s", user.id, body.message)
+    now = datetime.now(UTC)
+    await client_errors.save(session, user.id, body.message, body.screen, now)
+    await session.commit()
     if not settings.admin_telegram_ids:
         return
-    if not client_errors.limiter.allow(body.message, datetime.now(UTC)):
+    if not client_errors.limiter.allow(body.message, now):
         return
     trainer = await get_active_trainer(session, user.id)
     text = client_errors.error_text(
