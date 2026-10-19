@@ -11,7 +11,7 @@ from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import User
-from trenio.services import admin_stats, avatars
+from trenio.services import admin_insights, admin_stats, avatars
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
     create_invite,
@@ -125,6 +125,108 @@ async def get_overview(_: CurrentAdmin, session: SessionDep) -> OverviewOut:
     )
 
 
+class JourneyOut(BaseModel):
+    """Первые шаги тренера; None — шага ещё не было."""
+
+    onboarded_at: datetime | None
+    first_client_at: datetime | None
+    first_client_booking_at: datetime | None
+    first_package_at: datetime | None
+
+
+class PulseOut(BaseModel):
+    """По окнам в 7 дней, от старого к последнему, которое кончается сейчас."""
+
+    # Тренеры, у которых прошло хотя бы одно занятие
+    live_trainers: list[int]
+    sessions: list[int]
+    # Процент записей, которые клиенты сделали сами; None — записей не было
+    self_booked: list[int | None]
+
+
+class AttentionOut(BaseModel):
+    trainer_id: int
+    # not_set_up, no_clients, quiet, unmarked
+    reason: str
+    # Сколько дней; для unmarked — сколько занятий без отметки
+    count: int
+
+
+class EventOut(BaseModel):
+    at: datetime
+    # joined, first_client, first_client_booking, first_package, quiet, error
+    kind: str
+    text: str
+    trainer_id: int | None
+
+
+class CohortOut(BaseModel):
+    start: date
+    trainers: int
+    # Живы через 1, 2 и 4 недели; None — ещё рано
+    alive: list[int | None]
+
+
+class UsageOut(BaseModel):
+    base: int
+    features: dict[str, int]
+
+
+class HealthOut(BaseModel):
+    version: str
+    errors_day: int
+    notifications_sent_day: int
+    notifications_failed_day: int
+
+
+class InsightsOut(BaseModel):
+    pulse: PulseOut
+    attention: list[AttentionOut]
+    feed: list[EventOut]
+    cohort_points: list[int]
+    cohorts: list[CohortOut]
+    usage: UsageOut
+    health: HealthOut
+
+
+@router.get("/insights")
+async def get_insights(_: CurrentAdmin, session: SessionDep, settings: SettingsDep) -> InsightsOut:
+    """Главный экран админки: рост, кому нужна помощь, лента, удержание, состояние."""
+    now = datetime.now(UTC)
+    admins = settings.admin_telegram_ids
+    pulse = await admin_insights.pulse(session, now)
+    first = await admin_insights.firsts(session)
+    usage = await admin_insights.usage(session, now)
+    health = await admin_insights.health(session, now)
+    return InsightsOut(
+        pulse=PulseOut(
+            live_trainers=pulse.live_trainers,
+            sessions=pulse.sessions,
+            self_booked=pulse.self_booked,
+        ),
+        attention=[
+            AttentionOut(trainer_id=a.trainer.id, reason=a.reason, count=a.count)
+            for a in await admin_insights.attention(session, now, admins)
+        ],
+        feed=[
+            EventOut(at=e.at, kind=e.kind, text=e.text, trainer_id=e.trainer_id)
+            for e in await admin_insights.feed(session, now, first)
+        ],
+        cohort_points=list(admin_insights.COHORT_POINTS),
+        cohorts=[
+            CohortOut(start=c.start, trainers=c.trainers, alive=c.alive)
+            for c in await admin_insights.cohorts(session, now, admins)
+        ],
+        usage=UsageOut(base=usage.base, features={str(k): v for k, v in usage.features.items()}),
+        health=HealthOut(
+            version=version("trenio"),
+            errors_day=health.errors_day,
+            notifications_sent_day=health.notifications_sent_day,
+            notifications_failed_day=health.notifications_failed_day,
+        ),
+    )
+
+
 class AdminTrainerOut(BaseModel):
     id: int
     display_name: str
@@ -149,6 +251,7 @@ class AdminTrainerOut(BaseModel):
     # За 14 дней: записей поставил сам, занятий отметил
     bookings_created: int
     marks: int
+    journey: JourneyOut
 
 
 @router.get("/trainers")
@@ -156,6 +259,7 @@ async def get_trainers(
     _: CurrentAdmin, session: SessionDep, settings: SettingsDep
 ) -> list[AdminTrainerOut]:
     rows = await admin_stats.trainer_rows(session, datetime.now(UTC))
+    first = await admin_insights.firsts(session)
     return [
         AdminTrainerOut(
             id=row.trainer.id,
@@ -177,6 +281,12 @@ async def get_trainers(
             streak=row.streak,
             bookings_created=row.bookings_created,
             marks=row.marks,
+            journey=JourneyOut(
+                onboarded_at=row.trainer.onboarded_at,
+                first_client_at=first.client.get(row.trainer.id),
+                first_client_booking_at=first.client_booking.get(row.trainer.id),
+                first_package_at=first.package.get(row.trainer.id),
+            ),
         )
         for row in rows
     ]

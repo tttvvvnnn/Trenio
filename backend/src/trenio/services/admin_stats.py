@@ -91,7 +91,7 @@ def _held(since: datetime, until: datetime) -> ColumnElement[bool]:
     )
 
 
-def _local_midnight(day: date) -> datetime:
+def local_midnight(day: date) -> datetime:
     return datetime(day.year, day.month, day.day, tzinfo=ADMIN_TIMEZONE)
 
 
@@ -146,7 +146,7 @@ class Overview:
     money: Money
 
 
-async def _set_up_trainers(session: AsyncSession) -> set[int]:
+async def set_up_trainers(session: AsyncSession) -> set[int]:
     """Тренеры, у которых есть и активная услуга, и рабочие часы."""
     with_service = set(
         (await session.scalars(select(Service.trainer_id).where(Service.is_active))).all()
@@ -177,8 +177,8 @@ async def _received(session: AsyncSession, first: date, last: date) -> int:
         .where(
             Booking.attendance.in_(CHARGED),
             PackageSession.id.is_(None),
-            Booking.starts_at >= _local_midnight(first),
-            Booking.starts_at < _local_midnight(last + timedelta(days=1)),
+            Booking.starts_at >= local_midnight(first),
+            Booking.starts_at < local_midnight(last + timedelta(days=1)),
         )
     )
     return int(payments or 0) + int(one_offs or 0)
@@ -203,7 +203,7 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
     weeks = []
     for offset in range(WEEKS - 1, -1, -1):
         start = monday - timedelta(weeks=offset)
-        since, until = _local_midnight(start), _local_midnight(start + timedelta(days=7))
+        since, until = local_midnight(start), local_midnight(start + timedelta(days=7))
         weeks.append(
             Week(
                 start=start,
@@ -223,7 +223,7 @@ async def overview(session: AsyncSession, now: datetime) -> Overview:
             await session.scalars(select(Booking.trainer_id).where(_held(week_ago, now)).distinct())
         ).all()
     )
-    set_up = await _set_up_trainers(session)
+    set_up = await set_up_trainers(session)
     funnel = Funnel(
         trainers=len(active),
         onboarded=sum(1 for t in active if t.onboarded_at is not None),
@@ -325,7 +325,7 @@ class TrainerRow:
     marks: int
 
 
-async def _per_trainer(
+async def per_trainer(
     session: AsyncSession, column: object, *conditions: ColumnElement[bool], of: object
 ) -> dict[int, int]:
     stmt = (
@@ -339,22 +339,22 @@ async def _per_trainer(
 async def trainer_rows(session: AsyncSession, now: datetime) -> list[TrainerRow]:
     trainers: Sequence[Trainer] = (await session.scalars(select(Trainer))).all()
     month_ago = now - timedelta(days=30)
-    clients = await _per_trainer(session, TrainerClient.trainer_id, of=TrainerClient.user_id)
-    clients_new = await _per_trainer(
+    clients = await per_trainer(session, TrainerClient.trainer_id, of=TrainerClient.user_id)
+    clients_new = await per_trainer(
         session,
         TrainerClient.trainer_id,
         TrainerClient.created_at >= now - timedelta(days=7),
         of=TrainerClient.user_id,
     )
-    bookings = await _per_trainer(session, Booking.trainer_id, _held(month_ago, now), of=Booking.id)
-    attended = await _per_trainer(
+    bookings = await per_trainer(session, Booking.trainer_id, _held(month_ago, now), of=Booking.id)
+    attended = await per_trainer(
         session,
         Booking.trainer_id,
         _held(month_ago, now),
         Booking.attendance == "attended",
         of=Booking.id,
     )
-    services = await _per_trainer(
+    services = await per_trainer(
         session, Service.trainer_id, Service.is_active.is_(True), of=Service.id
     )
     last_booking = {
@@ -374,19 +374,19 @@ async def trainer_rows(session: AsyncSession, now: datetime) -> list[TrainerRow]
         ).all()
     }
     window = activity_window(now)
-    window_start = _local_midnight(window[0])
+    window_start = local_midnight(window[0])
     activity = await _active_days(session, window[0])
-    created = await _per_trainer(
+    created = await per_trainer(
         session,
         Booking.trainer_id,
         Booking.created_by == "trainer",
         Booking.created_at >= window_start,
         of=Booking.id,
     )
-    marks = await _per_trainer(
+    marks = await per_trainer(
         session, Booking.trainer_id, Booking.attendance_marked_at >= window_start, of=Booking.id
     )
-    set_up = await _set_up_trainers(session)
+    set_up = await set_up_trainers(session)
     rows = []
     for trainer in trainers:
         days = activity.get(trainer.user_id, set())

@@ -1,7 +1,7 @@
 """promo
 
 Revision ID: f1b5d3a7c9e2
-Revises: e3a7c5f9b2d8
+Revises: f1c6a8e3b5d7
 Create Date: 2026-10-19 09:00:00.000000
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "f1b5d3a7c9e2"
-down_revision: str | None = "e3a7c5f9b2d8"
+down_revision: str | None = "f1c6a8e3b5d7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

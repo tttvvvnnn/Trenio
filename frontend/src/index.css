@@ -2854,3 +2854,113 @@ a.row-main {
 .pill-button:disabled {
   opacity: 0.6;
 }
+
+/* Админка: главный экран */
+.pulse-tile {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.pulse-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pulse-value {
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.sparkline {
+  flex: none;
+}
+
+.sparkline-area {
+  fill: color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+
+.sparkline-line {
+  fill: none;
+  stroke: var(--c-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.sparkline-dot {
+  fill: var(--c-accent);
+}
+
+.stat-note.success {
+  color: var(--c-success);
+}
+
+.stat-hint {
+  grid-column: 1 / -1;
+  margin: 0 var(--s-1);
+  font-size: 13px;
+  color: var(--c-hint);
+}
+
+.feed-dot,
+.health-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s-1);
+  border-radius: 50%;
+  background: var(--c-hint);
+}
+
+.feed-dot.joined,
+.feed-dot.first_client,
+.feed-dot.first_client_booking,
+.feed-dot.first_package,
+.health-dot.ok {
+  background: var(--c-success);
+}
+
+.feed-dot.quiet {
+  background: var(--c-warning);
+}
+
+.feed-dot.error,
+.health-dot.bad {
+  background: var(--c-alert);
+}
+
+.cohort-card {
+  padding: var(--s-2) var(--s-3);
+  overflow-x: auto;
+}
+
+.cohort-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cohort-table th,
+.cohort-table td {
+  padding: 6px 4px;
+  text-align: right;
+}
+
+.cohort-table th:first-child,
+.cohort-table td:first-child {
+  text-align: left;
+}
+
+.cohort-table th {
+  font-weight: 500;
+  color: var(--c-hint);
+}
+
+.cohort-table td.muted {
+  color: var(--c-hint);
+}
