@@ -1,26 +1,73 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import { errorText, deleteAccount, fetchPolicy, giveConsent, type Policy } from '../api'
+import { errorText, deleteAccount, giveConsent, type LegalDoc } from '../api'
+import { LEGAL_TITLES, useLegal } from '../legal'
 import { closeApp, confirmAction, haptic } from '../telegram'
 import { EmptyState, ErrorText, PageHeader, Row, Section, SkeletonList } from './kit'
 import { MainButton } from './native'
-import { RulesText } from './Rules'
 import Screen from './Screen'
 
-function usePolicy(): [Policy | null, string | null] {
-  const [policy, setPolicy] = useState<Policy | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    fetchPolicy()
-      .then(setPolicy)
-      .catch((err: unknown) => setError(errorText(err)))
-  }, [])
-  return [policy, error]
+// «1. Общие положения» — заголовок раздела, «1.1. …» — обычный абзац
+const HEADING = /^\d+\. \S/
+
+/** Текст документа: первая строка — название, разделы — подзаголовки, «•» — пункты списка. */
+export function LegalText({ text }: { text: string }) {
+  const [, ...lines] = text.split('\n')
+  return (
+    <div className="legal-text">
+      {lines.map((line, index) => {
+        if (!line.trim()) return null
+        if (HEADING.test(line)) return <h3 key={index}>{line}</h3>
+        if (line.startsWith('• '))
+          return (
+            <p key={index} className="legal-item">
+              {line}
+            </p>
+          )
+        return <p key={index}>{line}</p>
+      })}
+    </div>
+  )
 }
 
-/** Первый вход или новая версия политики: без согласия приложением не пользуются. */
+export function LegalScreen({ doc, onBack }: { doc: LegalDoc; onBack: () => void }) {
+  const [policy, error] = useLegal(doc)
+  return (
+    <Screen title={LEGAL_TITLES[doc]} onBack={onBack}>
+      {policy ? (
+        <Section>
+          <LegalText text={policy.text} />
+        </Section>
+      ) : (
+        !error && <SkeletonList rows={4} />
+      )}
+      {error && <ErrorText>{error}</ErrorText>}
+    </Screen>
+  )
+}
+
+function LegalRows({ onOpen }: { onOpen: (doc: LegalDoc) => void }) {
+  return (
+    <>
+      <Row
+        title={LEGAL_TITLES.terms}
+        icon={{ name: 'note', color: 'var(--c-accent)' }}
+        chevron
+        onClick={() => onOpen('terms')}
+      />
+      <Row
+        title={LEGAL_TITLES.privacy}
+        icon={{ name: 'shield', color: 'var(--c-success)' }}
+        chevron
+        onClick={() => onOpen('privacy')}
+      />
+    </>
+  )
+}
+
+/** Первый вход или новая редакция документов: без согласия приложением не пользуются. */
 export function ConsentGate({ onAccepted }: { onAccepted: () => void }) {
-  const [policy, loadError] = usePolicy()
+  const [open, setOpen] = useState<LegalDoc | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,28 +90,18 @@ export function ConsentGate({ onAccepted }: { onAccepted: () => void }) {
     <>
       <PageHeader
         brand
-        title="Ваши данные"
-        subtitle="Прежде чем начать, прочитайте, какие данные хранит Trenio и зачем."
+        title="Добро пожаловать"
+        subtitle="Прежде чем начать, прочитайте условия Trenio и то, какие данные он хранит и зачем."
       />
-      {policy ? <RulesText text={policy.text} /> : !loadError && <SkeletonList rows={4} />}
-      {(loadError || error) && <ErrorText>{loadError ?? error}</ErrorText>}
-      <MainButton
-        text="Согласен"
-        onClick={() => void accept()}
-        disabled={policy === null}
-        loading={saving}
-      />
-    </>
-  )
-}
-
-function PolicyScreen({ onBack }: { onBack: () => void }) {
-  const [policy, error] = usePolicy()
-  return (
-    <Screen title="Обработка данных" onBack={onBack}>
-      {policy ? <RulesText text={policy.text} /> : !error && <SkeletonList rows={4} />}
+      <Section footer="Нажимая «Принимаю», вы принимаете пользовательское соглашение и даёте согласие на обработку персональных данных по политике конфиденциальности.">
+        <LegalRows onOpen={setOpen} />
+      </Section>
       {error && <ErrorText>{error}</ErrorText>}
-    </Screen>
+      {open && <LegalScreen doc={open} onBack={() => setOpen(null)} />}
+      {open === null && (
+        <MainButton text="Принимаю" onClick={() => void accept()} loading={saving} />
+      )}
+    </>
   )
 }
 
@@ -134,18 +171,15 @@ function DeleteAccountScreen({ trainer, onBack }: DeleteProps) {
   )
 }
 
-/** Раздел Профиля: политика обработки данных и удаление аккаунта. */
+type Open = LegalDoc | 'delete' | null
+
+/** Раздел Профиля: документы и удаление аккаунта. */
 export function PrivacySection({ trainer }: { trainer: boolean }) {
-  const [open, setOpen] = useState<'policy' | 'delete' | null>(null)
+  const [open, setOpen] = useState<Open>(null)
   return (
     <>
       <Section title="Данные">
-        <Row
-          title="Обработка данных"
-          icon={{ name: 'shield', color: 'var(--c-success)' }}
-          chevron
-          onClick={() => setOpen('policy')}
-        />
+        <LegalRows onOpen={setOpen} />
         <Row
           title="Удалить аккаунт"
           icon={{ name: 'trash', color: 'var(--c-destructive)' }}
@@ -153,25 +187,21 @@ export function PrivacySection({ trainer }: { trainer: boolean }) {
           onClick={() => setOpen('delete')}
         />
       </Section>
-      {open === 'policy' && <PolicyScreen onBack={() => setOpen(null)} />}
+      {(open === 'terms' || open === 'privacy') && (
+        <LegalScreen doc={open} onBack={() => setOpen(null)} />
+      )}
       {open === 'delete' && <DeleteAccountScreen trainer={trainer} onBack={() => setOpen(null)} />}
     </>
   )
 }
 
-/** «Данные и аккаунт» в Профиле тренера: политика и удаление аккаунта на одном экране. */
+/** «Документы и аккаунт» в Профиле тренера: документы и удаление аккаунта на одном экране. */
 export function AccountDataScreen({ trainer, onBack }: { trainer: boolean; onBack: () => void }) {
-  const [open, setOpen] = useState<'policy' | 'delete' | null>(null)
+  const [open, setOpen] = useState<Open>(null)
   return (
-    <Screen title="Данные и аккаунт" onBack={onBack}>
+    <Screen title="Документы и аккаунт" onBack={onBack}>
       <Section>
-        <Row
-          title="Обработка данных"
-          subtitle="Какие данные хранит Trenio и зачем"
-          icon={{ name: 'shield', color: 'var(--c-success)' }}
-          chevron
-          onClick={() => setOpen('policy')}
-        />
+        <LegalRows onOpen={setOpen} />
         <Row
           title="Удалить аккаунт"
           icon={{ name: 'trash', color: 'var(--c-destructive)' }}
@@ -179,7 +209,9 @@ export function AccountDataScreen({ trainer, onBack }: { trainer: boolean; onBac
           onClick={() => setOpen('delete')}
         />
       </Section>
-      {open === 'policy' && <PolicyScreen onBack={() => setOpen(null)} />}
+      {(open === 'terms' || open === 'privacy') && (
+        <LegalScreen doc={open} onBack={() => setOpen(null)} />
+      )}
       {open === 'delete' && <DeleteAccountScreen trainer={trainer} onBack={() => setOpen(null)} />}
     </Screen>
   )

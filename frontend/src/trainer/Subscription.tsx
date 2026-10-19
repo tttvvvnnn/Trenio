@@ -14,6 +14,7 @@ import { untilText } from '../settings'
 import { useRefreshKey } from '../sync'
 import { confirmAction, haptic, openUrl } from '../telegram'
 import { ErrorText, Row, Section, SkeletonList } from '../ui/kit'
+import { LegalScreen } from '../ui/Privacy'
 import Screen from '../ui/Screen'
 
 function stateHint(sub: Sub, timezone: string): { tone: string; text: string } | null {
@@ -81,6 +82,7 @@ export default function Subscription({ timezone, onBack }: Props) {
   // Оплата, которую ждём: человек ушёл на страницу СБП
   const [payment, setPayment] = useState<SubscriptionPayment | null>(null)
   const [busy, setBusy] = useState(false)
+  const [termsOpen, setTermsOpen] = useState(false)
   const [paid, setPaid] = useState(false)
   const refreshKey = useRefreshKey()
   const paymentId = useRef<number | null>(null)
@@ -207,12 +209,22 @@ export default function Subscription({ timezone, onBack }: Props) {
             </Section>
           )}
           <p className="section-footer">
-            {sub.payments_enabled
-              ? 'Нажмите на тариф, чтобы оплатить по СБП. Оплаченные дни добавятся после текущего Pro или пробного периода.'
-              : 'Оплата сейчас недоступна, попробуйте позже.'}
+            {sub.payments_enabled ? (
+              <>
+                Нажмите на тариф, чтобы оплатить по СБП. Оплаченные дни добавятся после текущего Pro
+                или пробного периода. Оплачивая, вы принимаете{' '}
+                <button type="button" className="text-link" onClick={() => setTermsOpen(true)}>
+                  пользовательское соглашение
+                </button>
+                .
+              </>
+            ) : (
+              'Оплата сейчас недоступна, попробуйте позже.'
+            )}
           </p>
         </>
       )}
+      {termsOpen && <LegalScreen doc="terms" onBack={() => setTermsOpen(false)} />}
     </Screen>
   )
 }
