@@ -681,6 +681,8 @@ export type Subscription = {
   // Рубли на балансе: 20% с оплат приглашённых тренеров
   balance: number
   payments_enabled: boolean
+  // Скидка по промокоду: уже учтена в цене тарифов
+  discount: { code: string; kind: 'percent' | 'rubles'; value: number } | null
 }
 
 export type SubscriptionPayment = {
@@ -704,6 +706,11 @@ export function fetchPayment(id: number): Promise<SubscriptionPayment> {
 
 export function fetchSubscription(): Promise<Subscription> {
   return request<Subscription>('/api/trainer/subscription')
+}
+
+/** Промокод: дни Pro добавляются сразу, скидка ждёт следующей оплаты. */
+export function redeemPromoCode(code: string): Promise<Subscription> {
+  return send<Subscription>('POST', '/api/trainer/promo-code', { code })
 }
 
 export type ClientName = {
