@@ -6,12 +6,14 @@ from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Router
 from aiogram.filters import Command, CommandObject, Filter
-from aiogram.types import Message
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from trenio.bot.handlers import to_telegram_user
 from trenio.config import get_settings
-from trenio.db.models import Trainer
+from trenio.db.models import AdminSession, Trainer
 from trenio.db.session import get_sessionmaker
+from trenio.services import admin_auth
 from trenio.services.admin_digest import digest_text
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
@@ -28,16 +30,74 @@ ADMIN_TIMEZONE = ZoneInfo("Europe/Moscow")
 
 
 class IsAdmin(Filter):
-    async def __call__(self, message: Message) -> bool:
+    async def __call__(self, event: Message | CallbackQuery) -> bool:
         return (
-            message.from_user is not None
-            and message.from_user.id in get_settings().admin_telegram_ids
+            event.from_user is not None and event.from_user.id in get_settings().admin_telegram_ids
         )
+
+
+class AdminLoginAnswer(CallbackData, prefix="al"):
+    """Кнопка «Да» или «Нет» под сообщением о входе в веб-админку."""
+
+    approve: bool
+    session_id: str
 
 
 router = Router(name="admin")
 # Для остальных пользователей этих команд просто нет
 router.message.filter(IsAdmin())
+router.callback_query.filter(IsAdmin())
+
+
+def login_keyboard(session_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Да, это я",
+                    callback_data=AdminLoginAnswer(approve=True, session_id=session_id).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="Нет",
+                    callback_data=AdminLoginAnswer(approve=False, session_id=session_id).pack(),
+                ),
+            ]
+        ]
+    )
+
+
+async def send_login_confirmation(bot: Bot, telegram_id: int, admin_session: AdminSession) -> None:
+    when = admin_session.created_at.astimezone(ADMIN_TIMEZONE).strftime("%d.%m.%Y %H:%M")
+    await bot.send_message(
+        telegram_id,
+        admin_auth.confirmation_text(admin_session, when),
+        reply_markup=login_keyboard(admin_session.id),
+    )
+
+
+@router.callback_query(AdminLoginAnswer.filter())
+async def on_login_answer(query: CallbackQuery, callback_data: AdminLoginAnswer) -> None:
+    settings = get_settings()
+    async with get_sessionmaker()() as session:
+        admin = await upsert_telegram_user(session, to_telegram_user(query.from_user))
+        answered = await admin_auth.answer_confirmation(
+            session,
+            callback_data.session_id,
+            admin,
+            callback_data.approve,
+            datetime.now(UTC),
+            timedelta(minutes=settings.admin_confirm_minutes),
+        )
+        await session.commit()
+    if answered is None:
+        text = "Этот запрос на вход уже не действует. Войдите в админку заново."
+    elif callback_data.approve:
+        text = "Вход в веб-админку подтверждён."
+    else:
+        text = "Вход отклонён. Если это были не вы, ничего делать не нужно: сессия закрыта."
+    if isinstance(query.message, Message):
+        await query.message.edit_text(text)
+    await query.answer()
 
 
 def format_trainers(trainers: Sequence[Trainer]) -> str:

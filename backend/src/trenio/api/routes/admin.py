@@ -4,10 +4,12 @@ from datetime import UTC, date, datetime, timedelta
 from importlib.metadata import version
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-from trenio.api.deps import CurrentUser, SessionDep, SettingsDep
+from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
+from trenio.api.routes.admin_auth import cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import User
@@ -21,7 +23,18 @@ from trenio.services.trainers import (
 )
 
 
-async def current_admin(user: CurrentUser, settings: SettingsDep) -> User:
+async def current_admin(
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> User:
+    """Админ из Mini App (токен в заголовке) или из веб-админки (кука и подтверждённый вход)."""
+    if credentials is not None:
+        user = await current_user(session, settings, credentials)
+    else:
+        admin_session = await cookie_session(request, session, settings)
+        user = (await current_web_admin(request, admin_session, session, settings)).user
     if not is_admin(user, settings.admin_telegram_ids):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Только для админа")
     return user

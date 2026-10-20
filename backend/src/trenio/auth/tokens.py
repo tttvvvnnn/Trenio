@@ -9,6 +9,7 @@ initData живёт только внутри Telegram, а JWT подойдёт 
 
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any
 
 import jwt
 
@@ -25,25 +26,51 @@ class TokenError(ValueError):
 
 
 def create_access_token(
-    user_id: int, secret: str, ttl_minutes: int, audience: Audience = Audience.APP
+    user_id: int,
+    secret: str,
+    ttl_minutes: int,
+    audience: Audience = Audience.APP,
+    session_id: str | None = None,
 ) -> str:
     now = datetime.now(UTC)
-    payload = {
+    payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": audience.value,
         "iat": now,
         "exp": now + timedelta(minutes=ttl_minutes),
     }
+    if session_id is not None:
+        # Вход в админку можно отозвать: токен действует, пока жива его сессия в базе
+        payload["sid"] = session_id
     return jwt.encode(payload, secret, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str, secret: str, audience: Audience = Audience.APP) -> int:
+def _decode(token: str, secret: str, audience: Audience) -> dict[str, Any]:
     try:
         # aud проверяем сами: токены Mini App, выданные до его появления, считаем app,
         # пока они не истекут сами
-        payload = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"verify_aud": False})
-        if payload.get("aud", Audience.APP.value) != audience.value:
-            raise TokenError("wrong audience")
+        payload: dict[str, Any] = jwt.decode(
+            token, secret, algorithms=[ALGORITHM], options={"verify_aud": False}
+        )
+    except jwt.PyJWTError as exc:
+        raise TokenError(str(exc)) from exc
+    if payload.get("aud", Audience.APP.value) != audience.value:
+        raise TokenError("wrong audience")
+    return payload
+
+
+def decode_access_token(token: str, secret: str, audience: Audience = Audience.APP) -> int:
+    payload = _decode(token, secret, audience)
+    try:
         return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+    except (KeyError, ValueError) as exc:
+        raise TokenError(str(exc)) from exc
+
+
+def decode_admin_token(token: str, secret: str) -> tuple[int, str]:
+    """id пользователя и id сессии из токена веб-админки."""
+    payload = _decode(token, secret, Audience.ADMIN)
+    try:
+        return int(payload["sub"]), str(payload["sid"])
+    except (KeyError, ValueError) as exc:
         raise TokenError(str(exc)) from exc

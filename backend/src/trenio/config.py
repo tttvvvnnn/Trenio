@@ -47,6 +47,11 @@ class Settings(BaseSettings):
         default_factory=frozenset,
         validation_alias=AliasChoices("ADMIN_TELEGRAM_IDS", "BETA_TRAINER_IDS"),
     )
+    # Сколько живёт вход в веб-админку и сколько ждём его подтверждения в боте
+    admin_session_ttl_minutes: int = 12 * 60
+    admin_confirm_minutes: int = 10
+    # Данные виджета входа старше этого не принимаются
+    admin_login_max_age: int = 5 * 60
     # Сколько дней действует одноразовая ссылка-приглашение для тренера
     trainer_invite_ttl_days: int = 7
 
@@ -57,6 +62,11 @@ class Settings(BaseSettings):
     # Platega: приём оплаты подписки по СБП. Пустой PLATEGA_MERCHANT_ID — оплата выключена
     platega_merchant_id: str = ""
     platega_api_key: SecretStr = SecretStr("")
+
+    @property
+    def secure_cookies(self) -> bool:
+        # Локально админка открывается по http, на сервере только по https
+        return self.env in {"dev", "prod"}
 
     @property
     def payments_enabled(self) -> bool:
