@@ -1,11 +1,13 @@
 """Подписка тренера: пробный период, Pro и бесплатный тариф с лимитом клиентов.
 
-Новый тренер получает TRIAL_DAYS дней Pro. Потом, пока не оплатит, он на бесплатном
-тарифе: всё работает как раньше, но новых клиентов больше FREE_CLIENT_LIMIT не добавить.
+Новый тренер получает trial_days дней Pro. Потом, пока не оплатит, он на бесплатном
+тарифе: всё работает как раньше, но новых клиентов больше free_client_limit не добавить.
 Уже добавленные клиенты, записи и блоки никуда не деваются. Админы всегда на Pro.
+
+Цену, пробный период и лимит админ меняет в веб-админке (Terms в app_settings).
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
@@ -13,11 +15,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.config import get_settings
-from trenio.db.models import Trainer, TrainerClient, User
+from trenio.db.models import AppSetting, Trainer, TrainerClient, User
 from trenio.services import notifications
 
-TRIAL_DAYS = 30
-FREE_CLIENT_LIMIT = 3
 # За сколько до конца Pro или пробного периода предупреждаем; 0 — в момент окончания
 ENDING_ALERTS = (timedelta(days=3), timedelta(0))
 
@@ -28,8 +28,39 @@ class Plan:
     price: int
 
 
-# Цены в рублях. Годовой тариф (365 дней, 2 990 ₽) временно убран
-PLANS = {"month": Plan(days=30, price=349)}
+@dataclass(frozen=True, slots=True)
+class Terms:
+    """Условия тарифов. Меняются из веб-админки, действуют сразу для всех."""
+
+    # Цена Pro за 30 дней, в рублях
+    price_month: int = 349
+    trial_days: int = 30
+    free_client_limit: int = 3
+
+
+TERMS_KEY = "plans"
+
+
+async def get_terms(session: AsyncSession) -> Terms:
+    row = await session.get(AppSetting, TERMS_KEY)
+    if row is None:
+        return Terms()
+    known = Terms.__dataclass_fields__
+    return Terms(**{key: value for key, value in row.value.items() if key in known})
+
+
+async def save_terms(session: AsyncSession, terms: Terms) -> None:
+    """Коммит за вызывающим: вместе с записью в журнал действий."""
+    row = await session.get(AppSetting, TERMS_KEY)
+    if row is None:
+        session.add(AppSetting(key=TERMS_KEY, value=asdict(terms)))
+    else:
+        row.value = asdict(terms)
+
+
+def plans(terms: Terms) -> dict[str, Plan]:
+    """Тарифы к оплате. Годовой (365 дней, 2 990 ₽) временно убран."""
+    return {"month": Plan(days=30, price=terms.price_month)}
 
 
 class State(StrEnum):
@@ -57,8 +88,8 @@ class ClientLimitReached(Exception):
     """Бесплатный тариф: больше клиентов не добавить."""
 
 
-def trial_until(now: datetime) -> datetime:
-    return now + timedelta(days=TRIAL_DAYS)
+def trial_until(now: datetime, terms: Terms) -> datetime:
+    return now + timedelta(days=terms.trial_days)
 
 
 def ends_at(trainer: Trainer) -> datetime | None:
@@ -99,7 +130,7 @@ async def get_subscription(session: AsyncSession, trainer: Trainer, now: datetim
         state=state,
         until=ends_at(trainer) if state in (State.PRO, State.TRIAL) else None,
         clients=await count_clients(session, trainer),
-        client_limit=FREE_CLIENT_LIMIT if state is State.FREE else None,
+        client_limit=(await get_terms(session)).free_client_limit if state is State.FREE else None,
     )
 
 
@@ -109,7 +140,7 @@ async def ensure_client_slot(session: AsyncSession, trainer: Trainer, now: datet
     if state_of(trainer, now) is not State.FREE:
         return
     await session.execute(select(Trainer.id).where(Trainer.id == trainer.id).with_for_update())
-    if await count_clients(session, trainer) >= FREE_CLIENT_LIMIT:
+    if await count_clients(session, trainer) >= (await get_terms(session)).free_client_limit:
         raise ClientLimitReached
 
 

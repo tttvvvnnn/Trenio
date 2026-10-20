@@ -344,8 +344,9 @@ async def _subscription_ending(
     paid = trainer.pro_until is not None and trainer.pro_until >= until
     what = "Подписка Pro" if paid else "Пробный период Trenio"
     clients = await subscription.count_clients(session, trainer)
-    limit = subscription.FREE_CLIENT_LIMIT
-    price = rubles(subscription.PLANS["month"].price)
+    terms = await subscription.get_terms(session)
+    limit = terms.free_client_limit
+    price = rubles(terms.price_month)
     if row.payload["days"] and until <= now:
         # Предупреждение опоздало: об окончании скажет следующее
         return None
@@ -369,7 +370,7 @@ async def _client_limit(session: AsyncSession, row: Notification) -> OutMessage 
     client = await session.get(User, row.payload["user_id"])
     if client is None:
         return None
-    limit = subscription.FREE_CLIENT_LIMIT
+    limit = (await subscription.get_terms(session)).free_client_limit
     return OutMessage(
         _lines(
             f"🔒 {person(client)} хотел(а) стать вашим клиентом, но не смог(ла)",

@@ -50,15 +50,15 @@ def page_url(settings: Settings, doc: Document) -> str:
     return f"{site_url(settings)}/{doc.value}"
 
 
-def text(settings: Settings, doc: Document) -> str:
+def text(settings: Settings, doc: Document, terms: subscription.Terms) -> str:
     return _template(doc).format(
         date=UPDATED,
         site=site_url(settings),
         operator=settings.privacy_operator.strip() or "владелец сервиса Trenio",
         contact=settings.privacy_contact.strip() or "напишите боту Trenio",
         deleted=DELETED_NAME,
-        trial_days=subscription.TRIAL_DAYS,
-        free_clients=subscription.FREE_CLIENT_LIMIT,
-        price_month=subscription.PLANS["month"].price,
+        trial_days=terms.trial_days,
+        free_clients=terms.free_client_limit,
+        price_month=terms.price_month,
         referral_percent=billing.REFERRAL_PERCENT,
     )

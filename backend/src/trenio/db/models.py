@@ -349,7 +349,7 @@ class SubscriptionPayment(TimestampMixin, Base):
     )
     # Через какой бот пришла оплата: деньги общие, но в отчёте видно источник
     bot_id: Mapped[int] = _main_bot_fk()
-    # month или year, см. trenio.services.subscription.PLANS
+    # month или year, см. trenio.services.subscription.plans
     plan: Mapped[str] = mapped_column(String(16))
     days: Mapped[int] = mapped_column(Integer)
     # Цена тарифа = amount + balance_used, в рублях

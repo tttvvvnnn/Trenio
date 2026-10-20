@@ -157,13 +157,14 @@ class SubscriptionOut(BaseModel):
 @router.get("/subscription")
 async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> SubscriptionOut:
     sub = await subscription.get_subscription(session, trainer, datetime.now(UTC))
+    terms = await subscription.get_terms(session)
     return SubscriptionOut(
         state=sub.state.value,
         until=sub.until,
         clients=sub.clients,
         client_limit=sub.client_limit,
         can_add_client=sub.can_add_client,
-        free_client_limit=subscription.FREE_CLIENT_LIMIT,
+        free_client_limit=terms.free_client_limit,
         plans=[
             PlanOut(
                 key=key,
@@ -172,7 +173,7 @@ async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> Subs
                 balance_used=(split := billing.split_price(plan.price, trainer.balance))[0],
                 amount=split[1],
             )
-            for key, plan in subscription.PLANS.items()
+            for key, plan in subscription.plans(terms).items()
         ],
         balance=trainer.balance,
         payments_enabled=get_settings().payments_enabled,

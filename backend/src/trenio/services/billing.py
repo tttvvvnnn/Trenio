@@ -79,7 +79,7 @@ async def start_payment(
     session: AsyncSession, trainer: Trainer, plan_key: str, return_url: str, now: datetime
 ) -> SubscriptionPayment:
     """Создаёт оплату тарифа. Если всё покрыл баланс, Pro продлевается сразу."""
-    plan = subscription.PLANS.get(plan_key)
+    plan = subscription.plans(await subscription.get_terms(session)).get(plan_key)
     if plan is None:
         raise UnknownPlan(plan_key)
     locked = await _locked_trainer(session, trainer.id)

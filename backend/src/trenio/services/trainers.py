@@ -83,6 +83,7 @@ async def grant_trainer(
     session: AsyncSession, user: User, referred_by: Trainer | None = None
 ) -> Trainer:
     """Делает пользователя тренером или возвращает доступ отключённому. Коммит за вызывающим."""
+    terms = await subscription.get_terms(session)
     stmt = (
         insert(Trainer)
         .values(
@@ -91,7 +92,7 @@ async def grant_trainer(
             invite_code=_new_code(),
             referral_code=_new_code(),
             referred_by_id=referred_by.id if referred_by is not None else None,
-            trial_until=subscription.trial_until(datetime.now(UTC)),
+            trial_until=subscription.trial_until(datetime.now(UTC), terms),
         )
         # Повторная выдача только включает доступ: профиль, ссылки и подписка сохраняются
         .on_conflict_do_update(

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import Bot, SubscriptionPayment, Trainer
 from trenio.services.admin_stats import ADMIN_TIMEZONE, TrainerRow, TrainerState
-from trenio.services.subscription import PLANS
+from trenio.services.subscription import get_terms
 
 MONTH_DAYS = 30
 # Сколько месяцев на графике и насколько вперёд смотрим продления
@@ -111,7 +111,7 @@ async def summary(
     admin_trainer_ids: Collection[int],
 ) -> SaasMoney:
     by_id = {row.trainer.id: row for row in rows}
-    month_price = PLANS["month"].price
+    month_price = (await get_terms(session)).price_month
     paid = SubscriptionPayment.status == "paid"
 
     # Последний оплаченный тариф тренера: из него месячная цена для MRR

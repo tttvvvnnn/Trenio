@@ -1,6 +1,6 @@
 """Админ-панель: статистика платформы, тренеры и приглашения. Только для ADMIN_TELEGRAM_IDS."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from importlib.metadata import version
 from typing import Annotated, Any
@@ -756,3 +756,31 @@ async def delete_client(
         },
     )
     await privacy.delete_account(session, user, datetime.now(UTC))
+
+
+class TermsIO(BaseModel):
+    price_month: int = Field(ge=1, le=100_000)
+    trial_days: int = Field(ge=0, le=365)
+    free_client_limit: int = Field(ge=0, le=1000)
+
+
+@router.get("/plans")
+async def get_plans(_: CurrentAdmin, session: SessionDep) -> TermsIO:
+    terms = await subscription.get_terms(session)
+    return TermsIO(**asdict(terms))
+
+
+@router.put("/plans")
+async def set_plans(body: TermsIO, admin: CurrentAdmin, session: SessionDep) -> TermsIO:
+    """Цена Pro, пробный период и лимит бесплатного тарифа. Действует сразу.
+
+    Пробный период меняется только у новых тренеров: уже выданный не пересчитываем.
+    """
+    before = await subscription.get_terms(session)
+    after = subscription.Terms(**body.model_dump())
+    await subscription.save_terms(session, after)
+    await admin.audit(
+        session, "plans.updated", payload={"before": asdict(before), "after": asdict(after)}
+    )
+    await session.commit()
+    return body
