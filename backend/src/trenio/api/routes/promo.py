@@ -90,7 +90,8 @@ async def get_admin_promo(_: CurrentAdmin, session: SessionDep) -> AdminPromoOut
 
 @router.put("/admin/promo")
 async def set_admin_promo(
-    body: PromoSettingsIO, _: CurrentAdmin, session: SessionDep
+    body: PromoSettingsIO, admin: CurrentAdmin, session: SessionDep
 ) -> AdminPromoOut:
+    await admin.audit(session, "promo.updated", payload=body.model_dump(mode="json"))
     await promo.save_settings(session, promo.PromoSettings(**body.model_dump()))
     return await _admin_promo(session)
