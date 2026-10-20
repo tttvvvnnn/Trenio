@@ -25,6 +25,7 @@ import InviteTrainer from './InviteTrainer'
 import ProfileForm from './ProfileForm'
 import RulesEditor from './RulesEditor'
 import Subscription from './Subscription'
+import Support from './Support'
 
 type Props = {
   trainer: Trainer
@@ -50,6 +51,7 @@ type Opened =
   | 'reminders'
   | 'invite'
   | 'subscription'
+  | 'support'
   | 'account'
   | null
 
@@ -173,6 +175,13 @@ export default function TrainerProfile({
           />
         )}
         <Row
+          title="Написать нам"
+          subtitle="Вопрос, проблема, идея или отзыв"
+          icon={{ name: 'send', color: 'var(--c-accent)' }}
+          chevron
+          onClick={() => setOpened('support')}
+        />
+        <Row
           title="Как пользоваться"
           icon={{ name: 'help', color: 'var(--c-success)' }}
           chevron
@@ -222,6 +231,9 @@ export default function TrainerProfile({
       )}
       {opened === 'subscription' && (
         <Subscription timezone={trainer.timezone} onBack={() => setOpened(null)} />
+      )}
+      {opened === 'support' && (
+        <Support timezone={trainer.timezone} onBack={() => setOpened(null)} />
       )}
       {opened === 'invite' && (
         <InviteTrainer timezone={trainer.timezone} onBack={() => setOpened(null)} />
