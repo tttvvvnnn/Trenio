@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/tttvvvnnn/Trenio/compare/v0.13.1...v0.14.0) (2026-10-20)
+
+
+### Новое
+
+* **admin:** брендинг веб-админки ([#93](https://github.com/tttvvvnnn/Trenio/issues/93)) ([9fbad26](https://github.com/tttvvvnnn/Trenio/commit/9fbad267f7cd92cfc6bcc236aca128514a85fbe0))
+* вход в веб-админку, деньги и приложение admin ([#88](https://github.com/tttvvvnnn/Trenio/issues/88)) ([ed15f7f](https://github.com/tttvvvnnn/Trenio/commit/ed15f7fa6937488e9c03a4e35d809f9c231bbe24))
+* действия с тренером, тарифы, рассылки и журнал в веб-админке ([#90](https://github.com/tttvvvnnn/Trenio/issues/90)) ([84f6e9b](https://github.com/tttvvvnnn/Trenio/commit/84f6e9b5ded1b2ab095f3b36d7aa542e5f682d44))
+* обращения и отзывы тренеров; fix: вход в веб-админку без eval ([#92](https://github.com/tttvvvnnn/Trenio/issues/92)) ([a7671e5](https://github.com/tttvvvnnn/Trenio/commit/a7671e59d1b807334f891b0d5b183e7a9c449e62))
+* промокоды тренеров — скидка на оплату Pro и дни Pro бесплатно ([#91](https://github.com/tttvvvnnn/Trenio/issues/91)) ([217a695](https://github.com/tttvvvnnn/Trenio/commit/217a6958da1c123b086f0a97234ef517553f5ca6))
+* раздел «Клиенты» в веб-админке и журнал действий админа ([#89](https://github.com/tttvvvnnn/Trenio/issues/89)) ([89bdd64](https://github.com/tttvvvnnn/Trenio/commit/89bdd6498b962a6982c38f4392fdea9313434452))
+* таблица ботов и назначение токенов для веб-админки ([#86](https://github.com/tttvvvnnn/Trenio/issues/86)) ([e8ef380](https://github.com/tttvvvnnn/Trenio/commit/e8ef380d60aafb09c98f281fb75e81ad4d6082b1))
+
 ## [0.13.1](https://github.com/tttvvvnnn/Trenio/compare/v0.13.0...v0.13.1) (2026-10-19)
 
 
