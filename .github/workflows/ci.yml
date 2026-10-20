@@ -67,10 +67,26 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  admin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
   docker:
     # Имя как раньше: на "docker (backend)" и "docker (frontend)" завязаны обязательные проверки
     name: docker (${{ matrix.component }})
-    needs: [backend, frontend]
+    needs: [backend, frontend, admin]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,6 +98,8 @@ jobs:
             image: trenio-backend
           - component: frontend
             image: trenio-web
+          - component: admin
+            image: trenio-admin
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
@@ -167,7 +185,7 @@ jobs:
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
-          for image in trenio-backend trenio-web; do
+          for image in trenio-backend trenio-web trenio-admin; do
             docker buildx imagetools create \
               --tag "ghcr.io/tttvvvnnn/$image:$VERSION" \
               "ghcr.io/tttvvvnnn/$image:sha-$GITHUB_SHA"

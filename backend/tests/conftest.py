@@ -68,6 +68,7 @@ async def clean_db(migrated_db: None) -> None:
     async with get_engine().begin() as conn:
         await conn.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
         await conn.execute(text("TRUNCATE app_settings"))
+        await conn.execute(text("TRUNCATE admin_audit_log"))
 
 
 @pytest.fixture

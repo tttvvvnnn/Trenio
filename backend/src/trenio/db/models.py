@@ -177,6 +177,50 @@ def _main_bot_fk(nullable: bool = False) -> Mapped[Any]:
     )
 
 
+class AdminSession(Base):
+    """Вход в веб-админку. Действует, только когда админ подтвердил его кнопкой в боте."""
+
+    __tablename__ = "admin_sessions"
+    __table_args__ = (CheckConstraint("status IN ('pending', 'active', 'denied')", name="status"),)
+
+    # Случайный id, он же лежит в токене куки
+    id: Mapped[str] = mapped_column(String(43), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending")
+    # Сверяется с заголовком X-CSRF-Token у запросов, которые что-то меняют
+    csrf_token: Mapped[str] = mapped_column(String(43))
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AdminAuditEntry(Base):
+    """Журнал действий в админке. Строки только добавляются: изменить или удалить их
+    не даёт триггер в базе. Поэтому и без внешних ключей: удаление пользователя
+    не должно трогать журнал."""
+
+    __tablename__ = "admin_audit_log"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    session_id: Mapped[str | None] = mapped_column(String(43))
+    # Что сделано, например login.confirmed или trainer.disabled
+    action: Mapped[str] = mapped_column(String(64))
+    # С чем: «trainer:12», «session:…»
+    target: Mapped[str | None] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
+    ip: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
 class PromoView(Base):
     """Что человек сделал с промо-предложением: для счётчиков в админке
     и чтобы карточка на главном экране больше не появлялась после закрытия."""

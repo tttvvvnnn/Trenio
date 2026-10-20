@@ -14,13 +14,13 @@ from trenio.services.users import get_user
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
-_bearer = HTTPBearer(auto_error=False)
+bearer = HTTPBearer(auto_error=False)
 
 
 async def current_user(
     session: SessionDep,
     settings: SettingsDep,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
 ) -> User:
     unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Не авторизован")
     if credentials is None:
