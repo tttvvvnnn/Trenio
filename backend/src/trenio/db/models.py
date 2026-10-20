@@ -383,6 +383,57 @@ class SubscriptionPayment(TimestampMixin, Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PromoCode(Base):
+    """Промокод для тренеров: скидка на одну оплату Pro или дни Pro бесплатно."""
+
+    __tablename__ = "promo_codes"
+    __table_args__ = (
+        CheckConstraint("kind IN ('percent', 'rubles', 'days')", name="kind"),
+        CheckConstraint("value > 0", name="value"),
+        CheckConstraint("max_uses IS NULL OR max_uses > 0", name="max_uses"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bot_id: Mapped[int] = _main_bot_fk()
+    # Всегда в верхнем регистре: тренер может ввести как угодно
+    code: Mapped[str] = mapped_column(String(32), unique=True)
+    # percent — скидка в процентах, rubles — в рублях, days — дни Pro без оплаты
+    kind: Mapped[str] = mapped_column(String(16))
+    value: Mapped[int] = mapped_column(Integer)
+    # Сколько тренеров могут воспользоваться; None — без ограничения. Каждый — один раз
+    max_uses: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Для себя: кому и зачем выдан
+    note: Mapped[str | None] = mapped_column(String(200))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PromoRedemption(Base):
+    """Тренер ввёл промокод. Скидка ждёт оплаты (reserved), дни Pro даются сразу (used)."""
+
+    __tablename__ = "promo_redemptions"
+    __table_args__ = (
+        CheckConstraint("status IN ('reserved', 'used')", name="status"),
+        UniqueConstraint("code_id", "trainer_id", name="uq_promo_redemptions_pair"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code_id: Mapped[int] = mapped_column(ForeignKey("promo_codes.id", ondelete="CASCADE"))
+    trainer_id: Mapped[int] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16))
+    # Оплата, в которой применилась скидка
+    payment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("subscription_payments.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    code: Mapped[PromoCode] = relationship(lazy="joined")
+
+
 class BalanceEntry(Base):
     """Движение по балансу тренера: начисление за приглашённого, оплата, возврат."""
 

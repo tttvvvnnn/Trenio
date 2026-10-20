@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trenio.config import get_settings
 from trenio.db.models import BalanceEntry, SubscriptionPayment, Trainer
 from trenio.delivery.kick import kick
-from trenio.services import notifications, platega, subscription
+from trenio.services import notifications, platega, promo_codes, subscription
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,12 @@ def _move_balance(
     )
 
 
+async def price_for(session: AsyncSession, trainer: Trainer, price: int) -> int:
+    """Цена тарифа для этого тренера: со скидкой по введённому промокоду, если она есть."""
+    pending = await promo_codes.pending_discount(session, trainer)
+    return price if pending is None else promo_codes.discounted(price, pending.code)
+
+
 async def start_payment(
     session: AsyncSession, trainer: Trainer, plan_key: str, return_url: str, now: datetime
 ) -> SubscriptionPayment:
@@ -83,7 +89,8 @@ async def start_payment(
     if plan is None:
         raise UnknownPlan(plan_key)
     locked = await _locked_trainer(session, trainer.id)
-    used, amount = split_price(plan.price, locked.balance)
+    price = await price_for(session, locked, plan.price)
+    used, amount = split_price(price, locked.balance)
     if amount and not _payments_enabled():
         await session.commit()
         raise PaymentUnavailable
@@ -91,12 +98,13 @@ async def start_payment(
         trainer_id=locked.id,
         plan=plan_key,
         days=plan.days,
-        price=plan.price,
+        price=price,
         amount=amount,
         balance_used=used,
     )
     session.add(payment)
     await session.flush()
+    await promo_codes.attach(session, locked, payment)
     if used:
         _move_balance(session, locked, -used, "payment", payment)
     await session.commit()
@@ -141,6 +149,7 @@ async def confirm(session: AsyncSession, payment_id: int, now: datetime) -> None
         return
     payment.status = "paid"
     payment.paid_at = now
+    await promo_codes.settle(session, payment, now)
     trainer = await _locked_trainer(session, payment.trainer_id)
     subscription.extend_pro(trainer, payment.days, now)
     await notifications.subscription_paid(session, trainer, payment, now)
