@@ -4,6 +4,7 @@ import {
   errorText,
   fetchPayment,
   fetchSubscription,
+  redeemPromoCode,
   startPayment,
   type Subscription as Sub,
   type SubscriptionPayment,
@@ -13,7 +14,7 @@ import { plural, rubles } from '../format'
 import { untilText } from '../settings'
 import { useRefreshKey } from '../sync'
 import { confirmAction, haptic, openUrl } from '../telegram'
-import { ErrorText, Row, Section, SkeletonList } from '../ui/kit'
+import { ErrorText, Row, Section, SkeletonList, TextField } from '../ui/kit'
 import { LegalScreen } from '../ui/Privacy'
 import Screen from '../ui/Screen'
 
@@ -50,6 +51,10 @@ function stateHint(sub: Sub, timezone: string): { tone: string; text: string } |
   }
 }
 
+function discountText(discount: NonNullable<Sub['discount']>): string {
+  return discount.kind === 'percent' ? `${discount.value}%` : rubles(discount.value)
+}
+
 function planTitle(plan: SubscriptionPlan): string {
   return plan.key === 'year' ? 'Pro на год' : 'Pro на месяц'
 }
@@ -84,6 +89,10 @@ export default function Subscription({ timezone, onBack }: Props) {
   const [busy, setBusy] = useState(false)
   const [termsOpen, setTermsOpen] = useState(false)
   const [paid, setPaid] = useState(false)
+  // Промокод: поле открывается по нажатию, после ввода — что он дал
+  const [codeOpen, setCodeOpen] = useState(false)
+  const [code, setCode] = useState('')
+  const [codeNote, setCodeNote] = useState<string | null>(null)
   const refreshKey = useRefreshKey()
   const paymentId = useRef<number | null>(null)
 
@@ -156,6 +165,31 @@ export default function Subscription({ timezone, onBack }: Props) {
     }
   }
 
+  async function applyCode() {
+    if (busy || !code.trim()) return
+    haptic.tap()
+    setBusy(true)
+    setError(null)
+    try {
+      const before = sub
+      const updated = await redeemPromoCode(code)
+      haptic.success()
+      setSub(updated)
+      setCode('')
+      setCodeOpen(false)
+      setCodeNote(
+        updated.discount && updated.discount.code !== before?.discount?.code
+          ? `Скидка ${discountText(updated.discount)} применится к следующей оплате.`
+          : `Готово, Pro ${untilText(updated.until, timezone)}.`,
+      )
+    } catch (err) {
+      haptic.error()
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const hint = sub && stateHint(sub, timezone)
   const month = sub?.plans.find((plan) => plan.key === 'month')
 
@@ -198,6 +232,43 @@ export default function Subscription({ timezone, onBack }: Props) {
               />
             ))}
           </Section>
+          {codeNote && <p className="card-hint done">{codeNote}</p>}
+          {sub.discount && !codeNote && (
+            <p className="card-hint done">
+              Промокод {sub.discount.code}: скидка {discountText(sub.discount)} уже в цене тарифа.
+            </p>
+          )}
+          {codeOpen ? (
+            <>
+              <TextField
+                label="Промокод"
+                value={code}
+                onChange={setCode}
+                maxLength={32}
+                placeholder="Например, TRENIO"
+                autoComplete="off"
+              />
+              <Section>
+                <Row
+                  title={busy ? 'Проверяем…' : 'Применить'}
+                  icon={{ name: 'check', color: 'var(--c-accent)' }}
+                  onClick={() => void applyCode()}
+                />
+              </Section>
+            </>
+          ) : (
+            <Section>
+              <Row
+                title="Есть промокод"
+                icon={{ name: 'star', color: 'var(--c-accent)' }}
+                chevron
+                onClick={() => {
+                  setCodeNote(null)
+                  setCodeOpen(true)
+                }}
+              />
+            </Section>
+          )}
           {sub.balance > 0 && (
             <Section footer="Баланс пополняется на 20% с каждой оплаты тренеров, которых вы пригласили. Он тратится только на подписку.">
               <Row

@@ -16,7 +16,7 @@ from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
 from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot, get_bot_username
-from trenio.db.models import AdminAuditEntry, Trainer, User
+from trenio.db.models import AdminAuditEntry, PromoCode, Trainer, User
 from trenio.delivery.channel import DeliveryError, TelegramChannel
 from trenio.delivery.kick import kick
 from trenio.delivery.texts import broadcast_message
@@ -28,6 +28,7 @@ from trenio.services import (
     avatars,
     broadcasts,
     privacy,
+    promo_codes,
     saas_money,
     subscription,
 )
@@ -925,4 +926,127 @@ async def get_audit(_: CurrentAdmin, session: SessionDep) -> list[AuditOut]:
             created_at=row.created_at,
         )
         for row in rows
+    ]
+
+
+class PromoCodeIn(BaseModel):
+    code: str = Field(pattern=r"^\s*[A-Za-zА-Яа-яЁё0-9_-]{3,32}\s*$")
+    kind: promo_codes.Kind
+    value: int = Field(ge=1, le=100_000)
+    max_uses: int | None = Field(default=None, ge=1, le=100_000)
+    expires_at: datetime | None = None
+    note: str | None = Field(default=None, max_length=200)
+
+
+class PromoCodeOut(BaseModel):
+    id: int
+    code: str
+    kind: str
+    value: int
+    max_uses: int | None
+    expires_at: datetime | None
+    note: str | None
+    is_active: bool
+    created_at: datetime
+    # Дни Pro выданы или скидка потрачена на оплату
+    used: int
+    # Скидка введена, но оплаты ещё не было
+    reserved: int
+
+    @classmethod
+    def of(cls, code: PromoCode, used: int = 0, reserved: int = 0) -> "PromoCodeOut":
+        return cls(
+            id=code.id,
+            code=code.code,
+            kind=code.kind,
+            value=code.value,
+            max_uses=code.max_uses,
+            expires_at=code.expires_at,
+            note=code.note,
+            is_active=code.is_active,
+            created_at=code.created_at,
+            used=used,
+            reserved=reserved,
+        )
+
+
+@router.get("/promo-codes")
+async def list_promo_codes(_: CurrentAdmin, session: SessionDep) -> list[PromoCodeOut]:
+    return [
+        PromoCodeOut.of(row.code, row.used, row.reserved)
+        for row in await promo_codes.list_codes(session)
+    ]
+
+
+@router.post("/promo-codes", status_code=status.HTTP_201_CREATED)
+async def create_promo_code(
+    body: PromoCodeIn, admin: CurrentAdmin, session: SessionDep
+) -> PromoCodeOut:
+    if body.kind is promo_codes.Kind.PERCENT and body.value > 99:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Скидка больше 99%")
+    if body.kind is promo_codes.Kind.DAYS and body.value > 366:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Больше года Pro")
+    code = promo_codes.normalize(body.code)
+    if await session.scalar(select(PromoCode.id).where(PromoCode.code == code)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Такой код уже есть")
+    item = PromoCode(
+        code=code,
+        kind=body.kind.value,
+        value=body.value,
+        max_uses=body.max_uses,
+        expires_at=body.expires_at,
+        note=(body.note or "").strip() or None,
+        created_at=datetime.now(UTC),
+    )
+    session.add(item)
+    await session.flush()
+    await admin.audit(
+        session,
+        "promo_code.created",
+        target=f"promo_code:{item.id}",
+        payload={"code": code, "kind": item.kind, "value": item.value},
+    )
+    await session.commit()
+    return PromoCodeOut.of(item)
+
+
+@router.post("/promo-codes/{code_id}/active", status_code=status.HTTP_204_NO_CONTENT)
+async def set_promo_code_active(
+    code_id: int, body: ActiveIn, admin: CurrentAdmin, session: SessionDep
+) -> None:
+    """Выключенный код больше не принимается; уже введённые скидки остаются за тренерами."""
+    item = await session.get(PromoCode, code_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Промокод не найден")
+    item.is_active = body.active
+    await admin.audit(
+        session,
+        "promo_code.enabled" if body.active else "promo_code.disabled",
+        target=f"promo_code:{code_id}",
+        payload={"code": item.code},
+    )
+    await session.commit()
+
+
+class RedemptionOut(BaseModel):
+    trainer_id: int
+    name: str
+    status: str
+    created_at: datetime
+    used_at: datetime | None
+
+
+@router.get("/promo-codes/{code_id}/redemptions")
+async def get_redemptions(
+    code_id: int, _: CurrentAdmin, session: SessionDep
+) -> list[RedemptionOut]:
+    return [
+        RedemptionOut(
+            trainer_id=row.trainer_id,
+            name=name,
+            status=row.status,
+            created_at=row.created_at,
+            used_at=row.used_at,
+        )
+        for row, name in await promo_codes.redemptions(session, code_id)
     ]

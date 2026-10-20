@@ -171,6 +171,12 @@ function auditText(entry: AuditEntry): string {
       return 'Изменены настройки промо TVPN'
     case 'plans.updated':
       return 'Изменён тариф'
+    case 'promo_code.created':
+      return `Создан промокод ${str(p.code)}`
+    case 'promo_code.enabled':
+      return `Включён промокод ${str(p.code)}`
+    case 'promo_code.disabled':
+      return `Выключен промокод ${str(p.code)}`
     case 'broadcast.sent':
       return `Рассылка, получателей ${str(p.recipients)}: «${str(p.text).slice(0, 80)}»`
     default:

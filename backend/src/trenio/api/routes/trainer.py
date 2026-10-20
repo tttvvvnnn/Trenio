@@ -1,14 +1,14 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from trenio.api.deps import CurrentTrainer, SessionDep
 from trenio.bot.setup import get_bot_username
 from trenio.config import get_settings
 from trenio.db.models import Trainer
-from trenio.services import avatars, billing, subscription
+from trenio.services import avatars, billing, promo_codes, subscription
 from trenio.services.trainers import (
     InvalidTimezone,
     TrainerProfileUpdate,
@@ -137,6 +137,13 @@ class PlanOut(BaseModel):
     amount: int
 
 
+class DiscountOut(BaseModel):
+    code: str
+    # percent или rubles
+    kind: str
+    value: int
+
+
 class SubscriptionOut(BaseModel):
     # admin, pro, trial или free
     state: str
@@ -152,12 +159,21 @@ class SubscriptionOut(BaseModel):
     balance: int
     # Можно ли сейчас оплатить по СБП
     payments_enabled: bool
+    # Скидка по промокоду: уже учтена в цене тарифов
+    discount: DiscountOut | None = None
 
 
-@router.get("/subscription")
-async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> SubscriptionOut:
+async def _subscription(session: SessionDep, trainer: Trainer) -> SubscriptionOut:
     sub = await subscription.get_subscription(session, trainer, datetime.now(UTC))
     terms = await subscription.get_terms(session)
+    pending = await promo_codes.pending_discount(session, trainer)
+    plans = []
+    for key, plan in subscription.plans(terms).items():
+        price = await billing.price_for(session, trainer, plan.price)
+        used, amount = billing.split_price(price, trainer.balance)
+        plans.append(
+            PlanOut(key=key, days=plan.days, price=price, balance_used=used, amount=amount)
+        )
     return SubscriptionOut(
         state=sub.state.value,
         until=sub.until,
@@ -165,16 +181,35 @@ async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> Subs
         client_limit=sub.client_limit,
         can_add_client=sub.can_add_client,
         free_client_limit=terms.free_client_limit,
-        plans=[
-            PlanOut(
-                key=key,
-                days=plan.days,
-                price=plan.price,
-                balance_used=(split := billing.split_price(plan.price, trainer.balance))[0],
-                amount=split[1],
-            )
-            for key, plan in subscription.plans(terms).items()
-        ],
+        plans=plans,
         balance=trainer.balance,
         payments_enabled=get_settings().payments_enabled,
+        discount=(
+            DiscountOut(code=pending.code.code, kind=pending.code.kind, value=pending.code.value)
+            if pending is not None
+            else None
+        ),
     )
+
+
+@router.get("/subscription")
+async def get_subscription(trainer: CurrentTrainer, session: SessionDep) -> SubscriptionOut:
+    return await _subscription(session, trainer)
+
+
+class PromoCodeIn(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
+@router.post("/promo-code")
+async def redeem_promo_code(
+    body: PromoCodeIn, trainer: CurrentTrainer, session: SessionDep
+) -> SubscriptionOut:
+    """Промокод: дни Pro добавляются сразу, скидка ждёт следующей оплаты."""
+    try:
+        await promo_codes.redeem(session, trainer, body.code, datetime.now(UTC))
+    except promo_codes.CodeRejected as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, promo_codes.ERROR_TEXT[error.reason]
+        ) from None
+    return await _subscription(session, trainer)

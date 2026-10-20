@@ -274,3 +274,27 @@ export type AuditEntry = {
   web: boolean
   created_at: string
 }
+
+export type CodeKind = 'percent' | 'rubles' | 'days'
+
+export type PromoCode = {
+  id: number
+  code: string
+  kind: CodeKind
+  value: number
+  max_uses: number | null
+  expires_at: string | null
+  note: string | null
+  is_active: boolean
+  created_at: string
+  used: number
+  reserved: number
+}
+
+export type Redemption = {
+  trainer_id: number
+  name: string
+  status: 'reserved' | 'used'
+  created_at: string
+  used_at: string | null
+}
