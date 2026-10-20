@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, get, post, type Session, type TelegramLogin } from './api'
+import { Wordmark } from './Brand'
 
 // Поля, которые Telegram добавляет к data-auth-url после входа
 function loginFromUrl(): TelegramLogin | null {
@@ -100,9 +101,9 @@ export default function Login({ session, onSession }: Props) {
   return (
     <div className="center">
       <section className="glass login" aria-labelledby="login-title">
-        <span className="logo-mark" aria-hidden="true" style={{ width: 48, height: 48, borderRadius: 16 }} />
-        <h1 id="login-title" style={{ margin: 0, fontSize: 26, fontWeight: 600 }}>
-          Админка Trenio
+        <h1 id="login-title" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <Wordmark height={44} />
+          <span className="logo-tag">веб-админка</span>
         </h1>
         {pending ? (
           <>

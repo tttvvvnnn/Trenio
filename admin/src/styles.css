@@ -4,7 +4,8 @@
 :root {
   --coral: #ff5a36;
   --accent-gradient: linear-gradient(140deg, #ff6a42, #e2412b);
-  --bg: #f3eeeb;
+  /* Бетон и графит из docs/brand-guidelines.md */
+  --bg: #ededea;
   --glow: radial-gradient(900px 600px at 10% 0%, rgba(255, 138, 102, 0.42), transparent 60%),
     radial-gradient(800px 600px at 95% 25%, rgba(165, 180, 252, 0.48), transparent 60%),
     radial-gradient(700px 500px at 50% 110%, rgba(251, 207, 232, 0.6), transparent 60%);
@@ -16,7 +17,7 @@
   --dialog: rgba(255, 255, 255, 0.96);
   --overlay: rgba(40, 24, 20, 0.28);
   --shadow: 0 10px 30px rgba(80, 40, 30, 0.07);
-  --text: #16171d;
+  --text: #15171c;
   --muted: #5a5c66;
   --link: #c2391b;
   --green: #1a8a4c;
@@ -29,7 +30,7 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #0d0e12;
+  --bg: #15171c;
   --glow: radial-gradient(900px 600px at 15% 0%, rgba(255, 90, 54, 0.26), transparent 60%),
     radial-gradient(800px 600px at 95% 30%, rgba(99, 102, 241, 0.2), transparent 60%),
     radial-gradient(700px 500px at 50% 110%, rgba(236, 72, 153, 0.13), transparent 60%);
@@ -135,17 +136,37 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
-  font-size: 20px;
-  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+  /* Охранное поле вокруг слова, см. docs/brand-guidelines.md */
+  padding: 6px 4px;
 }
 
-.logo-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #ff7a52, #ff3d2e);
-  box-shadow: 0 6px 18px rgba(255, 90, 54, 0.45);
+.logo-tag {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Знак на экране загрузки мягко «тикает» */
+.splash {
+  color: var(--text);
+  animation: splash 1.4s ease-in-out infinite;
+}
+
+@keyframes splash {
+  50% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    animation: none;
+  }
 }
 
 .glass {

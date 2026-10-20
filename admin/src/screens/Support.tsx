@@ -114,7 +114,7 @@ export default function Support({ onUnauthorized }: ScreenProps) {
         <>
           <section className="glass tile span-4" style={{ gap: 6 }}>
             <span className="small muted">Ждут ответа</span>
-            <b className="num" style={{ fontSize: 34, fontWeight: 600, color: waiting ? 'var(--accent)' : undefined }}>
+            <b className="num" style={{ fontSize: 34, fontWeight: 600, color: waiting ? 'var(--coral)' : undefined }}>
               {waiting}
             </b>
             <span className="tiny muted">О новых сообщает бот, сразу как тренер отправил.</span>
