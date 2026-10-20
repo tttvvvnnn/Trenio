@@ -13,7 +13,7 @@ from trenio.api.routes.admin_auth import cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import User
-from trenio.services import admin_insights, admin_stats, avatars
+from trenio.services import admin_insights, admin_stats, avatars, saas_money
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
     create_invite,
@@ -346,3 +346,97 @@ async def new_invite(admin: CurrentAdmin, session: SessionDep, settings: Setting
 async def list_invites(_: CurrentAdmin, session: SessionDep) -> list[OpenInviteOut]:
     invites = await admin_stats.open_invites(session, datetime.now(UTC))
     return [OpenInviteOut(created_at=i.created_at, expires_at=i.expires_at) for i in invites]
+
+
+class MonthTotalOut(BaseModel):
+    month: date
+    received: int
+
+
+class ForecastOut(BaseModel):
+    optimistic: int
+    realistic: int
+    cautious: int
+
+
+class RenewalOut(BaseModel):
+    trainer_id: int
+    name: str
+    at: datetime
+    # pro или trial
+    kind: str
+    price: int
+    # low, medium, high
+    risk: str
+    reason: str
+
+
+class SubscriptionPaymentOut(BaseModel):
+    paid_at: datetime
+    trainer_id: int
+    name: str
+    plan: str
+    price: int
+    # Через какой бот пришла оплата
+    bot: str | None
+
+
+class SaasMoneyOut(BaseModel):
+    mrr: int
+    paying: int
+    trials: int
+    arpu: int
+    trial_conversion: int | None
+    received_total: int
+    months: list[MonthTotalOut]
+    forecast: ForecastOut
+    renewals: list[RenewalOut]
+    payments: list[SubscriptionPaymentOut]
+
+
+@router.get("/money")
+async def get_money(_: CurrentAdmin, session: SessionDep, settings: SettingsDep) -> SaasMoneyOut:
+    """Подписки Trenio: MRR, прогноз на месяц вперёд, ближайшие продления и оплаты."""
+    now = datetime.now(UTC)
+    rows = await admin_stats.trainer_rows(session, now)
+    admins = {
+        row.trainer.id for row in rows if is_admin(row.trainer.user, settings.admin_telegram_ids)
+    }
+    data = await saas_money.summary(session, now, rows, admins)
+    return SaasMoneyOut(
+        mrr=data.mrr,
+        paying=data.paying,
+        trials=data.trials,
+        arpu=data.arpu,
+        trial_conversion=data.trial_conversion,
+        received_total=data.received_total,
+        months=[MonthTotalOut(month=m.month, received=m.received) for m in data.months],
+        forecast=ForecastOut(
+            optimistic=data.forecast.optimistic,
+            realistic=data.forecast.realistic,
+            cautious=data.forecast.cautious,
+        ),
+        renewals=[
+            RenewalOut(
+                trainer_id=r.trainer_id,
+                name=r.name,
+                at=r.at,
+                kind=r.kind,
+                price=r.price,
+                risk=r.risk.value,
+                reason=r.reason,
+            )
+            for r in data.renewals
+        ],
+        payments=[
+            SubscriptionPaymentOut(
+                paid_at=p.paid_at,
+                trainer_id=p.trainer_id,
+                name=p.name,
+                plan=p.plan,
+                price=p.price,
+                bot=p.bot,
+            )
+            for p in data.payments
+        ],
+    )

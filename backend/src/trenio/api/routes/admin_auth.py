@@ -18,7 +18,7 @@ from trenio.api.deps import SessionDep, SettingsDep
 from trenio.auth.telegram import InitDataError, validate_login_widget
 from trenio.auth.tokens import Audience, TokenError, create_access_token, decode_admin_token
 from trenio.bot.admin import send_login_confirmation
-from trenio.bot.setup import get_bot
+from trenio.bot.setup import get_bot, get_bot_username
 from trenio.config import Settings
 from trenio.db.models import AdminSession, User
 from trenio.services import admin_auth
@@ -140,6 +140,16 @@ def _session_out(
         expires_at=admin_session.expires_at,
         csrf_token=admin_session.csrf_token if current is SessionState.ACTIVE else None,
     )
+
+
+class ConfigOut(BaseModel):
+    # Для Telegram Login Widget на странице входа
+    bot_username: str
+
+
+@router.get("/config")
+async def config() -> ConfigOut:
+    return ConfigOut(bot_username=await get_bot_username())
 
 
 @router.post("/telegram")
