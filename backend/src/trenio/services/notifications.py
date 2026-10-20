@@ -59,6 +59,8 @@ class Kind(StrEnum):
     SUBSCRIPTION_PAID = "subscription_paid"
     # Тренеру: приглашённый им тренер оплатил Pro, payload: payment_id и bonus (рубли)
     REFERRAL_BONUS = "referral_bonus"
+    # Тренеру: рассылка из админки, payload: broadcast_id
+    BROADCAST = "broadcast"
 
 
 # Уведомления о будущем занятии: при отмене записи они больше не нужны
@@ -403,6 +405,17 @@ async def referral_bonus(
         dedup_key=f"{Kind.REFERRAL_BONUS.value}:{payment.id}",
         send_at=now,
         payload={"payment_id": payment.id, "bonus": bonus},
+    )
+
+
+async def broadcast(session: AsyncSession, broadcast_id: int, user_id: int, now: datetime) -> None:
+    await _enqueue(
+        session,
+        user_id=user_id,
+        kind=Kind.BROADCAST,
+        dedup_key=f"{Kind.BROADCAST.value}:{broadcast_id}:{user_id}",
+        send_at=now,
+        payload={"broadcast_id": broadcast_id},
     )
 
 

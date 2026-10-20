@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { post, type ActiveSession, type Insights, type Overview } from '../api'
+import { post, type ActiveSession, type AuditEntry, type Insights, type Overview } from '../api'
 import { ago, shortDate, time } from '../format'
 import { useData } from '../useData'
 import { ErrorTile, PageTitle, Skeleton, type ScreenProps } from './common'
@@ -8,6 +8,7 @@ export default function System({ onUnauthorized }: ScreenProps) {
   const insights = useData<Insights>('/admin/insights', onUnauthorized)
   const overview = useData<Overview>('/admin/overview', onUnauthorized)
   const sessions = useData<ActiveSession[]>('/admin/auth/sessions', onUnauthorized)
+  const audit = useData<AuditEntry[]>('/admin/audit', onUnauthorized)
   const [error, setError] = useState<string | null>(null)
 
   const failed = insights.error ?? overview.error ?? sessions.error
@@ -94,11 +95,26 @@ export default function System({ onUnauthorized }: ScreenProps) {
       </section>
 
       <section className="glass tile span-12" aria-labelledby="sy-log">
-        <h2 id="sy-log">Журнал и логи</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Входы и действия в админке уже записываются в журнал. Экран журнала, логи сервера и
-          состояние бэкапов появятся следующим шагом.
-        </p>
+        <div>
+          <h2 id="sy-log">Журнал действий</h2>
+          <span className="small muted">Входы и всё, что меняли в админке. Записи нельзя изменить или удалить.</span>
+        </div>
+        {audit.error && <p className="small muted">{audit.error}</p>}
+        {audit.data?.length === 0 && <p className="muted" style={{ margin: 0 }}>Пока пусто.</p>}
+        {audit.data?.map((entry) => (
+          <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '110px minmax(0,1fr) 150px', gap: 12, alignItems: 'baseline', minHeight: 32 }}>
+            <span className="small muted num">
+              {shortDate(entry.created_at)} {time(entry.created_at)}
+            </span>
+            <span className="small" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              {auditText(entry)}
+            </span>
+            <span className="tiny muted" style={{ textAlign: 'right' }}>
+              {entry.web ? 'веб' : 'Mini App'}
+              {entry.ip ? ` · ${entry.ip}` : ''}
+            </span>
+          </div>
+        ))}
       </section>
     </>
   )
@@ -118,4 +134,46 @@ function Status({ name, value, sub, ok }: { name: string; value: string; sub: st
       <span className="small muted">{sub}</span>
     </section>
   )
+}
+
+const str = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '')
+
+// Строка журнала простыми словами; неизвестное действие показываем как есть
+function auditText(entry: AuditEntry): string {
+  const p = entry.payload
+  const name = str(p.name)
+  switch (entry.action) {
+    case 'login.requested':
+      return 'Запрос входа, ждёт подтверждения в боте'
+    case 'login.confirmed':
+      return 'Вход подтверждён в боте'
+    case 'login.denied':
+      return 'Вход отклонён в боте'
+    case 'login.rejected':
+      return 'Попытка входа не админа'
+    case 'session.revoked':
+      return 'Вход завершён'
+    case 'trainer.disabled':
+      return `Отключён тренер ${name}`
+    case 'trainer.enabled':
+      return `Возвращён доступ тренеру ${name}`
+    case 'trainer.pro_extended':
+      return `${name}: Pro в подарок на ${str(p.days)} дн.`
+    case 'trainer.messaged':
+      return `Сообщение тренеру ${name}: «${str(p.text).slice(0, 80)}»`
+    case 'trainer.deleted':
+      return `Удалён тренер ${name}. Причина: ${str(p.reason)}`
+    case 'client.deleted':
+      return `Удалены данные клиента ${name}. Запрос: ${str(p.reason)}`
+    case 'invite.created':
+      return 'Создана ссылка-приглашение'
+    case 'promo.updated':
+      return 'Изменены настройки промо TVPN'
+    case 'plans.updated':
+      return 'Изменён тариф'
+    case 'broadcast.sent':
+      return `Рассылка, получателей ${str(p.recipients)}: «${str(p.text).slice(0, 80)}»`
+    default:
+      return entry.target ? `${entry.action} · ${entry.target}` : entry.action
+  }
 }

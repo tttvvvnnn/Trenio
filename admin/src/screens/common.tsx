@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { avatarColor, initials } from '../format'
 
 export type ScreenProps = { onUnauthorized: () => void }
@@ -106,5 +106,21 @@ export function Line({
         <path d={path(future)} fill="none" stroke={color} strokeWidth="3" strokeDasharray="6 6" opacity="0.75" vectorEffect="non-scaling-stroke" />
       )}
     </svg>
+  )
+}
+
+// Модальное окно на <dialog>: фокус, Esc и затемнение фона даёт браузер
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    ref.current?.showModal()
+  }, [])
+  return (
+    <dialog ref={ref} className="dialog" aria-labelledby="modal-title" onClose={onClose}>
+      <h2 id="modal-title" style={{ margin: '0 0 14px', fontSize: 20 }}>
+        {title}
+      </h2>
+      {children}
+    </dialog>
   )
 }

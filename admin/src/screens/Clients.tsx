@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { post, type AdminClient, type ClientCard } from '../api'
-import { ago, plural, shortDate, time, tint } from '../format'
+import { ago, errorText, plural, shortDate, time, tint } from '../format'
 import { useData } from '../useData'
-import { Avatar, Bars, ErrorTile, PageTitle, Skeleton, type ScreenProps } from './common'
+import { Avatar, Bars, ErrorTile, Modal, PageTitle, Skeleton, type ScreenProps } from './common'
 
 const COLUMNS = 'minmax(0,1.5fr) minmax(0,1fr) 90px 120px 120px'
 
@@ -264,15 +264,10 @@ function ClientPanel({
 }
 
 function DeleteDialog({ card, onCancel, onDeleted }: { card: ClientCard; onCancel: () => void; onDeleted: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const upcoming = card.links.filter((link) => link.next_booking_at).length
-
-  useEffect(() => {
-    ref.current?.showModal()
-  }, [])
 
   const submit = async () => {
     setBusy(true)
@@ -281,24 +276,20 @@ function DeleteDialog({ card, onCancel, onDeleted }: { card: ClientCard; onCance
       await post(`/admin/clients/${card.client.id}/delete`, { reason })
       onDeleted()
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : 'Не получилось')
+      setError(errorText(failure))
       setBusy(false)
     }
   }
 
   return (
-    <dialog ref={ref} className="dialog" aria-labelledby="delete-title" onClose={onCancel}>
+    <Modal title={`Удалить данные: ${fullName(card.client)}?`} onClose={onCancel}>
       <form
-        method="dialog"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
         }}
         style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
       >
-        <h2 id="delete-title" style={{ margin: 0, fontSize: 20 }}>
-          Удалить данные: {fullName(card.client)}?
-        </h2>
         <p className="small" style={{ margin: 0 }}>
           Отменить это нельзя. Имя, фото, телефон и заметки тренеров о клиенте сотрутся
           {upcoming > 0 ? ', будущие записи отменятся, тренеры получат уведомление' : ''}. Записи и оплаты останутся у тренеров без имени.
@@ -330,6 +321,6 @@ function DeleteDialog({ card, onCancel, onDeleted }: { card: ClientCard; onCance
           </button>
         </div>
       </form>
-    </dialog>
+    </Modal>
   )
 }

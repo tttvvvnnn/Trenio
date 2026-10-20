@@ -43,6 +43,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const get = <T>(path: string) => request<T>('GET', path)
 export const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body)
+export const put = <T>(path: string, body: unknown) => request<T>('PUT', path, body)
 
 // --- вход ---
 
@@ -149,6 +150,8 @@ export type AdminTrainer = {
   streak: number
   bookings_created: number
   marks: number
+  trial_until: string | null
+  pro_until: string | null
 }
 
 export type Risk = 'low' | 'medium' | 'high'
@@ -228,4 +231,46 @@ export type ClientCard = {
     created_by: 'client' | 'trainer'
   }[]
   activity: boolean[]
+}
+
+export type Terms = { price_month: number; trial_days: number; free_client_limit: number }
+
+export type PromoSettings = {
+  enabled: boolean
+  title: string
+  subtitle: string
+  text: string
+  code: string
+  url: string
+  button: string
+  delay_days: number
+}
+
+export type AdminPromo = {
+  settings: PromoSettings
+  stats: { shown: number; dismissed: number; claimed: number; opened: number }
+}
+
+export type Segment = 'all' | 'pro' | 'trial' | 'free' | 'not_set_up' | 'quiet'
+
+export type BroadcastItem = {
+  id: number
+  text: string
+  segment: Segment
+  with_button: boolean
+  recipients: number
+  sent: number
+  failed: number
+  pending: number
+  created_at: string
+}
+
+export type AuditEntry = {
+  id: number
+  action: string
+  target: string | null
+  payload: Record<string, unknown>
+  ip: string | null
+  web: boolean
+  created_at: string
 }

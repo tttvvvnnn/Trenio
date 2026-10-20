@@ -221,6 +221,24 @@ class AdminAuditEntry(Base):
     )
 
 
+class Broadcast(Base):
+    """Рассылка тренерам из админки. Сами сообщения — строки notifications с kind broadcast."""
+
+    __tablename__ = "broadcasts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bot_id: Mapped[int] = _main_bot_fk()
+    # Кнопка «Открыть Trenio» под сообщением. Выше поля text: оно перекрывает sqlalchemy.text
+    with_button: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    text: Mapped[str] = mapped_column(Text)
+    # Кому: all, trial, free, pro, not_set_up, quiet; см. trenio.services.broadcasts
+    segment: Mapped[str] = mapped_column(String(32))
+    recipients: Mapped[int] = mapped_column(Integer)
+    # Кто отправил; без внешнего ключа, как в журнале действий
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class PromoView(Base):
     """Что человек сделал с промо-предложением: для счётчиков в админке
     и чтобы карточка на главном экране больше не появлялась после закрытия."""
@@ -349,7 +367,7 @@ class SubscriptionPayment(TimestampMixin, Base):
     )
     # Через какой бот пришла оплата: деньги общие, но в отчёте видно источник
     bot_id: Mapped[int] = _main_bot_fk()
-    # month или year, см. trenio.services.subscription.PLANS
+    # month или year, см. trenio.services.subscription.plans
     plan: Mapped[str] = mapped_column(String(16))
     days: Mapped[int] = mapped_column(Integer)
     # Цена тарифа = amount + balance_used, в рублях

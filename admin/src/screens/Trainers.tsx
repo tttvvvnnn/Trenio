@@ -11,6 +11,7 @@ import {
   type ScreenProps,
 } from './common'
 import { ATTENTION_TEXT, STATE_COLOR, STATE_LABEL } from './labels'
+import { TrainerActionDialog, type TrainerAction } from './TrainerActions'
 
 type Filter = 'all' | 'active' | 'attention' | 'disabled'
 
@@ -20,6 +21,13 @@ const FILTERS: { id: Filter; label: string; match: (t: AdminTrainer) => boolean 
   { id: 'attention', label: 'Требуют внимания', match: (t) => t.state === 'quiet' || t.state === 'not_set_up' },
   { id: 'disabled', label: 'Отключены', match: (t) => t.state === 'disabled' },
 ]
+
+function planText(trainer: AdminTrainer): string {
+  const now = new Date()
+  if (trainer.pro_until && new Date(trainer.pro_until) > now) return `Pro до ${shortDate(trainer.pro_until)}`
+  if (trainer.trial_until && new Date(trainer.trial_until) > now) return `пробный до ${shortDate(trainer.trial_until)}`
+  return 'бесплатный'
+}
 
 const COLUMNS = 'minmax(0,1.6fr) 130px 80px minmax(0,1fr) 140px 52px'
 
@@ -34,6 +42,8 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
   const [invite, setInvite] = useState<NewInvite | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [action, setAction] = useState<{ kind: TrainerAction; trainer: AdminTrainer } | null>(null)
+  const [done, setDone] = useState<string | null>(null)
 
   const failed = trainers.error ?? overview.error ?? insights.error ?? invites.error
   if (failed) return <ErrorTile text={failed} onRetry={() => [trainers, overview, insights, invites].forEach((x) => x.reload())} />
@@ -121,6 +131,23 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
           {error}
         </p>
       )}
+      {done && (
+        <p className="notice span-12" role="status" style={{ color: 'var(--green)', margin: 0 }}>
+          {done}
+        </p>
+      )}
+      {action && (
+        <TrainerActionDialog
+          action={action.kind}
+          trainer={action.trainer}
+          onClose={() => setAction(null)}
+          onDone={(note) => {
+            setAction(null)
+            setDone(note)
+            trainers.reload()
+          }}
+        />
+      )}
 
       <section className="glass tile span-12" aria-label="Список тренеров" style={{ padding: '12px 16px 16px', gap: 0 }}>
         <div className="tiny muted" style={{ display: 'grid', gridTemplateColumns: COLUMNS, gap: 14, padding: '10px 12px' }}>
@@ -156,10 +183,11 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
                 </span>
               </div>
             </div>
-            <span>
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
               <span className="badge" style={{ background: tint(STATE_COLOR[trainer.state]), color: STATE_COLOR[trainer.state] }}>
                 {trainer.is_admin ? 'админ' : STATE_LABEL[trainer.state]}
               </span>
+              {!trainer.is_admin && <span className="tiny muted">{planText(trainer)}</span>}
             </span>
             <span className="num" style={{ textAlign: 'right', fontWeight: 500 }}>
               {trainer.clients}
@@ -189,9 +217,26 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
               <div className="menu" role="menu">
                 {trainer.user.username && (
                   <a role="menuitem" href={`https://t.me/${trainer.user.username}`} target="_blank" rel="noreferrer">
-                    Написать в Telegram
+                    Написать в личку
                   </a>
                 )}
+                {[
+                  ['message', 'Сообщение в бот'],
+                  ...(trainer.is_admin ? [] : [['pro', 'Pro в подарок']]),
+                ].map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setMenu(null)
+                      setDone(null)
+                      setAction({ kind: kind as TrainerAction, trainer })
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
                 {!trainer.is_admin && (
                   <button
                     role="menuitem"
@@ -203,9 +248,20 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
                     {trainer.state === 'disabled' ? 'Вернуть доступ' : 'Отключить'}
                   </button>
                 )}
-                <span className="tiny muted" style={{ padding: '8px 12px' }}>
-                  Продление Pro, скидки и удаление появятся в следующем обновлении.
-                </span>
+                {!trainer.is_admin && (
+                  <button
+                    role="menuitem"
+                    type="button"
+                    style={{ color: 'var(--red)' }}
+                    onClick={() => {
+                      setMenu(null)
+                      setDone(null)
+                      setAction({ kind: 'delete', trainer })
+                    }}
+                  >
+                    Удалить…
+                  </button>
+                )}
               </div>
             )}
           </div>

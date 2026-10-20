@@ -17,6 +17,7 @@ from trenio.config import get_settings
 from trenio.db.models import (
     ACTIVE_BOOKING_STATUSES,
     Booking,
+    Broadcast,
     Notification,
     Package,
     SubscriptionPayment,
@@ -344,8 +345,9 @@ async def _subscription_ending(
     paid = trainer.pro_until is not None and trainer.pro_until >= until
     what = "Подписка Pro" if paid else "Пробный период Trenio"
     clients = await subscription.count_clients(session, trainer)
-    limit = subscription.FREE_CLIENT_LIMIT
-    price = rubles(subscription.PLANS["month"].price)
+    terms = await subscription.get_terms(session)
+    limit = terms.free_client_limit
+    price = rubles(terms.price_month)
     if row.payload["days"] and until <= now:
         # Предупреждение опоздало: об окончании скажет следующее
         return None
@@ -369,7 +371,7 @@ async def _client_limit(session: AsyncSession, row: Notification) -> OutMessage 
     client = await session.get(User, row.payload["user_id"])
     if client is None:
         return None
-    limit = subscription.FREE_CLIENT_LIMIT
+    limit = (await subscription.get_terms(session)).free_client_limit
     return OutMessage(
         _lines(
             f"🔒 {person(client)} хотел(а) стать вашим клиентом, но не смог(ла)",
@@ -422,8 +424,22 @@ async def _referral_bonus(session: AsyncSession, row: Notification) -> OutMessag
     )
 
 
+def broadcast_message(text: str, with_button: bool) -> OutMessage:
+    """Рассылка из админки; так же выглядит и тестовая отправка себе."""
+    return OutMessage(text, open_app() if with_button else [])
+
+
+async def _broadcast(session: AsyncSession, row: Notification) -> OutMessage | None:
+    item = await session.get(Broadcast, row.payload["broadcast_id"])
+    if item is None:
+        return None
+    return broadcast_message(item.text, item.with_button)
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
+    if kind is Kind.BROADCAST:
+        return await _broadcast(session, row)
     if kind is Kind.SUBSCRIPTION_PAID:
         return await _subscription_paid(session, row)
     if kind is Kind.REFERRAL_BONUS:

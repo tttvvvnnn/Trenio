@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from trenio.api.deps import CurrentTrainer, CurrentUser, SessionDep, SettingsDep
-from trenio.services import legal, privacy
+from trenio.services import legal, privacy, subscription
 from trenio.services.legal import Document
 from trenio.services.privacy import PhoneError, PhoneRejected
 
@@ -33,25 +33,25 @@ class PolicyOut(BaseModel):
     url: str
 
 
-def _document(settings: SettingsDep, doc: Document) -> PolicyOut:
+async def _document(session: SessionDep, settings: SettingsDep, doc: Document) -> PolicyOut:
     return PolicyOut(
         version=privacy.POLICY_VERSION,
         title=legal.TITLES[doc],
-        text=legal.text(settings, doc),
+        text=legal.text(settings, doc, await subscription.get_terms(session)),
         url=legal.page_url(settings, doc),
     )
 
 
 @router.get("/legal/{doc}")
-async def get_document(doc: Document, settings: SettingsDep) -> PolicyOut:
+async def get_document(doc: Document, session: SessionDep, settings: SettingsDep) -> PolicyOut:
     """Политика и соглашение открыты всем: их можно прочитать и до входа."""
-    return _document(settings, doc)
+    return await _document(session, settings, doc)
 
 
 @router.get("/privacy")
-async def get_policy(settings: SettingsDep) -> PolicyOut:
+async def get_policy(session: SessionDep, settings: SettingsDep) -> PolicyOut:
     """Старый адрес политики: им пользуются Mini App прошлых версий."""
-    return _document(settings, Document.PRIVACY)
+    return await _document(session, settings, Document.PRIVACY)
 
 
 @router.post("/me/consent", status_code=status.HTTP_204_NO_CONTENT)

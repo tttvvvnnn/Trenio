@@ -50,3 +50,5 @@ export const avatarColor = (id: number) => AVATAR_COLORS[id % AVATAR_COLORS.leng
 // Фон-подложка под цвет: прозрачная версия того же цвета
 export const tint = (cssVar: string) =>
   `color-mix(in srgb, ${cssVar} var(--tint-alpha), transparent)`
+
+export const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : 'Не получилось')
