@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -5,10 +6,10 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from trenio.api.deps import CurrentTrainer, SessionDep
-from trenio.bot.setup import get_bot_username
+from trenio.bot.setup import get_bot, get_bot_username
 from trenio.config import get_settings
 from trenio.db.models import Trainer
-from trenio.services import avatars, billing, promo_codes, subscription
+from trenio.services import avatars, billing, promo_codes, subscription, support
 from trenio.services.trainers import (
     InvalidTimezone,
     TrainerProfileUpdate,
@@ -18,6 +19,7 @@ from trenio.services.trainers import (
 )
 
 router = APIRouter(prefix="/trainer", tags=["trainer"])
+logger = logging.getLogger(__name__)
 
 
 class TrainerOut(BaseModel):
@@ -213,3 +215,58 @@ async def redeem_promo_code(
             status.HTTP_422_UNPROCESSABLE_CONTENT, promo_codes.ERROR_TEXT[error.reason]
         ) from None
     return await _subscription(session, trainer)
+
+
+class SupportIn(BaseModel):
+    kind: support.Kind
+    text: str = Field(min_length=1, max_length=3000)
+    rating: int | None = Field(default=None, ge=1, le=5)
+
+
+class SupportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    kind: str
+    text: str
+    rating: int | None
+    status: str
+    answer: str | None
+    answered_at: datetime | None
+    created_at: datetime
+
+
+async def alert_admins(text: str) -> None:
+    """Новое обращение сразу видно в боте: открывать админку ради проверки не нужно."""
+    for telegram_id in get_settings().admin_telegram_ids:
+        try:
+            await get_bot().send_message(telegram_id, text)
+        except Exception:
+            logger.exception("Support alert was not sent")
+
+
+@router.get("/support")
+async def list_support(trainer: CurrentTrainer, session: SessionDep) -> list[SupportOut]:
+    tickets = await support.of_trainer(session, trainer.id)
+    return [SupportOut.model_validate(ticket) for ticket in tickets]
+
+
+@router.post("/support", status_code=status.HTTP_201_CREATED)
+async def create_support(
+    body: SupportIn, trainer: CurrentTrainer, session: SessionDep
+) -> SupportOut:
+    """Обращение из формы «Написать нам» в Профиле."""
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Напишите пару слов")
+    if body.kind is support.Kind.REVIEW and body.rating is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Поставьте оценку")
+    now = datetime.now(UTC)
+    if await support.sent_today(session, trainer.id, now) >= support.DAILY_LIMIT:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Слишком много обращений за день, напишите завтра"
+        )
+    ticket = await support.create(session, trainer, body.kind, text, body.rating, now)
+    await session.commit()
+    await alert_admins(support.admin_alert(trainer, ticket))
+    return SupportOut.model_validate(ticket)

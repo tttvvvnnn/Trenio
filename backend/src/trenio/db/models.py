@@ -239,6 +239,35 @@ class Broadcast(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class SupportTicket(Base):
+    """Обращение тренера из Mini App: вопрос, проблема, идея или отзыв. Ответ уходит в бот."""
+
+    __tablename__ = "support_tickets"
+    __table_args__ = (
+        CheckConstraint("kind IN ('question', 'problem', 'idea', 'review')", name="kind"),
+        CheckConstraint("status IN ('new', 'answered', 'closed')", name="status"),
+        CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="rating"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bot_id: Mapped[int] = _main_bot_fk()
+    trainer_id: Mapped[int] = mapped_column(
+        ForeignKey("trainers.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    # Оценка от 1 до 5, только у отзыва
+    rating: Mapped[int | None] = mapped_column(Integer)
+    # new — ждёт ответа, answered — ответ отправлен, closed — закрыто без ответа
+    status: Mapped[str] = mapped_column(String(16), default="new", server_default="new")
+    # Выше поля text: оно перекрывает sqlalchemy.text
+    answer: Mapped[str | None] = mapped_column(Text)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    trainer: Mapped["Trainer"] = relationship(lazy="joined")
+
+
 class PromoView(Base):
     """Что человек сделал с промо-предложением: для счётчиков в админке
     и чтобы карточка на главном экране больше не появлялась после закрытия."""

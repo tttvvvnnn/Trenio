@@ -9,6 +9,8 @@ declare global {
 
 // Пока админ не нажал «Да» в боте, спрашиваем состояние входа раз в 2 секунды
 const POLL_MS = 2000
+// Столько ждём кнопку Telegram, прежде чем подсказать, почему её нет
+const WIDGET_WAIT_MS = 6000
 
 type Props = {
   session: Session | null
@@ -19,6 +21,7 @@ export default function Login({ session, onSession }: Props) {
   const widget = useRef<HTMLDivElement>(null)
   const [botName, setBotName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [noWidget, setNoWidget] = useState(false)
   const pending = session?.state === 'pending'
 
   useEffect(() => {
@@ -49,7 +52,10 @@ export default function Login({ session, onSession }: Props) {
     script.dataset.onauth = 'onTelegramAuth(user)'
     script.dataset.requestAccess = 'write'
     box.replaceChildren(script)
+    setNoWidget(false)
+    const timer = window.setTimeout(() => setNoWidget(!box.querySelector('iframe')), WIDGET_WAIT_MS)
     return () => {
+      window.clearTimeout(timer)
       box.replaceChildren()
       delete window.onTelegramAuth
     }
@@ -94,6 +100,12 @@ export default function Login({ session, onSession }: Props) {
               <p className="notice">Вход завершён или устарел. Войдите заново.</p>
             )}
             <div ref={widget} style={{ minHeight: 48 }} />
+            {noWidget && (
+              <p className="notice small" role="status">
+                Кнопка Telegram не загрузилась. Обычно её блокирует расширение браузера или сеть: попробуйте окно
+                инкогнито. Ещё проверьте, что домен админки указан у бота @{botName} в @BotFather через /setdomain.
+              </p>
+            )}
           </>
         )}
         {error && (
