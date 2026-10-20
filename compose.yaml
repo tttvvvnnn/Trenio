@@ -41,6 +41,18 @@ services:
     depends_on:
       - backend
 
+  # Веб-админка на своём поддомене. Ходит только в /api backend
+  admin:
+    image: ghcr.io/tttvvvnnn/trenio-admin:${TRENIO_TAG:?TRENIO_TAG не задан в .env}
+    restart: unless-stopped
+    ports:
+      # Пока ADMIN_PORT не задан, Docker выберет свободный порт: админка просто не видна снаружи
+      - "127.0.0.1:${ADMIN_PORT:-}:80"
+    mem_limit: 32m
+    logging: *logging
+    depends_on:
+      - backend
+
 # Сеть создаёт compose общего PostgreSQL (deploy/db/compose.yaml)
 networks:
   trenio-db:
