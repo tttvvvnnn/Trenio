@@ -1,9 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, get, post, type Session, type TelegramLogin } from './api'
 
-declare global {
-  interface Window {
-    onTelegramAuth?: (user: TelegramLogin) => void
+// Поля, которые Telegram добавляет к data-auth-url после входа
+function loginFromUrl(): TelegramLogin | null {
+  const params = new URLSearchParams(window.location.search)
+  const id = Number(params.get('id'))
+  const authDate = Number(params.get('auth_date'))
+  const hash = params.get('hash')
+  if (!id || !authDate || !hash) return null
+  const optional = (key: string) => params.get(key) ?? undefined
+  return {
+    id,
+    first_name: optional('first_name'),
+    last_name: optional('last_name'),
+    username: optional('username'),
+    photo_url: optional('photo_url'),
+    auth_date: authDate,
+    hash,
   }
 }
 
@@ -30,11 +43,8 @@ export default function Login({ session, onSession }: Props) {
       .catch(() => setError('Не удалось связаться с сервером. Обновите страницу.'))
   }, [])
 
-  // Виджет Telegram — это их скрипт, который рисует кнопку и вызывает onTelegramAuth
-  useEffect(() => {
-    const box = widget.current
-    if (!botName || !box || pending) return
-    window.onTelegramAuth = (user) => {
+  const login = useCallback(
+    (user: TelegramLogin) => {
       setError(null)
       post<Session>('/admin/auth/telegram', user)
         .then(onSession)
@@ -42,14 +52,31 @@ export default function Login({ session, onSession }: Props) {
           if (reason instanceof ApiError && reason.status === 403) setError('Этот аккаунт не админ Trenio.')
           else setError(reason instanceof Error ? reason.message : 'Не получилось войти')
         })
-    }
+    },
+    [onSession],
+  )
+
+  // Telegram вернул на страницу с данными входа в адресе: забираем их и убираем из адреса
+  useEffect(() => {
+    const user = loginFromUrl()
+    if (!user) return
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash)
+    login(user)
+  }, [login])
+
+  // Виджет Telegram — это их скрипт, который рисует кнопку. После входа Telegram
+  // возвращает на data-auth-url: колбэк data-onauth виджет вызывает через eval, а его
+  // запрещает CSP админки
+  useEffect(() => {
+    const box = widget.current
+    if (!botName || !box || pending) return
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
     script.async = true
     script.dataset.telegramLogin = botName
     script.dataset.size = 'large'
     script.dataset.radius = '14'
-    script.dataset.onauth = 'onTelegramAuth(user)'
+    script.dataset.authUrl = window.location.origin + window.location.pathname
     script.dataset.requestAccess = 'write'
     box.replaceChildren(script)
     setNoWidget(false)
@@ -57,9 +84,8 @@ export default function Login({ session, onSession }: Props) {
     return () => {
       window.clearTimeout(timer)
       box.replaceChildren()
-      delete window.onTelegramAuth
     }
-  }, [botName, pending, onSession])
+  }, [botName, pending])
 
   useEffect(() => {
     if (!pending) return
