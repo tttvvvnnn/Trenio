@@ -148,7 +148,7 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-              <Avatar trainer={trainer} size={40} />
+              <Avatar id={trainer.id} name={trainer.display_name} url={trainer.avatar_url} size={40} />
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <span style={{ fontWeight: 500 }}>{trainer.display_name}</span>
                 <span className="tiny muted">

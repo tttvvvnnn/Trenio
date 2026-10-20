@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import type { AdminTrainer } from '../api'
 import { avatarColor, initials } from '../format'
 
 export type ScreenProps = { onUnauthorized: () => void }
@@ -36,14 +35,14 @@ export function PageTitle({ sub, title, children }: { sub: string; title: string
   )
 }
 
-export function Avatar({ trainer, size = 38 }: { trainer: AdminTrainer; size?: number }) {
-  const style = { width: size, height: size, background: avatarColor(trainer.id) }
-  if (trainer.avatar_url) {
-    return <img className="avatar" src={trainer.avatar_url} alt="" style={style} />
+export function Avatar({ id, name, url, size = 38 }: { id: number; name: string; url: string | null; size?: number }) {
+  const style = { width: size, height: size, background: avatarColor(id) }
+  if (url) {
+    return <img className="avatar" src={url} alt="" style={style} />
   }
   return (
     <span className="avatar" aria-hidden="true" style={style}>
-      {initials(trainer.display_name)}
+      {initials(name)}
     </span>
   )
 }

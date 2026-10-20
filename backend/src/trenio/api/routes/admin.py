@@ -1,19 +1,29 @@
 """Админ-панель: статистика платформы, тренеры и приглашения. Только для ADMIN_TELEGRAM_IDS."""
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from importlib.metadata import version
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
-from trenio.api.routes.admin_auth import cookie_session, current_web_admin
+from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot_username
 from trenio.db.models import User
-from trenio.services import admin_insights, admin_stats, avatars, saas_money
+from trenio.services import (
+    admin_auth,
+    admin_clients,
+    admin_insights,
+    admin_stats,
+    avatars,
+    privacy,
+    saas_money,
+)
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
     create_invite,
@@ -23,24 +33,52 @@ from trenio.services.trainers import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class Admin:
+    user: User
+    # Вход в веб-админку; None — запрос из Mini App
+    session_id: str | None
+    ip: str | None
+
+    async def audit(
+        self,
+        session: AsyncSession,
+        action: str,
+        target: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Запись в журнал действий. Коммит — вместе с самим действием."""
+        await admin_auth.audit(
+            session,
+            self.user.id,
+            action,
+            session_id=self.session_id,
+            target=target,
+            payload=payload,
+            ip=self.ip,
+        )
+
+
 async def current_admin(
     request: Request,
     session: SessionDep,
     settings: SettingsDep,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
-) -> User:
+) -> Admin:
     """Админ из Mini App (токен в заголовке) или из веб-админки (кука и подтверждённый вход)."""
+    session_id = None
     if credentials is not None:
         user = await current_user(session, settings, credentials)
     else:
         admin_session = await cookie_session(request, session, settings)
-        user = (await current_web_admin(request, admin_session, session, settings)).user
+        web_admin = await current_web_admin(request, admin_session, session, settings)
+        user, session_id = web_admin.user, web_admin.session.id
     if not is_admin(user, settings.admin_telegram_ids):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Только для админа")
-    return user
+    return Admin(user=user, session_id=session_id, ip=client_ip(request))
 
 
-CurrentAdmin = Annotated[User, Depends(current_admin)]
+CurrentAdmin = Annotated[Admin, Depends(current_admin)]
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -311,13 +349,19 @@ class ActiveIn(BaseModel):
 
 @router.post("/trainers/{trainer_id}/active", status_code=status.HTTP_204_NO_CONTENT)
 async def set_active(
-    trainer_id: int, body: ActiveIn, _: CurrentAdmin, session: SessionDep, settings: SettingsDep
+    trainer_id: int, body: ActiveIn, admin: CurrentAdmin, session: SessionDep, settings: SettingsDep
 ) -> None:
     trainer = await get_trainer_by_id(session, trainer_id)
     if trainer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Тренер не найден")
     if not body.active and is_admin(trainer.user, settings.admin_telegram_ids):
         raise HTTPException(status.HTTP_409_CONFLICT, "Админа нельзя отключить")
+    await admin.audit(
+        session,
+        "trainer.enabled" if body.active else "trainer.disabled",
+        target=f"trainer:{trainer_id}",
+        payload={"name": trainer.display_name},
+    )
     await set_trainer_active(session, trainer_id, body.active)
 
 
@@ -334,7 +378,10 @@ class OpenInviteOut(BaseModel):
 @router.post("/invites", status_code=status.HTTP_201_CREATED)
 async def new_invite(admin: CurrentAdmin, session: SessionDep, settings: SettingsDep) -> InviteOut:
     """Одноразовая ссылка для нового тренера, как команда /invite в боте."""
-    invite = await create_invite(session, admin, timedelta(days=settings.trainer_invite_ttl_days))
+    await admin.audit(session, "invite.created")
+    invite = await create_invite(
+        session, admin.user, timedelta(days=settings.trainer_invite_ttl_days)
+    )
     username = await get_bot_username()
     return InviteOut(
         url=f"https://t.me/{username}?start={TRAINER_INVITE_PREFIX}{invite.code}",
@@ -440,3 +487,167 @@ async def get_money(_: CurrentAdmin, session: SessionDep, settings: SettingsDep)
             for p in data.payments
         ],
     )
+
+
+class TrainerRefOut(BaseModel):
+    id: int
+    name: str
+
+
+class AdminClientOut(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None
+    username: str | None
+    avatar_url: str | None
+    # Клиент без Telegram: его завёл тренер
+    offline: bool
+    deleted: bool
+    trainers: list[TrainerRefOut]
+    since: datetime
+    bookings: int
+    attended: int
+    last_booking_at: datetime | None
+    next_booking_at: datetime | None
+    last_seen_at: datetime | None
+    active_days: int
+
+    @classmethod
+    def of(cls, row: admin_clients.ClientRow) -> "AdminClientOut":
+        user = row.user
+        return cls(
+            id=user.id,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            username=user.username,
+            avatar_url=avatars.avatar_url(user),
+            offline=user.is_offline and not user.is_deleted,
+            deleted=user.is_deleted,
+            trainers=[TrainerRefOut(id=t.id, name=t.name) for t in row.trainers],
+            since=row.since,
+            bookings=row.bookings,
+            attended=row.attended,
+            last_booking_at=row.last_booking_at,
+            next_booking_at=row.next_booking_at,
+            last_seen_at=user.last_seen_at,
+            active_days=row.active_days,
+        )
+
+
+class ClientLinkOut(BaseModel):
+    trainer: TrainerRefOut
+    since: datetime
+    bookings: int
+    attended: int
+    missed: int
+    cancelled: int
+    open_packages: int
+    last_booking_at: datetime | None
+    next_booking_at: datetime | None
+
+
+class ClientHistoryOut(BaseModel):
+    starts_at: datetime
+    trainer: str
+    service: str
+    status: str
+    attendance: str | None
+    # client — записался сам, trainer — записал тренер
+    created_by: str
+
+
+class ClientCardOut(BaseModel):
+    client: AdminClientOut
+    telegram_id: int | None
+    # Человек ещё и тренер: такого удаляют вместе с данными тренера, не отсюда
+    is_trainer: bool
+    links: list[ClientLinkOut]
+    history: list[ClientHistoryOut]
+    activity: list[bool]
+
+
+@router.get("/clients")
+async def get_clients(
+    _: CurrentAdmin, session: SessionDep, q: str = "", deleted: bool = False
+) -> list[AdminClientOut]:
+    rows = await admin_clients.search(session, q[:64], datetime.now(UTC), deleted=deleted)
+    return [AdminClientOut.of(row) for row in rows]
+
+
+async def _card(session: AsyncSession, user_id: int) -> admin_clients.ClientCard:
+    data = await admin_clients.card(session, user_id, datetime.now(UTC))
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Клиент не найден")
+    return data
+
+
+@router.get("/clients/{user_id}")
+async def get_client(user_id: int, _: CurrentAdmin, session: SessionDep) -> ClientCardOut:
+    data = await _card(session, user_id)
+    return ClientCardOut(
+        client=AdminClientOut.of(data.row),
+        telegram_id=data.row.user.telegram_id,
+        is_trainer=data.is_trainer,
+        links=[
+            ClientLinkOut(
+                trainer=TrainerRefOut(id=link.trainer.id, name=link.trainer.name),
+                since=link.since,
+                bookings=link.bookings,
+                attended=link.attended,
+                missed=link.missed,
+                cancelled=link.cancelled,
+                open_packages=link.open_packages,
+                last_booking_at=link.last_booking_at,
+                next_booking_at=link.next_booking_at,
+            )
+            for link in data.links
+        ],
+        history=[
+            ClientHistoryOut(
+                starts_at=h.starts_at,
+                trainer=h.trainer,
+                service=h.service,
+                status=h.status,
+                attendance=h.attendance,
+                created_by=h.created_by,
+            )
+            for h in data.history
+        ],
+        activity=data.activity,
+    )
+
+
+class DeleteClientIn(BaseModel):
+    # Откуда пришёл запрос на удаление: «письмо на почту 20.10», для журнала
+    reason: str
+
+
+@router.post("/clients/{user_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_client(
+    user_id: int,
+    body: DeleteClientIn,
+    admin: CurrentAdmin,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> None:
+    """Удаление данных по запросу клиента: то же, что «Удалить аккаунт» в его профиле."""
+    data = await _card(session, user_id)
+    user = data.row.user
+    if user.is_deleted:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Аккаунт уже удалён")
+    if data.is_trainer or is_admin(user, settings.admin_telegram_ids):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Это тренер: его так не удалить")
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Укажите, откуда запрос")
+    await admin.audit(
+        session,
+        "client.deleted",
+        target=f"user:{user.id}",
+        payload={
+            "name": " ".join(filter(None, [user.first_name, user.last_name])),
+            "trainers": [t.name for t in data.row.trainers],
+            "reason": reason[:500],
+        },
+    )
+    await privacy.delete_account(session, user, datetime.now(UTC))

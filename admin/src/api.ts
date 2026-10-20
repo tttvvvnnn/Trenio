@@ -183,3 +183,49 @@ export type Money = {
 
 export type OpenInvite = { created_at: string; expires_at: string }
 export type NewInvite = { url: string; expires_at: string }
+
+export type TrainerRef = { id: number; name: string }
+
+export type AdminClient = {
+  id: number
+  first_name: string
+  last_name: string | null
+  username: string | null
+  avatar_url: string | null
+  offline: boolean
+  deleted: boolean
+  trainers: TrainerRef[]
+  since: string
+  bookings: number
+  attended: number
+  last_booking_at: string | null
+  next_booking_at: string | null
+  last_seen_at: string | null
+  active_days: number
+}
+
+export type ClientCard = {
+  client: AdminClient
+  telegram_id: number | null
+  is_trainer: boolean
+  links: {
+    trainer: TrainerRef
+    since: string
+    bookings: number
+    attended: number
+    missed: number
+    cancelled: number
+    open_packages: number
+    last_booking_at: string | null
+    next_booking_at: string | null
+  }[]
+  history: {
+    starts_at: string
+    trainer: string
+    service: string
+    status: 'pending' | 'confirmed' | 'declined' | 'cancelled'
+    attendance: 'attended' | 'missed_charged' | 'missed_free' | null
+    created_by: 'client' | 'trainer'
+  }[]
+  activity: boolean[]
+}
