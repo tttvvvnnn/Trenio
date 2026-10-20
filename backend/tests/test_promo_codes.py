@@ -92,7 +92,8 @@ async def test_discount_applies_to_next_payment(
     status, body = await _redeem(client, headers, "half")
     assert status == 200, body
     assert body["discount"] == {"code": "HALF", "kind": "percent", "value": 50}
-    assert [p["price"] for p in body["plans"]] == [175]  # type: ignore[union-attr]
+    plans = body["plans"]
+    assert isinstance(plans, list) and [p["price"] for p in plans] == [175]
 
     # Оплата сорвалась: скидка остаётся за тренером
     payment = await pay(client, headers)
