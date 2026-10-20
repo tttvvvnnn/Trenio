@@ -713,6 +713,31 @@ export function redeemPromoCode(code: string): Promise<Subscription> {
   return send<Subscription>('POST', '/api/trainer/promo-code', { code })
 }
 
+export type SupportKind = 'question' | 'problem' | 'idea' | 'review'
+
+export type SupportTicket = {
+  id: number
+  kind: SupportKind
+  text: string
+  rating: number | null
+  status: 'new' | 'answered' | 'closed'
+  answer: string | null
+  answered_at: string | null
+  created_at: string
+}
+
+export function fetchSupport(): Promise<SupportTicket[]> {
+  return request<SupportTicket[]>('/api/trainer/support')
+}
+
+export function sendSupport(
+  kind: SupportKind,
+  text: string,
+  rating: number | null,
+): Promise<SupportTicket> {
+  return send<SupportTicket>('POST', '/api/trainer/support', { kind, text, rating })
+}
+
 export type ClientName = {
   first_name: string
   last_name: string | null

@@ -7,7 +7,7 @@ import Broadcasts from './screens/Broadcasts'
 import Clients from './screens/Clients'
 import Money from './screens/Money'
 import Plans from './screens/Plans'
-import Soon from './screens/Soon'
+import Support from './screens/Support'
 import Summary from './screens/Summary'
 import System from './screens/System'
 import Trainers from './screens/Trainers'
@@ -81,7 +81,7 @@ export default function App() {
       {section === 'plans' && <Plans {...props} />}
       {section === 'broadcasts' && <Broadcasts {...props} />}
       {section === 'system' && <System {...props} />}
-      {section === 'support' && <Soon section={section} />}
+      {section === 'support' && <Support {...props} />}
     </Shell>
   )
 }

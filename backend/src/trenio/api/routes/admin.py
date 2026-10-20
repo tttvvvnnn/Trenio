@@ -6,7 +6,7 @@ from importlib.metadata import version
 from typing import Annotated, Any
 
 from aiogram.exceptions import TelegramAPIError
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -16,7 +16,7 @@ from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
 from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot, get_bot_username
-from trenio.db.models import AdminAuditEntry, PromoCode, Trainer, User
+from trenio.db.models import AdminAuditEntry, PromoCode, SupportTicket, Trainer, User
 from trenio.delivery.channel import DeliveryError, TelegramChannel
 from trenio.delivery.kick import kick
 from trenio.delivery.texts import broadcast_message
@@ -31,6 +31,7 @@ from trenio.services import (
     promo_codes,
     saas_money,
     subscription,
+    support,
 )
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
@@ -1050,3 +1051,108 @@ async def get_redemptions(
         )
         for row, name in await promo_codes.redemptions(session, code_id)
     ]
+
+
+class TicketOut(BaseModel):
+    id: int
+    trainer_id: int
+    trainer_name: str
+    username: str | None
+    kind: str
+    text: str
+    rating: int | None
+    status: str
+    answer: str | None
+    answered_at: datetime | None
+    created_at: datetime
+
+    @classmethod
+    def of(cls, ticket: SupportTicket) -> "TicketOut":
+        return cls(
+            id=ticket.id,
+            trainer_id=ticket.trainer_id,
+            trainer_name=ticket.trainer.display_name,
+            username=ticket.trainer.user.username,
+            kind=ticket.kind,
+            text=ticket.text,
+            rating=ticket.rating,
+            status=ticket.status,
+            answer=ticket.answer,
+            answered_at=ticket.answered_at,
+            created_at=ticket.created_at,
+        )
+
+
+@router.get("/support")
+async def list_support(
+    _: CurrentAdmin,
+    session: SessionDep,
+    status_: Annotated[support.Status | None, Query(alias="status")] = None,
+) -> list[TicketOut]:
+    return [TicketOut.of(ticket) for ticket in await support.for_admin(session, status_)]
+
+
+async def _ticket(session: AsyncSession, ticket_id: int) -> SupportTicket:
+    ticket = await session.get(SupportTicket, ticket_id)
+    if ticket is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Обращение не найдено")
+    return ticket
+
+
+async def send_answer(telegram_id: int, text: str) -> None:
+    await get_bot().send_message(telegram_id, text)
+
+
+class AnswerIn(BaseModel):
+    text: str = Field(min_length=1, max_length=3500)
+
+
+@router.post("/support/{ticket_id}/answer")
+async def answer_support(
+    ticket_id: int, body: AnswerIn, admin: CurrentAdmin, session: SessionDep
+) -> TicketOut:
+    """Ответ уходит тренеру в бот. Можно ответить ещё раз: в карточке останется последний."""
+    ticket = await _ticket(session, ticket_id)
+    text = body.text.strip()
+    telegram_id = ticket.trainer.user.telegram_id
+    if not text or telegram_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Нечего или некуда отправить")
+    try:
+        await send_answer(telegram_id, support.answer_message(ticket, text))
+    except TelegramAPIError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Telegram: {error.message}") from error
+    ticket.answer = text
+    ticket.answered_at = datetime.now(UTC)
+    ticket.status = support.Status.ANSWERED.value
+    await admin.audit(
+        session,
+        "support.answered",
+        target=f"support:{ticket_id}",
+        payload={"name": ticket.trainer.display_name, "text": text[:500]},
+    )
+    await session.commit()
+    return TicketOut.of(ticket)
+
+
+class TicketStatusIn(BaseModel):
+    closed: bool
+
+
+@router.post("/support/{ticket_id}/status")
+async def set_support_status(
+    ticket_id: int, body: TicketStatusIn, admin: CurrentAdmin, session: SessionDep
+) -> TicketOut:
+    """Закрыть без ответа (отзыв, спам) или вернуть в работу."""
+    ticket = await _ticket(session, ticket_id)
+    if body.closed:
+        ticket.status = support.Status.CLOSED.value
+    else:
+        ticket.status = (support.Status.ANSWERED if ticket.answer else support.Status.NEW).value
+    await admin.audit(
+        session,
+        "support.closed" if body.closed else "support.reopened",
+        target=f"support:{ticket_id}",
+        payload={"name": ticket.trainer.display_name},
+    )
+    await session.commit()
+    return TicketOut.of(ticket)

@@ -298,3 +298,20 @@ export type Redemption = {
   created_at: string
   used_at: string | null
 }
+
+export type TicketKind = 'question' | 'problem' | 'idea' | 'review'
+export type TicketStatus = 'new' | 'answered' | 'closed'
+
+export type Ticket = {
+  id: number
+  trainer_id: number
+  trainer_name: string
+  username: string | null
+  kind: TicketKind
+  text: string
+  rating: number | null
+  status: TicketStatus
+  answer: string | null
+  answered_at: string | null
+  created_at: string
+}

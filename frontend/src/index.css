@@ -3017,3 +3017,56 @@ a.row-main {
 .cohort-table td.muted {
   color: var(--c-hint);
 }
+
+/* ===== «Написать нам»: история обращений ===== */
+
+.support-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+}
+
+.support-item + .support-item {
+  border-top: 0.5px solid var(--c-separator);
+}
+
+.support-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: 13px;
+  color: var(--c-subtitle);
+}
+
+.support-status {
+  flex: 0 0 auto;
+}
+
+.support-status.done {
+  color: var(--c-success);
+}
+
+.support-text,
+.support-answer {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.support-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+}
+
+.support-answer b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-accent);
+}
