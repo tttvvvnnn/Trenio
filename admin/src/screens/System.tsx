@@ -177,6 +177,12 @@ function auditText(entry: AuditEntry): string {
       return `Включён промокод ${str(p.code)}`
     case 'promo_code.disabled':
       return `Выключен промокод ${str(p.code)}`
+    case 'support.answered':
+      return `Ответ на обращение ${name}: «${str(p.text).slice(0, 80)}»`
+    case 'support.closed':
+      return `Закрыто обращение ${name}`
+    case 'support.reopened':
+      return `Возвращено в работу обращение ${name}`
     case 'broadcast.sent':
       return `Рассылка, получателей ${str(p.recipients)}: «${str(p.text).slice(0, 80)}»`
     default:
