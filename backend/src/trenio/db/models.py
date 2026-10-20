@@ -126,6 +126,57 @@ class AppSetting(Base):
     )
 
 
+MAIN_BOT_ID = 1
+
+
+class Bot(TimestampMixin, Base):
+    """Бот, через который специалист и его клиенты работают с Trenio.
+
+    Пока бот один — основной, его строку создаёт миграция, а токен берётся из BOT_TOKEN.
+    Таблица нужна заранее: админка и статистика сразу делят данные по bot_id, и при
+    подключении своих ботов специалистов ничего не придётся переписывать.
+    """
+
+    __tablename__ = "bots"
+    __table_args__ = (
+        CheckConstraint("platform IN ('telegram')", name="platform"),
+        UniqueConstraint("platform", "external_id", name="uq_bots_platform_external_id"),
+        # Основной бот ровно один: через него идут админ-команды, отчёты и бэкап
+        Index("uq_bots_main", "is_main", unique=True, postgresql_where=text("is_main")),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(16), default="telegram", server_default="telegram")
+    # id бота в мессенджере; у основного приложение записывает его при старте (getMe)
+    external_id: Mapped[int | None] = mapped_column(BigInteger)
+    username: Mapped[str | None] = mapped_column(String(64))
+    # Токен, зашифрованный ключом из окружения. У основного бота пусто: токен в BOT_TOKEN
+    token_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # Короткое имя для адреса Mini App (?bot=<slug>)
+    slug: Mapped[str] = mapped_column(String(32), unique=True)
+    # Направление специалистов бота: от него зависят слова в интерфейсе и модули
+    vertical: Mapped[str] = mapped_column(String(16), default="fitness", server_default="fitness")
+    settings: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
+    is_main: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # Выключенный бот не принимает обновления и не рассылает уведомления
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # До какого дня оплачен свой бот; у основного не используется
+    paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+def _main_bot_fk(nullable: bool = False) -> Mapped[Any]:
+    # Пока маршрутизации по ботам нет, всё новое относится к основному. Значение по умолчанию
+    # в Python, а не в базе: когда появятся свои боты, его уберём, и забытый bot_id станет ошибкой
+    return mapped_column(
+        ForeignKey("bots.id", ondelete="RESTRICT"),
+        default=MAIN_BOT_ID,
+        nullable=nullable,
+        index=True,
+    )
+
+
 class PromoView(Base):
     """Что человек сделал с промо-предложением: для счётчиков в админке
     и чтобы карточка на главном экране больше не появлялась после закрытия."""
@@ -152,6 +203,8 @@ class ClientError(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Из какого бота открыли Mini App
+    bot_id: Mapped[int | None] = _main_bot_fk(nullable=True)
     message: Mapped[str] = mapped_column(String(500))
     # Где случилось: компонент или «window»
     screen: Mapped[str | None] = mapped_column(String(100))
@@ -170,6 +223,8 @@ class Trainer(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    # Бот, в котором работают тренер и его клиенты
+    bot_id: Mapped[int] = _main_bot_fk()
     # Как тренера видят клиенты; по умолчанию имя из Telegram
     display_name: Mapped[str] = mapped_column(String(128))
     timezone: Mapped[str] = mapped_column(
@@ -222,6 +277,8 @@ class TrainerInvite(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(32), unique=True)
+    # Бот, в котором приглашение действует
+    bot_id: Mapped[int] = _main_bot_fk()
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -246,6 +303,8 @@ class SubscriptionPayment(TimestampMixin, Base):
     trainer_id: Mapped[int] = mapped_column(
         ForeignKey("trainers.id", ondelete="CASCADE"), index=True
     )
+    # Через какой бот пришла оплата: деньги общие, но в отчёте видно источник
+    bot_id: Mapped[int] = _main_bot_fk()
     # month или year, см. trenio.services.subscription.PLANS
     plan: Mapped[str] = mapped_column(String(16))
     days: Mapped[int] = mapped_column(Integer)

@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from enum import StrEnum
 
+from aiogram import Bot
 from fastapi import APIRouter, FastAPI
 
 from trenio.api.routes import (
@@ -37,9 +38,21 @@ from trenio.api.routes import (
 )
 from trenio.bot.setup import configure_webhook, get_bot, get_dispatcher
 from trenio.config import BotMode, get_settings
+from trenio.db.session import get_sessionmaker
 from trenio.scheduler.setup import create_scheduler
+from trenio.services import bots
 
 logger = logging.getLogger(__name__)
+
+
+async def _sync_main_bot(bot: Bot) -> None:
+    # Telegram недоступен — не повод не запускаться: строка обновится при следующем старте
+    try:
+        me = await bot.me()
+        async with get_sessionmaker()() as session:
+            await bots.sync_main_bot(session, me.id, me.username)
+    except Exception:
+        logger.warning("Main bot sync failed", exc_info=True)
 
 
 class Component(StrEnum):
@@ -63,6 +76,7 @@ def create_app(components: frozenset[Component] = ALL_COMPONENTS) -> FastAPI:
 
         if Component.BOT in components:
             bot = get_bot()
+            await _sync_main_bot(bot)
             if settings.bot_mode is BotMode.WEBHOOK:
                 await configure_webhook(bot)
             else:
