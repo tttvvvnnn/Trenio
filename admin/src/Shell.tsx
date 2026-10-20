@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { Wordmark } from './Brand'
 import { SECTIONS, type Section } from './sections'
 import { applyTheme, savedTheme, type Theme } from './theme'
 
@@ -20,10 +21,10 @@ export default function Shell({ section, name, onLogout, children }: Props) {
   return (
     <>
       <header className="header">
-        <div className="logo">
-          <span className="logo-mark" aria-hidden="true" />
-          trenio
-        </div>
+        <a className="logo" href="#/summary" aria-label="trenio, админка: на сводку">
+          <Wordmark height={26} />
+          <span className="logo-tag">админка</span>
+        </a>
         <nav className="glass pill-nav" aria-label="Разделы">
           {SECTIONS.map((item) => (
             <a

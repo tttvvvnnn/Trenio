@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, get, post, setCsrfToken, type Session } from './api'
+import { Mark } from './Brand'
 import Login from './Login'
 import type { Section } from './sections'
 import Shell from './Shell'
@@ -64,8 +65,10 @@ export default function App() {
 
   if (auth.kind === 'loading') {
     return (
-      <div className="center">
-        <div className="spinner" role="status" aria-label="Загрузка" />
+      <div className="center" role="status" aria-label="Загрузка">
+        <div className="splash">
+          <Mark size={56} />
+        </div>
       </div>
     )
   }
