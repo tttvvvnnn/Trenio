@@ -3,6 +3,7 @@ import { put, type AdminPromo, type PromoSettings, type Terms } from '../api'
 import { errorText, plural, rub } from '../format'
 import { useData } from '../useData'
 import { ErrorTile, PageTitle, Skeleton, type ScreenProps } from './common'
+import { PromoCodesTile } from './PromoCodes'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -191,6 +192,7 @@ export default function Plans(props: ScreenProps) {
       <PageTitle sub="без деплоя" title="Тарифы и промо" />
       <TermsTile {...props} />
       <PromoTile {...props} />
+      <PromoCodesTile {...props} />
     </>
   )
 }
