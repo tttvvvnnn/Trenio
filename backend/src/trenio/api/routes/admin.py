@@ -5,16 +5,17 @@ from datetime import UTC, date, datetime, timedelta
 from importlib.metadata import version
 from typing import Annotated, Any
 
+from aiogram.exceptions import TelegramAPIError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
 from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
-from trenio.bot.setup import get_bot_username
-from trenio.db.models import User
+from trenio.bot.setup import get_bot, get_bot_username
+from trenio.db.models import Trainer, User
 from trenio.services import (
     admin_auth,
     admin_clients,
@@ -23,6 +24,7 @@ from trenio.services import (
     avatars,
     privacy,
     saas_money,
+    subscription,
 )
 from trenio.services.trainers import (
     TRAINER_INVITE_PREFIX,
@@ -303,6 +305,8 @@ class AdminTrainerOut(BaseModel):
     bookings_created: int
     marks: int
     journey: JourneyOut
+    trial_until: datetime | None
+    pro_until: datetime | None
 
 
 @router.get("/trainers")
@@ -338,6 +342,8 @@ async def get_trainers(
                 first_client_booking_at=first.client_booking.get(row.trainer.id),
                 first_package_at=first.package.get(row.trainer.id),
             ),
+            trial_until=row.trainer.trial_until,
+            pro_until=row.trainer.pro_until,
         )
         for row in rows
     ]
@@ -363,6 +369,105 @@ async def set_active(
         payload={"name": trainer.display_name},
     )
     await set_trainer_active(session, trainer_id, body.active)
+
+
+async def _trainer(session: AsyncSession, trainer_id: int) -> Trainer:
+    trainer = await get_trainer_by_id(session, trainer_id)
+    if trainer is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Тренер не найден")
+    return trainer
+
+
+class ProIn(BaseModel):
+    days: int = Field(ge=1, le=366)
+
+
+class ProOut(BaseModel):
+    pro_until: datetime
+
+
+@router.post("/trainers/{trainer_id}/pro")
+async def extend_trainer_pro(
+    trainer_id: int, body: ProIn, admin: CurrentAdmin, session: SessionDep
+) -> ProOut:
+    """Pro в подарок: дни идут после текущего Pro или пробного периода, как при оплате."""
+    trainer = await _trainer(session, trainer_id)
+    until = subscription.extend_pro(trainer, body.days, datetime.now(UTC))
+    await admin.audit(
+        session,
+        "trainer.pro_extended",
+        target=f"trainer:{trainer_id}",
+        payload={"name": trainer.display_name, "days": body.days, "until": until.isoformat()},
+    )
+    await session.commit()
+    return ProOut(pro_until=until)
+
+
+MESSAGE_HEADER = "Сообщение от команды Trenio\n\n"
+
+
+async def send_to_trainer(telegram_id: int, text: str) -> None:
+    await get_bot().send_message(telegram_id, MESSAGE_HEADER + text)
+
+
+class MessageIn(BaseModel):
+    text: str = Field(min_length=1, max_length=3500)
+
+
+@router.post("/trainers/{trainer_id}/message", status_code=status.HTTP_204_NO_CONTENT)
+async def message_trainer(
+    trainer_id: int, body: MessageIn, admin: CurrentAdmin, session: SessionDep
+) -> None:
+    """Сообщение тренеру в бот от имени Trenio."""
+    trainer = await _trainer(session, trainer_id)
+    text = body.text.strip()
+    if not text or trainer.user.telegram_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Нечего или некуда отправить")
+    try:
+        await send_to_trainer(trainer.user.telegram_id, text)
+    except TelegramAPIError as error:
+        # Чаще всего тренер остановил бота
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Telegram: {error.message}") from error
+    await admin.audit(
+        session,
+        "trainer.messaged",
+        target=f"trainer:{trainer_id}",
+        payload={"name": trainer.display_name, "text": text[:500]},
+    )
+    await session.commit()
+
+
+class DeleteTrainerIn(BaseModel):
+    # Имя тренера, набранное руками: защита от удаления не того
+    confirm_name: str
+    reason: str
+
+
+@router.post("/trainers/{trainer_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_trainer(
+    trainer_id: int,
+    body: DeleteTrainerIn,
+    admin: CurrentAdmin,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> None:
+    """Удаляет тренера со всем, что он вёл: как «Удалить аккаунт» в его профиле."""
+    trainer = await _trainer(session, trainer_id)
+    if is_admin(trainer.user, settings.admin_telegram_ids):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Админа нельзя удалить")
+    if body.confirm_name.strip().casefold() != trainer.display_name.strip().casefold():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Имя не совпадает")
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Укажите причину")
+    clients = await subscription.count_clients(session, trainer)
+    await admin.audit(
+        session,
+        "trainer.deleted",
+        target=f"trainer:{trainer_id}",
+        payload={"name": trainer.display_name, "clients": clients, "reason": reason[:500]},
+    )
+    await privacy.delete_account(session, trainer.user, datetime.now(UTC))
 
 
 class InviteOut(BaseModel):
