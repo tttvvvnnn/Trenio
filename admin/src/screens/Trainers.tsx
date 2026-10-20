@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { post, type AdminTrainer, type Insights, type NewInvite, type OpenInvite, type Overview } from '../api'
 import { ago, shortDate, tint } from '../format'
 import { useData } from '../useData'
@@ -44,6 +44,20 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
   const [error, setError] = useState<string | null>(null)
   const [action, setAction] = useState<{ kind: TrainerAction; trainer: AdminTrainer } | null>(null)
   const [done, setDone] = useState<string | null>(null)
+
+  // Меню закрывается по Esc и по клику мимо него
+  useEffect(() => {
+    if (menu === null) return
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !(event.target as Element).closest('.menu, .icon-btn')) setMenu(null)
+    }
+    document.addEventListener('keydown', close)
+    document.addEventListener('pointerdown', close)
+    return () => {
+      document.removeEventListener('keydown', close)
+      document.removeEventListener('pointerdown', close)
+    }
+  }, [menu])
 
   const failed = trainers.error ?? overview.error ?? insights.error ?? invites.error
   if (failed) return <ErrorTile text={failed} onRetry={() => [trainers, overview, insights, invites].forEach((x) => x.reload())} />
@@ -149,7 +163,12 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
         />
       )}
 
-      <section className="glass tile span-12" aria-label="Список тренеров" style={{ padding: '12px 16px 16px', gap: 0 }}>
+      {/* С открытым меню список выше соседних плиток: у стекла свой слой (backdrop-filter), и меню иначе уходит под следующую */}
+      <section
+        className="glass tile span-12"
+        aria-label="Список тренеров"
+        style={{ padding: '12px 16px 16px', gap: 0, position: 'relative', zIndex: menu === null ? undefined : 5 }}
+      >
         <div className="tiny muted" style={{ display: 'grid', gridTemplateColumns: COLUMNS, gap: 14, padding: '10px 12px' }}>
           <span>Тренер</span>
           <span>Состояние</span>
