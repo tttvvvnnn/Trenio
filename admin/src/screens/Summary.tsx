@@ -192,7 +192,7 @@ export default function Summary({ onUnauthorized }: ScreenProps) {
           return (
             <div key={trainer.id} className="row" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr) 120px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <Avatar trainer={trainer} size={36} />
+                <Avatar id={trainer.id} name={trainer.display_name} url={trainer.avatar_url} size={36} />
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                   <span style={{ fontWeight: 500 }}>{trainer.display_name}</span>
                   <span className="tiny" style={{ color: STATE_COLOR[trainer.state] }}>

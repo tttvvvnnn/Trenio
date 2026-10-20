@@ -2,10 +2,6 @@ import type { Section } from '../sections'
 import { PageTitle } from './common'
 
 const PLANNED: Partial<Record<Section, { title: string; items: string[] }>> = {
-  clients: {
-    title: 'Клиенты',
-    items: ['поиск по имени, телефону и тренеру', 'история занятий и активность в приложении', 'удаление данных по запросу клиента'],
-  },
   broadcasts: {
     title: 'Рассылки',
     items: ['сообщение всем тренерам или сегменту', 'предпросмотр и тест себе', 'доставлено, нажали кнопку, ответили'],

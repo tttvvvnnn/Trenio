@@ -3,6 +3,7 @@ import { ApiError, get, post, setCsrfToken, type Session } from './api'
 import Login from './Login'
 import type { Section } from './sections'
 import Shell from './Shell'
+import Clients from './screens/Clients'
 import Money from './screens/Money'
 import Soon from './screens/Soon'
 import Summary from './screens/Summary'
@@ -73,10 +74,10 @@ export default function App() {
     <Shell section={section} name={auth.session.name} onLogout={logout}>
       {section === 'summary' && <Summary {...props} />}
       {section === 'trainers' && <Trainers {...props} />}
+      {section === 'clients' && <Clients {...props} />}
       {section === 'money' && <Money {...props} />}
       {section === 'system' && <System {...props} />}
-      {(section === 'clients' ||
-        section === 'broadcasts' ||
+      {(section === 'broadcasts' ||
         section === 'plans' ||
         section === 'support') && <Soon section={section} />}
     </Shell>
