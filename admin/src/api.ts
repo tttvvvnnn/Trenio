@@ -264,3 +264,13 @@ export type BroadcastItem = {
   pending: number
   created_at: string
 }
+
+export type AuditEntry = {
+  id: number
+  action: string
+  target: string | null
+  payload: Record<string, unknown>
+  ip: string | null
+  web: boolean
+  created_at: string
+}

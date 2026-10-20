@@ -9,13 +9,14 @@ from aiogram.exceptions import TelegramAPIError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
 from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot, get_bot_username
-from trenio.db.models import Trainer, User
+from trenio.db.models import AdminAuditEntry, Trainer, User
 from trenio.delivery.channel import DeliveryError, TelegramChannel
 from trenio.delivery.kick import kick
 from trenio.delivery.texts import broadcast_message
@@ -890,4 +891,38 @@ async def list_broadcasts(_: CurrentAdmin, session: SessionDep) -> list[Broadcas
             created_at=d.broadcast.created_at,
         )
         for d in await broadcasts.history(session)
+    ]
+
+
+AUDIT_LIMIT = 100
+
+
+class AuditOut(BaseModel):
+    id: int
+    action: str
+    target: str | None
+    payload: dict[str, Any]
+    ip: str | None
+    # Из Mini App или из веб-админки
+    web: bool
+    created_at: datetime
+
+
+@router.get("/audit")
+async def get_audit(_: CurrentAdmin, session: SessionDep) -> list[AuditOut]:
+    """Последние записи журнала действий, свежие сверху."""
+    rows = await session.scalars(
+        select(AdminAuditEntry).order_by(AdminAuditEntry.id.desc()).limit(AUDIT_LIMIT)
+    )
+    return [
+        AuditOut(
+            id=row.id,
+            action=row.action,
+            target=row.target,
+            payload=row.payload,
+            ip=row.ip,
+            web=row.session_id is not None,
+            created_at=row.created_at,
+        )
+        for row in rows
     ]

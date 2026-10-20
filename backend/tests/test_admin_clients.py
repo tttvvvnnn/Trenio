@@ -119,3 +119,18 @@ async def test_trainer_actions_are_audited(client: AsyncClient, session: AsyncSe
     # Из Mini App: без входа в веб-админку
     assert entry is not None and entry.target == f"trainer:{other_id}"
     assert entry.session_id is None
+
+
+async def test_audit_screen(client: AsyncClient, session: AsyncSession) -> None:
+    headers, _, _ = await setup_trainer(client)
+    other = await second_trainer(client, session)
+    other_id = (await client.get("/api/me", headers=other)).json()["trainer"]["id"]
+    for active in (False, True):
+        await client.post(
+            f"/api/admin/trainers/{other_id}/active", headers=headers, json={"active": active}
+        )
+    rows = await get(client, headers, "audit")
+    assert [(r["action"], r["web"]) for r in rows] == [
+        ("trainer.enabled", False),
+        ("trainer.disabled", False),
+    ]
