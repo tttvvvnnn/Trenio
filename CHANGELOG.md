@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/tttvvvnnn/Trenio/compare/v0.14.0...v0.14.1) (2026-10-20)
+
+
+### Исправления
+
+* **admin:** меню действий тренера ([#94](https://github.com/tttvvvnnn/Trenio/issues/94)) ([840b656](https://github.com/tttvvvnnn/Trenio/commit/840b6562025cd8627e378d4e99ca9a9e5e2cf87f))
+
 ## [0.14.0](https://github.com/tttvvvnnn/Trenio/compare/v0.13.1...v0.14.0) (2026-10-20)
 
 
