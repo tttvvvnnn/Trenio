@@ -16,12 +16,16 @@ from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot, get_bot_username
 from trenio.db.models import Trainer, User
+from trenio.delivery.channel import DeliveryError, TelegramChannel
+from trenio.delivery.kick import kick
+from trenio.delivery.texts import broadcast_message
 from trenio.services import (
     admin_auth,
     admin_clients,
     admin_insights,
     admin_stats,
     avatars,
+    broadcasts,
     privacy,
     saas_money,
     subscription,
@@ -784,3 +788,106 @@ async def set_plans(body: TermsIO, admin: CurrentAdmin, session: SessionDep) -> 
     )
     await session.commit()
     return body
+
+
+class AudienceOut(BaseModel):
+    count: int
+    names: list[str]
+
+
+@router.get("/broadcasts/audience")
+async def get_audience(
+    segment: broadcasts.Segment, _: CurrentAdmin, session: SessionDep
+) -> AudienceOut:
+    trainers = await broadcasts.audience(session, segment, datetime.now(UTC))
+    return AudienceOut(count=len(trainers), names=[t.display_name for t in trainers])
+
+
+class BroadcastIn(BaseModel):
+    text: str = Field(min_length=1, max_length=3500)
+    with_button: bool = True
+
+
+class NewBroadcastIn(BroadcastIn):
+    segment: broadcasts.Segment
+
+
+class BroadcastOut(BaseModel):
+    id: int
+    text: str
+    segment: str
+    with_button: bool
+    recipients: int
+    sent: int
+    failed: int
+    pending: int
+    created_at: datetime
+
+
+def _text(body: BroadcastIn) -> str:
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Пустое сообщение")
+    return text
+
+
+async def send_test(user: User, text: str, with_button: bool) -> None:
+    await TelegramChannel().send(user, broadcast_message(text, with_button))
+
+
+@router.post("/broadcasts/test", status_code=status.HTTP_204_NO_CONTENT)
+async def test_broadcast(body: BroadcastIn, admin: CurrentAdmin) -> None:
+    """Пробная отправка себе: посмотреть, как сообщение выглядит в Telegram."""
+    try:
+        await send_test(admin.user, _text(body), body.with_button)
+    except DeliveryError as error:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Telegram: {error}") from error
+
+
+@router.post("/broadcasts", status_code=status.HTTP_201_CREATED)
+async def new_broadcast(
+    body: NewBroadcastIn, admin: CurrentAdmin, session: SessionDep
+) -> BroadcastOut:
+    now = datetime.now(UTC)
+    text = _text(body)
+    item = await broadcasts.send(session, text, body.segment, body.with_button, admin.user.id, now)
+    if item.recipients == 0:
+        await session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "В этом сегменте никого нет")
+    await admin.audit(
+        session,
+        "broadcast.sent",
+        target=f"broadcast:{item.id}",
+        payload={"segment": body.segment.value, "recipients": item.recipients, "text": text[:500]},
+    )
+    await session.commit()
+    kick()
+    return BroadcastOut(
+        id=item.id,
+        text=item.text,
+        segment=item.segment,
+        with_button=item.with_button,
+        recipients=item.recipients,
+        sent=0,
+        failed=0,
+        pending=item.recipients,
+        created_at=item.created_at,
+    )
+
+
+@router.get("/broadcasts")
+async def list_broadcasts(_: CurrentAdmin, session: SessionDep) -> list[BroadcastOut]:
+    return [
+        BroadcastOut(
+            id=d.broadcast.id,
+            text=d.broadcast.text,
+            segment=d.broadcast.segment,
+            with_button=d.broadcast.with_button,
+            recipients=d.broadcast.recipients,
+            sent=d.sent,
+            failed=d.failed,
+            pending=d.pending,
+            created_at=d.broadcast.created_at,
+        )
+        for d in await broadcasts.history(session)
+    ]

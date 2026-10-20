@@ -17,6 +17,7 @@ from trenio.config import get_settings
 from trenio.db.models import (
     ACTIVE_BOOKING_STATUSES,
     Booking,
+    Broadcast,
     Notification,
     Package,
     SubscriptionPayment,
@@ -423,8 +424,22 @@ async def _referral_bonus(session: AsyncSession, row: Notification) -> OutMessag
     )
 
 
+def broadcast_message(text: str, with_button: bool) -> OutMessage:
+    """Рассылка из админки; так же выглядит и тестовая отправка себе."""
+    return OutMessage(text, open_app() if with_button else [])
+
+
+async def _broadcast(session: AsyncSession, row: Notification) -> OutMessage | None:
+    item = await session.get(Broadcast, row.payload["broadcast_id"])
+    if item is None:
+        return None
+    return broadcast_message(item.text, item.with_button)
+
+
 async def render(session: AsyncSession, row: Notification, now: datetime) -> OutMessage | None:
     kind = Kind(row.kind)
+    if kind is Kind.BROADCAST:
+        return await _broadcast(session, row)
     if kind is Kind.SUBSCRIPTION_PAID:
         return await _subscription_paid(session, row)
     if kind is Kind.REFERRAL_BONUS:
