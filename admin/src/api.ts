@@ -149,6 +149,8 @@ export type AdminTrainer = {
   streak: number
   bookings_created: number
   marks: number
+  trial_until: string | null
+  pro_until: string | null
 }
 
 export type Risk = 'low' | 'medium' | 'high'
