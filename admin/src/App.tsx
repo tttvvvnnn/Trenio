@@ -5,6 +5,7 @@ import type { Section } from './sections'
 import Shell from './Shell'
 import Clients from './screens/Clients'
 import Money from './screens/Money'
+import Plans from './screens/Plans'
 import Soon from './screens/Soon'
 import Summary from './screens/Summary'
 import System from './screens/System'
@@ -76,10 +77,9 @@ export default function App() {
       {section === 'trainers' && <Trainers {...props} />}
       {section === 'clients' && <Clients {...props} />}
       {section === 'money' && <Money {...props} />}
+      {section === 'plans' && <Plans {...props} />}
       {section === 'system' && <System {...props} />}
-      {(section === 'broadcasts' ||
-        section === 'plans' ||
-        section === 'support') && <Soon section={section} />}
+      {(section === 'broadcasts' || section === 'support') && <Soon section={section} />}
     </Shell>
   )
 }

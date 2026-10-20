@@ -43,6 +43,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const get = <T>(path: string) => request<T>('GET', path)
 export const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body)
+export const put = <T>(path: string, body: unknown) => request<T>('PUT', path, body)
 
 // --- вход ---
 
@@ -230,4 +231,22 @@ export type ClientCard = {
     created_by: 'client' | 'trainer'
   }[]
   activity: boolean[]
+}
+
+export type Terms = { price_month: number; trial_days: number; free_client_limit: number }
+
+export type PromoSettings = {
+  enabled: boolean
+  title: string
+  subtitle: string
+  text: string
+  code: string
+  url: string
+  button: string
+  delay_days: number
+}
+
+export type AdminPromo = {
+  settings: PromoSettings
+  stats: { shown: number; dismissed: number; claimed: number; opened: number }
 }
