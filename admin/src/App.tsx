@@ -3,6 +3,7 @@ import { ApiError, get, post, setCsrfToken, type Session } from './api'
 import Login from './Login'
 import type { Section } from './sections'
 import Shell from './Shell'
+import Broadcasts from './screens/Broadcasts'
 import Clients from './screens/Clients'
 import Money from './screens/Money'
 import Plans from './screens/Plans'
@@ -78,8 +79,9 @@ export default function App() {
       {section === 'clients' && <Clients {...props} />}
       {section === 'money' && <Money {...props} />}
       {section === 'plans' && <Plans {...props} />}
+      {section === 'broadcasts' && <Broadcasts {...props} />}
       {section === 'system' && <System {...props} />}
-      {(section === 'broadcasts' || section === 'support') && <Soon section={section} />}
+      {section === 'support' && <Soon section={section} />}
     </Shell>
   )
 }

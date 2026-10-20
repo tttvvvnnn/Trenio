@@ -250,3 +250,17 @@ export type AdminPromo = {
   settings: PromoSettings
   stats: { shown: number; dismissed: number; claimed: number; opened: number }
 }
+
+export type Segment = 'all' | 'pro' | 'trial' | 'free' | 'not_set_up' | 'quiet'
+
+export type BroadcastItem = {
+  id: number
+  text: string
+  segment: Segment
+  with_button: boolean
+  recipients: number
+  sent: number
+  failed: number
+  pending: number
+  created_at: string
+}

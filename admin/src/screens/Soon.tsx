@@ -2,10 +2,6 @@ import type { Section } from '../sections'
 import { PageTitle } from './common'
 
 const PLANNED: Partial<Record<Section, { title: string; items: string[] }>> = {
-  broadcasts: {
-    title: 'Рассылки',
-    items: ['сообщение всем тренерам или сегменту', 'предпросмотр и тест себе', 'доставлено, нажали кнопку, ответили'],
-  },
   support: {
     title: 'Обращения',
     items: ['вопросы и отзывы тренеров из бота', 'ответ прямо из админки', 'подсказки из данных: например, клиент заблокировал бота'],
