@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,11 +11,15 @@ from tests.test_admin import get
 from tests.test_bookings import new_client, setup_trainer, trainer_row
 from tests.test_finance import booking_at
 from tests.test_packages import client_id_of
-from tests.test_schedule_api import second_trainer
+from tests.test_schedule_api import Headers, second_trainer
 from trenio.db.models import AdminAuditEntry, Booking, User
-from trenio.services import admin_stats
+from trenio.services import admin_clients, admin_stats
 from trenio.services.clients import link_client
 from trenio.services.privacy import DELETED_NAME
+
+
+async def ids(client: AsyncClient, headers: Headers, query: str = "") -> list[int]:
+    return [r["id"] for r in (await get(client, headers, f"clients?{query}"))["items"]]
 
 
 async def test_search_and_card(client: AsyncClient, session: AsyncSession) -> None:
@@ -30,7 +35,9 @@ async def test_search_and_card(client: AsyncClient, session: AsyncSession) -> No
     await admin_stats.mark_active(session, anna, now)
     await session.commit()
 
-    rows = await get(client, headers, "clients")
+    page = await get(client, headers, "clients")
+    assert (page["total"], page["page_size"]) == (2, admin_clients.PAGE_SIZE)
+    rows = page["items"]
     # Админ сам себе не клиент: в списке только Анна и Борис, свежие сверху
     assert [r["id"] for r in rows] == [boris, anna]
     row = next(r for r in rows if r["id"] == anna)
@@ -40,12 +47,11 @@ async def test_search_and_card(client: AsyncClient, session: AsyncSession) -> No
 
     user = await session.get(User, anna)
     assert user is not None
-    found = await get(client, headers, f"clients?q={user.first_name}")
-    assert anna in [r["id"] for r in found]
-    assert [r["id"] for r in await get(client, headers, "clients?q=501")] == [anna]
+    assert anna in await ids(client, headers, f"q={user.first_name}")
+    assert await ids(client, headers, "q=501") == [anna]
     # Поиск по имени тренера находит всех его клиентов
-    assert len(await get(client, headers, "clients?q=иван")) == 2
-    assert await get(client, headers, "clients?q=нет такого") == []
+    assert len(await ids(client, headers, "q=иван")) == 2
+    assert await ids(client, headers, "q=нет такого") == []
 
     card = await get(client, headers, f"clients/{anna}")
     assert card["telegram_id"] == 501 and card["is_trainer"] is False
@@ -83,8 +89,8 @@ async def test_delete_on_request(client: AsyncClient, session: AsyncSession) -> 
     assert entry.payload["trainers"] == ["Иван"]
 
     # Удалённые не в общем списке, но находятся по флагу; второй раз удалить нельзя
-    assert await get(client, headers, "clients") == []
-    assert [r["id"] for r in await get(client, headers, "clients?deleted=true")] == [anna]
+    assert await ids(client, headers) == []
+    assert await ids(client, headers, "deleted=true") == [anna]
     response = await client.post(url, headers=headers, json={"reason": "ещё раз"})
     assert response.status_code == 409
 
@@ -134,3 +140,41 @@ async def test_audit_screen(client: AsyncClient, session: AsyncSession) -> None:
         ("trainer.enabled", False),
         ("trainer.disabled", False),
     ]
+
+
+async def test_filter_sort_and_pages(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    headers, trainer_id, service_id = await setup_trainer(client)
+    anna = await client_id_of(client, await new_client(client, session, trainer_id, 501))
+    boris = await client_id_of(client, await new_client(client, session, trainer_id, 502))
+    other_headers = await second_trainer(client, session)
+    other_id = (await client.get("/api/me", headers=other_headers)).json()["trainer"]["id"]
+    user = await session.get(User, boris)
+    assert user is not None
+    await link_client(session, user, (await trainer_row(session, other_id)).invite_code)
+
+    # Фильтр по тренеру: у второго только Борис, у первого оба
+    assert await ids(client, headers, f"trainer_id={other_id}") == [boris]
+    assert await ids(client, headers, f"trainer_id={trainer_id}") == [boris, anna]
+
+    now = datetime.now(UTC).replace(microsecond=0)
+    past = await booking_at(session, trainer_id, anna, service_id, now - timedelta(days=2))
+    attended = await session.get(Booking, past)
+    assert attended is not None
+    attended.attendance = "attended"
+    await session.commit()
+    assert await ids(client, headers, "sort=attended") == [anna, boris]
+    for user_id, seen in ((anna, now), (boris, None)):
+        person = await session.get(User, user_id)
+        assert person is not None
+        person.last_seen_at = seen
+    await session.commit()
+    assert await ids(client, headers, "sort=seen") == [anna, boris]
+
+    # Страницы: по одному клиенту, total — сколько всего
+    monkeypatch.setattr(admin_clients, "PAGE_SIZE", 1)
+    first = await get(client, headers, "clients")
+    second = await get(client, headers, "clients?offset=1")
+    assert first["total"] == second["total"] == 2
+    assert [r["id"] for r in first["items"] + second["items"]] == [boris, anna]

@@ -8,6 +8,7 @@ import {
   ErrorTile,
   Line,
   Skeleton,
+  TrainerLink,
   type ScreenProps,
 } from './common'
 import { FEED_COLOR, FEED_LABEL, STATE_COLOR, STATE_LABEL } from './labels'
@@ -134,7 +135,7 @@ export default function Summary({ onUnauthorized }: ScreenProps) {
                 <span className="dot" style={{ width: 10, height: 10, background: FEED_COLOR[event.kind] }} />
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span>{event.text}</span>
+                <span>{event.trainer_id ? <TrainerLink id={event.trainer_id} name={event.text} /> : event.text}</span>
                 <span className="tiny muted">{FEED_LABEL[event.kind]}</span>
               </div>
               <span className="small muted num">
@@ -194,7 +195,9 @@ export default function Summary({ onUnauthorized }: ScreenProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <Avatar id={trainer.id} name={trainer.display_name} url={trainer.avatar_url} size={36} />
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <span style={{ fontWeight: 500 }}>{trainer.display_name}</span>
+                  <span style={{ fontWeight: 500 }}>
+                    <TrainerLink id={trainer.id} name={trainer.display_name} />
+                  </span>
                   <span className="tiny" style={{ color: STATE_COLOR[trainer.state] }}>
                     {trainer.is_admin ? 'админ' : STATE_LABEL[trainer.state]}
                   </span>

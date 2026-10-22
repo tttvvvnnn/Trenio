@@ -7,6 +7,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from enum import StrEnum
 
 from sqlalchemy import ColumnElement, Select, String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +23,8 @@ from trenio.db.models import (
 )
 from trenio.services.admin_stats import ADMIN_TIMEZONE
 
-SEARCH_LIMIT = 100
+# Клиентов на странице списка
+PAGE_SIZE = 50
 HISTORY_LIMIT = 30
 # Полоска активности в карточке клиента
 ACTIVITY_DAYS = 30
@@ -167,22 +169,71 @@ async def _rows(session: AsyncSession, user_ids: list[int], now: datetime) -> li
     return rows
 
 
+class Sort(StrEnum):
+    # Недавно пришедшие к тренеру
+    NEW = "new"
+    # Недавно открывавшие приложение
+    SEEN = "seen"
+    # Больше всего прошедших занятий
+    ATTENDED = "attended"
+
+
+@dataclass(frozen=True, slots=True)
+class ClientPage:
+    rows: list[ClientRow]
+    # Сколько всего подошло под поиск и фильтр
+    total: int
+
+
 async def search(
-    session: AsyncSession, query: str, now: datetime, *, deleted: bool = False
-) -> list[ClientRow]:
-    """Свежие клиенты сверху. Удалённые аккаунты только по флагу: их почти не ищут."""
+    session: AsyncSession,
+    query: str,
+    now: datetime,
+    *,
+    deleted: bool = False,
+    trainer_id: int | None = None,
+    sort: Sort = Sort.NEW,
+    offset: int = 0,
+) -> ClientPage:
+    """Страница клиентов. Удалённые аккаунты только по флагу: их почти не ищут."""
     matched = _search(query).subquery()
-    newest = func.max(TrainerClient.created_at)
+    conditions: list[ColumnElement[bool]] = [
+        TrainerClient.user_id.in_(select(matched.c.user_id)),
+        User.deleted_at.is_not(None) if deleted else User.deleted_at.is_(None),
+    ]
+    if trainer_id is not None:
+        conditions.append(
+            TrainerClient.user_id.in_(
+                select(TrainerClient.user_id).where(TrainerClient.trainer_id == trainer_id)
+            )
+        )
     found = (
         select(TrainerClient.user_id)
         .join(User, User.id == TrainerClient.user_id)
-        .where(TrainerClient.user_id.in_(select(matched.c.user_id)))
-        .where(User.deleted_at.is_not(None) if deleted else User.deleted_at.is_(None))
-        .group_by(TrainerClient.user_id)
-        .order_by(newest.desc())
-        .limit(SEARCH_LIMIT)
+        .where(*conditions)
+        .group_by(TrainerClient.user_id, User.last_seen_at)
     )
-    return await _rows(session, list((await session.scalars(found)).all()), now)
+    total = await session.scalar(select(func.count()).select_from(found.subquery())) or 0
+
+    newest = func.max(TrainerClient.created_at).desc()
+    if sort is Sort.SEEN:
+        found = found.order_by(User.last_seen_at.desc().nulls_last(), newest)
+    elif sort is Sort.ATTENDED:
+        attended = (
+            select(Booking.client_id, func.count().label("count"))
+            .where(Booking.attendance == "attended")
+            .group_by(Booking.client_id)
+            .subquery()
+        )
+        found = (
+            found.outerjoin(attended, attended.c.client_id == TrainerClient.user_id)
+            .group_by(attended.c.count)
+            .order_by(func.coalesce(attended.c.count, 0).desc(), newest)
+        )
+    else:
+        found = found.order_by(newest)
+    page = found.order_by(TrainerClient.user_id.desc()).offset(offset).limit(PAGE_SIZE)
+    return ClientPage(await _rows(session, list((await session.scalars(page)).all()), now), total)
 
 
 async def card(session: AsyncSession, user_id: int, now: datetime) -> ClientCard | None:

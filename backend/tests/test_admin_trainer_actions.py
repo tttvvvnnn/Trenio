@@ -1,6 +1,6 @@
 """Действия админа с тренером: Pro в подарок, сообщение в бот, удаление."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from aiogram.exceptions import TelegramForbiddenError
@@ -13,7 +13,13 @@ from tests.test_bookings import new_client, setup_trainer
 from tests.test_packages import client_id_of
 from tests.test_schedule_api import Headers, second_trainer
 from trenio.api.routes import admin as route
-from trenio.db.models import AdminAuditEntry, Trainer, User
+from trenio.db.models import (
+    AdminAuditEntry,
+    SubscriptionPayment,
+    SupportTicket,
+    Trainer,
+    User,
+)
 
 
 async def _other(client: AsyncClient, session: AsyncSession) -> tuple[Headers, int]:
@@ -110,3 +116,45 @@ async def test_delete_trainer(client: AsyncClient, session: AsyncSession) -> Non
         json={"confirm_name": "Иван", "reason": "x"},
     )
     assert response.status_code == 409
+
+
+async def test_profile(client: AsyncClient, session: AsyncSession) -> None:
+    headers, trainer_id, _ = await setup_trainer(client)
+    _, other_id = await _other(client, session)
+    await client.post(f"/api/admin/trainers/{other_id}/pro", headers=headers, json={"days": 30})
+    session.add_all(
+        [
+            SubscriptionPayment(
+                trainer_id=other_id,
+                plan="month",
+                days=30,
+                price=990,
+                amount=890,
+                balance_used=100,
+                status="paid",
+                paid_at=datetime.now(UTC),
+            ),
+            SubscriptionPayment(trainer_id=other_id, plan="month", days=30, price=990, amount=990),
+            SupportTicket(trainer_id=other_id, kind="idea", text="Тёмная тема"),
+        ]
+    )
+    await session.commit()
+
+    response = await client.get(f"/api/admin/trainers/{other_id}", headers=headers)
+    assert response.status_code == 200, response.text
+    profile = response.json()
+    assert profile["trainer"]["id"] == other_id and profile["telegram_id"] == 2002
+    assert len(profile["activity"]) == 30
+    # Учитываются только оплаченные, но в списке видны все
+    assert profile["paid_total"] == 990
+    assert [p["status"] for p in profile["payments"]] == ["pending", "paid"]
+    assert [t["text"] for t in profile["tickets"]] == ["Тёмная тема"]
+    assert [a["action"] for a in profile["audit"]] == ["trainer.pro_extended"]
+    assert profile["services"] == [] and profile["hours"] == []
+
+    own = (await client.get(f"/api/admin/trainers/{trainer_id}", headers=headers)).json()
+    assert [s["is_active"] for s in own["services"]] == [True]
+    assert own["hours"] == [{"weekday": 0, "start": "10:00", "end": "12:00"}]
+
+    response = await client.get("/api/admin/trainers/999999", headers=headers)
+    assert response.status_code == 404

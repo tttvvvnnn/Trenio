@@ -1,15 +1,10 @@
 import { useState } from 'react'
-import { post, type Ticket, type TicketKind, type TicketStatus } from '../api'
+import { post, type Ticket, type TicketStatus } from '../api'
 import { ago, errorText, plural } from '../format'
 import { useData } from '../useData'
-import { Avatar, ErrorTile, Modal, PageTitle, Skeleton, type ScreenProps } from './common'
+import { Avatar, ErrorTile, Modal, PageTitle, Skeleton, TrainerLink, type ScreenProps } from './common'
+import { TICKET_KIND } from './labels'
 
-const KIND: Record<TicketKind, { label: string; color: string }> = {
-  question: { label: 'Вопрос', color: 'var(--blue)' },
-  problem: { label: 'Проблема', color: 'var(--red)' },
-  idea: { label: 'Идея', color: 'var(--violet)' },
-  review: { label: 'Отзыв', color: 'var(--green)' },
-}
 
 const FILTERS: { value: TicketStatus | 'all'; label: string }[] = [
   { value: 'new', label: 'Ждут ответа' },
@@ -161,13 +156,15 @@ export default function Support({ onUnauthorized }: ScreenProps) {
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {shown.map((ticket) => {
-                const kind = KIND[ticket.kind]
+                const kind = TICKET_KIND[ticket.kind]
                 return (
                   <article key={ticket.id} className="well" style={{ gap: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <Avatar id={ticket.trainer_id} name={ticket.trainer_name} url={null} size={34} />
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-                        <b style={{ fontWeight: 600 }}>{ticket.trainer_name}</b>
+                        <b style={{ fontWeight: 600 }}>
+                          <TrainerLink id={ticket.trainer_id} name={ticket.trainer_name} />
+                        </b>
                         <span className="tiny muted">
                           {ticket.username ? `@${ticket.username} · ` : ''}
                           {ago(ticket.created_at)}

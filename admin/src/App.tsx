@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, get, post, setCsrfToken, type Session } from './api'
 import { Mark } from './Brand'
 import Login from './Login'
-import type { Section } from './sections'
+import { parseRoute, type Route } from './route'
 import Shell from './Shell'
 import Broadcasts from './screens/Broadcasts'
 import Clients from './screens/Clients'
@@ -11,19 +11,14 @@ import Plans from './screens/Plans'
 import Support from './screens/Support'
 import Summary from './screens/Summary'
 import System from './screens/System'
+import TrainerProfile from './screens/TrainerProfile'
 import Trainers from './screens/Trainers'
 
 type Auth = { kind: 'loading' } | { kind: 'login'; session: Session | null } | { kind: 'in'; session: Session }
 
-function sectionFromHash(): Section {
-  const value = window.location.hash.replace('#/', '')
-  const known: Section[] = ['summary', 'trainers', 'clients', 'money', 'broadcasts', 'plans', 'support', 'system']
-  return (known as string[]).includes(value) ? (value as Section) : 'summary'
-}
-
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ kind: 'loading' })
-  const [section, setSection] = useState<Section>(sectionFromHash)
+  const [route, setRoute] = useState<Route>(() => parseRoute())
 
   const accept = useCallback((session: Session) => {
     if (session.state === 'active') {
@@ -50,7 +45,7 @@ export default function App() {
   }, [accept, signOut])
 
   useEffect(() => {
-    const onHash = () => setSection(sectionFromHash())
+    const onHash = () => setRoute(parseRoute())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -75,11 +70,12 @@ export default function App() {
   if (auth.kind === 'login') return <Login session={auth.session} onSession={accept} />
 
   const props = { onUnauthorized: signOut }
+  const { section } = route
   return (
     <Shell section={section} name={auth.session.name} onLogout={logout}>
       {section === 'summary' && <Summary {...props} />}
-      {section === 'trainers' && <Trainers {...props} />}
-      {section === 'clients' && <Clients {...props} />}
+      {section === 'trainers' && (route.id ? <TrainerProfile key={route.id} id={route.id} {...props} /> : <Trainers {...props} />)}
+      {section === 'clients' && <Clients route={route} {...props} />}
       {section === 'money' && <Money {...props} />}
       {section === 'plans' && <Plans {...props} />}
       {section === 'broadcasts' && <Broadcasts {...props} />}

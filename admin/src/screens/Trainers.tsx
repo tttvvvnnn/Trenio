@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { post, type AdminTrainer, type Insights, type NewInvite, type OpenInvite, type Overview } from '../api'
 import { ago, shortDate, tint } from '../format'
+import { go, trainerHref } from '../route'
 import { useData } from '../useData'
 import {
   Avatar,
@@ -8,9 +9,10 @@ import {
   ErrorTile,
   PageTitle,
   Skeleton,
+  TrainerLink,
   type ScreenProps,
 } from './common'
-import { ATTENTION_TEXT, STATE_COLOR, STATE_LABEL } from './labels'
+import { ATTENTION_TEXT, planText, STATE_COLOR, STATE_LABEL } from './labels'
 import { TrainerActionDialog, type TrainerAction } from './TrainerActions'
 
 type Filter = 'all' | 'active' | 'attention' | 'disabled'
@@ -21,13 +23,6 @@ const FILTERS: { id: Filter; label: string; match: (t: AdminTrainer) => boolean 
   { id: 'attention', label: 'Требуют внимания', match: (t) => t.state === 'quiet' || t.state === 'not_set_up' },
   { id: 'disabled', label: 'Отключены', match: (t) => t.state === 'disabled' },
 ]
-
-function planText(trainer: AdminTrainer): string {
-  const now = new Date()
-  if (trainer.pro_until && new Date(trainer.pro_until) > now) return `Pro до ${shortDate(trainer.pro_until)}`
-  if (trainer.trial_until && new Date(trainer.trial_until) > now) return `пробный до ${shortDate(trainer.trial_until)}`
-  return 'бесплатный'
-}
 
 const COLUMNS = 'minmax(0,1.6fr) 130px 80px minmax(0,1fr) 140px 52px'
 
@@ -181,6 +176,11 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
         {rows.map((trainer) => (
           <div
             key={trainer.id}
+            className="click-row"
+            // Вся строка ведёт в профиль, кроме меню и ссылок внутри неё
+            onClick={(event) => {
+              if (!(event.target as Element).closest('a, button, .menu')) go(trainerHref(trainer.id))
+            }}
             style={{
               position: 'relative',
               display: 'grid',
@@ -190,13 +190,15 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
               minHeight: 64,
               padding: '0 12px',
               borderRadius: 18,
-              background: menu === trainer.id ? 'var(--well)' : 'transparent',
+              background: menu === trainer.id ? 'var(--well)' : undefined,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
               <Avatar id={trainer.id} name={trainer.display_name} url={trainer.avatar_url} size={40} />
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontWeight: 500 }}>{trainer.display_name}</span>
+                <span style={{ fontWeight: 500 }}>
+                  <TrainerLink id={trainer.id} name={trainer.display_name} />
+                </span>
                 <span className="tiny muted">
                   {trainer.user.username ? `@${trainer.user.username} · ` : ''}№ {trainer.id} · с {shortDate(trainer.since)}
                 </span>
@@ -328,7 +330,9 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
             <div key={`${item.trainer_id}-${item.reason}`} className="well" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <span className="dot" aria-hidden="true" style={{ background: item.reason === 'quiet' ? 'var(--red)' : 'var(--amber)' }} />
               <span>
-                <b style={{ fontWeight: 600 }}>{trainer?.display_name ?? `№ ${item.trainer_id}`}</b>{' '}
+                <b style={{ fontWeight: 600 }}>
+                  <TrainerLink id={item.trainer_id} name={trainer?.display_name ?? `№ ${item.trainer_id}`} />
+                </b>{' '}
                 {(ATTENTION_TEXT[item.reason] ?? ((n: number) => `${item.reason} (${n})`))(item.count)}
               </span>
               {trainer?.user.username && (

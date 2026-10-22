@@ -207,6 +207,10 @@ export type AdminClient = {
   active_days: number
 }
 
+export type ClientSort = 'new' | 'seen' | 'attended'
+
+export type ClientPage = { items: AdminClient[]; total: number; page_size: number }
+
 export type ClientCard = {
   client: AdminClient
   telegram_id: number | null
@@ -314,4 +318,40 @@ export type Ticket = {
   answer: string | null
   answered_at: string | null
   created_at: string
+}
+
+export type TrainerProfile = {
+  trainer: AdminTrainer
+  telegram_id: number | null
+  address: string | null
+  auto_confirm: boolean
+  cancel_hours: number
+  balance: number
+  referred_by: TrainerRef | null
+  referrals: TrainerRef[]
+  activity: boolean[]
+  services: { name: string; duration_min: number; capacity: number; is_active: boolean }[]
+  hours: { weekday: number; start: string; end: string }[]
+  paid_total: number
+  payments: {
+    created_at: string
+    paid_at: string | null
+    plan: string
+    days: number
+    price: number
+    amount: number
+    balance_used: number
+    status: 'pending' | 'paid' | 'canceled'
+  }[]
+  promos: {
+    code_id: number
+    code: string
+    kind: CodeKind
+    value: number
+    status: 'reserved' | 'used'
+    created_at: string
+    used_at: string | null
+  }[]
+  tickets: Ticket[]
+  audit: AuditEntry[]
 }

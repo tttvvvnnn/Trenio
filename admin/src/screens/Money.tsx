@@ -1,7 +1,7 @@
 import type { Money as MoneyData, Risk } from '../api'
 import { monthName, rub, shortDate, tint } from '../format'
 import { useData } from '../useData'
-import { ErrorTile, Line, PageTitle, Skeleton, type ScreenProps } from './common'
+import { ErrorTile, Line, PageTitle, Skeleton, TrainerLink, type ScreenProps } from './common'
 
 const RISK: Record<Risk, { label: string; color: string }> = {
   low: { label: 'надёжно', color: 'var(--green)' },
@@ -104,7 +104,7 @@ export default function Money({ onUnauthorized }: ScreenProps) {
           <div key={`${r.trainer_id}-${r.kind}`} className="row" style={{ gridTemplateColumns: 'minmax(0,1fr) 70px 80px 140px' }}>
             <span style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontWeight: 500 }}>
-                {r.name}
+                <TrainerLink id={r.trainer_id} name={r.name} />
                 {r.kind === 'trial' && <span className="tiny muted"> · пробный</span>}
               </span>
               <span className="tiny muted">{r.reason}</span>
@@ -130,7 +130,7 @@ export default function Money({ onUnauthorized }: ScreenProps) {
             <span className="small muted num">{shortDate(p.paid_at)}</span>
             <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontWeight: 500 }}>
-                {p.name} · {p.plan === 'month' ? 'Pro, месяц' : p.plan}
+                <TrainerLink id={p.trainer_id} name={p.name} /> · {p.plan === 'month' ? 'Pro, месяц' : p.plan}
               </span>
               <span className="tiny muted">через {p.bot ? `@${p.bot}` : 'основной бот'}</span>
             </span>

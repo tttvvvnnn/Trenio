@@ -1,20 +1,15 @@
 import { useState } from 'react'
 import { post, type CodeKind, type PromoCode, type Redemption } from '../api'
-import { errorText, plural, rub, shortDate } from '../format'
+import { errorText, shortDate } from '../format'
 import { useData } from '../useData'
-import { ErrorTile, Modal, Skeleton, type ScreenProps } from './common'
+import { ErrorTile, Modal, Skeleton, TrainerLink, type ScreenProps } from './common'
+import { codeValue } from './labels'
 
 const KINDS: { kind: CodeKind; label: string; unit: string; max: number }[] = [
   { kind: 'percent', label: 'Скидка, %', unit: '%', max: 99 },
   { kind: 'rubles', label: 'Скидка, ₽', unit: '₽', max: 100000 },
   { kind: 'days', label: 'Дни Pro', unit: 'дней', max: 366 },
 ]
-
-function codeValue(code: Pick<PromoCode, 'kind' | 'value'>): string {
-  if (code.kind === 'percent') return `−${code.value}% на оплату`
-  if (code.kind === 'rubles') return `−${rub(code.value)} на оплату`
-  return `${code.value} ${plural(code.value, 'день', 'дня', 'дней')} Pro`
-}
 
 function codeState(code: PromoCode, now: Date): { text: string; color: string } {
   if (!code.is_active) return { text: 'выключен', color: 'var(--muted)' }
@@ -157,7 +152,9 @@ function RedemptionsDialog({ code, onClose, onUnauthorized }: { code: PromoCode;
       <div className="rows">
         {list.data?.map((row) => (
           <div key={row.trainer_id} className="row" style={{ gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
-            <span>{row.name}</span>
+            <span>
+              <TrainerLink id={row.trainer_id} name={row.name} />
+            </span>
             <span className="small muted" style={{ textAlign: 'right' }}>
               {row.status === 'used' ? `использован ${shortDate(row.used_at ?? row.created_at)}` : `введён ${shortDate(row.created_at)}, ждёт оплаты`}
             </span>
