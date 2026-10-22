@@ -3,7 +3,7 @@ import { post, type ClientPage, type TrainerEventKind, type TrainerProfile as Pr
 import { ago, errorText, plural, rub, shortDate, tint } from '../format'
 import { clientHref, go, href } from '../route'
 import { useData } from '../useData'
-import { Avatar, Bars, ErrorTile, Skeleton, TrainerLink, type ScreenProps } from './common'
+import { Avatar, BackLink, Bars, ErrorTile, Skeleton, TrainerLink, type ScreenProps } from './common'
 import { auditText, codeValue, planText, STATE_COLOR, STATE_LABEL, TICKET_KIND } from './labels'
 import { TrainerActionDialog, type TrainerAction } from './TrainerActions'
 
@@ -69,7 +69,10 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => window.scrollTo(0, 0), [])
+  // В фигурных скобках: новые браузеры возвращают из scrollTo промис, и React принял бы его за функцию очистки
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   if (profile.error) return <ErrorTile text={profile.error} onRetry={profile.reload} />
   if (!profile.data) {
@@ -120,9 +123,7 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
           <Avatar id={t.id} name={t.display_name} url={t.avatar_url} size={64} />
           <div style={{ minWidth: 0 }}>
-            <a href="#/trainers" className="small">
-              ← Все тренеры
-            </a>
+            <BackLink href="#/trainers">Все тренеры</BackLink>
             <h1 style={{ overflowWrap: 'anywhere' }}>{t.display_name}</h1>
             <span style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <span className="badge" style={{ background: tint(STATE_COLOR[t.state]), color: STATE_COLOR[t.state] }}>

@@ -3,7 +3,7 @@ import { post, type AdminClient, type AdminTrainer, type ClientCard, type Client
 import { ago, errorText, plural, shortDate, time, tint } from '../format'
 import { go, href, type Route } from '../route'
 import { useData } from '../useData'
-import { Avatar, Bars, ErrorTile, Modal, PageTitle, Skeleton, TrainerLink, type ScreenProps } from './common'
+import { Avatar, Bars, ErrorTile, Modal, PageTitle, Select, Skeleton, TrainerLink, type ScreenProps } from './common'
 
 const COLUMNS = 'minmax(0,1.5fr) minmax(0,1fr) 90px 120px 120px'
 
@@ -96,29 +96,23 @@ export default function Clients({ onUnauthorized, route }: ScreenProps & { route
               style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', font: 'inherit', fontSize: 14, color: 'var(--text)', outline: 'none' }}
             />
           </label>
-          <label className="glass select-pill">
-            <span className="sr">Тренер</span>
-            <select value={trainerId ?? ''} onChange={(event) => open({ trainer: event.target.value ? Number(event.target.value) : null })}>
-              <option value="">Все тренеры</option>
-              {[...(trainers.data ?? [])]
+          <Select
+            label="Тренер"
+            value={trainerId ? String(trainerId) : ''}
+            options={[
+              { value: '', label: 'Все тренеры' },
+              ...[...(trainers.data ?? [])]
                 .sort((a, b) => a.display_name.localeCompare(b.display_name, 'ru'))
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.display_name} · {t.clients}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="glass select-pill">
-            <span className="sr">Порядок</span>
-            <select value={sort} onChange={(event) => open({ sort: event.target.value as ClientSort })}>
-              {SORTS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+                .map((t) => ({ value: String(t.id), label: t.display_name, hint: String(t.clients) })),
+            ]}
+            onChange={(value) => open({ trainer: value ? Number(value) : null })}
+          />
+          <Select
+            label="Порядок"
+            value={sort}
+            options={SORTS.map((item) => ({ value: item.id, label: item.label }))}
+            onChange={(value) => open({ sort: value })}
+          />
           <div className="chips" role="group" aria-label="Какие аккаунты">
             <button type="button" className="chip" aria-pressed={!deleted} onClick={() => open({ deleted: false })}>
               Действующие
