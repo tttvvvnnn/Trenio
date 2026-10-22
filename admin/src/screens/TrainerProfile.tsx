@@ -69,7 +69,10 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => window.scrollTo(0, 0), [])
+  // В фигурных скобках: новые браузеры возвращают из scrollTo промис, и React принял бы его за функцию очистки
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   if (profile.error) return <ErrorTile text={profile.error} onRetry={profile.reload} />
   if (!profile.data) {
