@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0](https://github.com/tttvvvnnn/Trenio/compare/v0.14.1...v0.15.0) (2026-10-22)
+
+
+### Новое
+
+* **admin:** профиль тренера, фильтр клиентов по тренеру ([#96](https://github.com/tttvvvnnn/Trenio/issues/96)) ([34664a7](https://github.com/tttvvvnnn/Trenio/commit/34664a7eed0f8dbff5ec6c229c638709d81bd18a))
+* **admin:** сортировка и оплаты в списке тренеров, история тренера ([#98](https://github.com/tttvvvnnn/Trenio/issues/98)) ([73857b3](https://github.com/tttvvvnnn/Trenio/commit/73857b3323ea55f9181b9946e58a1e2bc32c23b7))
+
 ## [0.14.1](https://github.com/tttvvvnnn/Trenio/compare/v0.14.0...v0.14.1) (2026-10-20)
 
 
