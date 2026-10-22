@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/tttvvvnnn/Trenio/compare/v0.15.0...v0.15.1) (2026-10-22)
+
+
+### Исправления
+
+* **admin:** выход из профиля тренера, списки в стиле админки ([#99](https://github.com/tttvvvnnn/Trenio/issues/99)) ([46cee5d](https://github.com/tttvvvnnn/Trenio/commit/46cee5d7890d5c09f5d4c66f601a2995a09d6a22))
+
 ## [0.15.0](https://github.com/tttvvvnnn/Trenio/compare/v0.14.1...v0.15.0) (2026-10-22)
 
 
