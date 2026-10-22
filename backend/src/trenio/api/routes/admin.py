@@ -16,6 +16,7 @@ from trenio.api.deps import SessionDep, SettingsDep, bearer, current_user
 from trenio.api.routes.admin_auth import client_ip, cookie_session, current_web_admin
 from trenio.api.routes.bookings import PersonOut
 from trenio.bot.setup import get_bot, get_bot_username
+from trenio.config import Settings
 from trenio.db.models import AdminAuditEntry, PromoCode, SupportTicket, Trainer, User
 from trenio.delivery.channel import DeliveryError, TelegramChannel
 from trenio.delivery.kick import kick
@@ -25,6 +26,7 @@ from trenio.services import (
     admin_clients,
     admin_insights,
     admin_stats,
+    admin_trainer,
     avatars,
     broadcasts,
     privacy,
@@ -316,44 +318,47 @@ class AdminTrainerOut(BaseModel):
     pro_until: datetime | None
 
 
+def _trainer_out(
+    row: admin_stats.TrainerRow, first: admin_insights.Firsts, settings: Settings
+) -> AdminTrainerOut:
+    return AdminTrainerOut(
+        id=row.trainer.id,
+        display_name=row.trainer.display_name,
+        avatar_url=avatars.avatar_url(row.trainer.user),
+        user=PersonOut.of(row.trainer.user),
+        state=row.state,
+        is_admin=is_admin(row.trainer.user, settings.admin_telegram_ids),
+        since=row.trainer.created_at,
+        timezone=row.trainer.timezone,
+        clients=row.clients,
+        clients_new_week=row.clients_new_week,
+        bookings_month=row.bookings_month,
+        attended_month=row.attended_month,
+        services=row.services,
+        last_booking_at=row.last_booking_at,
+        last_seen_at=row.trainer.user.last_seen_at,
+        active_days=row.active_days,
+        streak=row.streak,
+        bookings_created=row.bookings_created,
+        marks=row.marks,
+        journey=JourneyOut(
+            onboarded_at=row.trainer.onboarded_at,
+            first_client_at=first.client.get(row.trainer.id),
+            first_client_booking_at=first.client_booking.get(row.trainer.id),
+            first_package_at=first.package.get(row.trainer.id),
+        ),
+        trial_until=row.trainer.trial_until,
+        pro_until=row.trainer.pro_until,
+    )
+
+
 @router.get("/trainers")
 async def get_trainers(
     _: CurrentAdmin, session: SessionDep, settings: SettingsDep
 ) -> list[AdminTrainerOut]:
     rows = await admin_stats.trainer_rows(session, datetime.now(UTC))
     first = await admin_insights.firsts(session)
-    return [
-        AdminTrainerOut(
-            id=row.trainer.id,
-            display_name=row.trainer.display_name,
-            avatar_url=avatars.avatar_url(row.trainer.user),
-            user=PersonOut.of(row.trainer.user),
-            state=row.state,
-            is_admin=is_admin(row.trainer.user, settings.admin_telegram_ids),
-            since=row.trainer.created_at,
-            timezone=row.trainer.timezone,
-            clients=row.clients,
-            clients_new_week=row.clients_new_week,
-            bookings_month=row.bookings_month,
-            attended_month=row.attended_month,
-            services=row.services,
-            last_booking_at=row.last_booking_at,
-            last_seen_at=row.trainer.user.last_seen_at,
-            active_days=row.active_days,
-            streak=row.streak,
-            bookings_created=row.bookings_created,
-            marks=row.marks,
-            journey=JourneyOut(
-                onboarded_at=row.trainer.onboarded_at,
-                first_client_at=first.client.get(row.trainer.id),
-                first_client_booking_at=first.client_booking.get(row.trainer.id),
-                first_package_at=first.package.get(row.trainer.id),
-            ),
-            trial_until=row.trainer.trial_until,
-            pro_until=row.trainer.pro_until,
-        )
-        for row in rows
-    ]
+    return [_trainer_out(row, first, settings) for row in rows]
 
 
 class ActiveIn(BaseModel):
@@ -678,12 +683,36 @@ class ClientCardOut(BaseModel):
     activity: list[bool]
 
 
+class ClientPageOut(BaseModel):
+    items: list[AdminClientOut]
+    total: int
+    page_size: int
+
+
 @router.get("/clients")
 async def get_clients(
-    _: CurrentAdmin, session: SessionDep, q: str = "", deleted: bool = False
-) -> list[AdminClientOut]:
-    rows = await admin_clients.search(session, q[:64], datetime.now(UTC), deleted=deleted)
-    return [AdminClientOut.of(row) for row in rows]
+    _: CurrentAdmin,
+    session: SessionDep,
+    q: str = "",
+    deleted: bool = False,
+    trainer_id: int | None = None,
+    sort: admin_clients.Sort = admin_clients.Sort.NEW,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ClientPageOut:
+    page = await admin_clients.search(
+        session,
+        q[:64],
+        datetime.now(UTC),
+        deleted=deleted,
+        trainer_id=trainer_id,
+        sort=sort,
+        offset=offset,
+    )
+    return ClientPageOut(
+        items=[AdminClientOut.of(row) for row in page.rows],
+        total=page.total,
+        page_size=admin_clients.PAGE_SIZE,
+    )
 
 
 async def _card(session: AsyncSession, user_id: int) -> admin_clients.ClientCard:
@@ -1156,3 +1185,139 @@ async def set_support_status(
     )
     await session.commit()
     return TicketOut.of(ticket)
+
+
+class ServiceOut(BaseModel):
+    name: str
+    duration_min: int
+    capacity: int
+    is_active: bool
+
+
+class HoursOut(BaseModel):
+    weekday: int
+    start: str
+    end: str
+
+
+class TrainerPaymentOut(BaseModel):
+    created_at: datetime
+    paid_at: datetime | None
+    plan: str
+    days: int
+    price: int
+    # Сколько деньгами и сколько с баланса
+    amount: int
+    balance_used: int
+    # pending, paid, canceled
+    status: str
+
+
+class TrainerPromoOut(BaseModel):
+    code_id: int
+    code: str
+    kind: str
+    value: int
+    # reserved — скидка ждёт оплаты, used — применён
+    status: str
+    created_at: datetime
+    used_at: datetime | None
+
+
+class TrainerProfileOut(BaseModel):
+    trainer: AdminTrainerOut
+    telegram_id: int | None
+    address: str | None
+    auto_confirm: bool
+    cancel_hours: int
+    balance: int
+    referred_by: TrainerRefOut | None
+    referrals: list[TrainerRefOut]
+    # Заходил ли в каждый из последних 30 дней, от старого к сегодняшнему
+    activity: list[bool]
+    services: list[ServiceOut]
+    hours: list[HoursOut]
+    paid_total: int
+    payments: list[TrainerPaymentOut]
+    promos: list[TrainerPromoOut]
+    tickets: list[TicketOut]
+    audit: list[AuditOut]
+
+
+@router.get("/trainers/{trainer_id}")
+async def get_trainer_profile(
+    trainer_id: int, _: CurrentAdmin, session: SessionDep, settings: SettingsDep
+) -> TrainerProfileOut:
+    """Всё о тренере на одной странице. Клиенты — отдельно: /admin/clients?trainer_id=."""
+    trainer = await _trainer(session, trainer_id)
+    now = datetime.now(UTC)
+    row = next(
+        r for r in await admin_stats.trainer_rows(session, now) if r.trainer.id == trainer_id
+    )
+    data = await admin_trainer.profile(session, trainer, now)
+    return TrainerProfileOut(
+        trainer=_trainer_out(row, await admin_insights.firsts(session), settings),
+        telegram_id=trainer.user.telegram_id,
+        address=trainer.address,
+        auto_confirm=trainer.auto_confirm,
+        cancel_hours=trainer.cancel_hours,
+        balance=trainer.balance,
+        referred_by=(
+            TrainerRefOut(id=data.referred_by.id, name=data.referred_by.name)
+            if data.referred_by
+            else None
+        ),
+        referrals=[TrainerRefOut(id=r.id, name=r.name) for r in data.referrals],
+        activity=data.activity,
+        services=[
+            ServiceOut(
+                name=s.name, duration_min=s.duration_min, capacity=s.capacity, is_active=s.is_active
+            )
+            for s in data.services
+        ],
+        hours=[
+            HoursOut(
+                weekday=h.weekday, start=h.start.strftime("%H:%M"), end=h.end.strftime("%H:%M")
+            )
+            for h in data.hours
+        ],
+        paid_total=data.paid_total,
+        payments=[
+            TrainerPaymentOut(
+                created_at=p.created_at,
+                paid_at=p.paid_at,
+                plan=p.plan,
+                days=p.days,
+                price=p.price,
+                amount=p.amount,
+                balance_used=p.balance_used,
+                status=p.status,
+            )
+            for p in data.payments
+        ],
+        promos=[
+            TrainerPromoOut(
+                code_id=r.code_id,
+                code=r.code.code,
+                kind=r.code.kind,
+                value=r.code.value,
+                status=r.status,
+                created_at=r.created_at,
+                used_at=r.used_at,
+            )
+            for r in data.promos
+        ],
+        tickets=[TicketOut.of(t) for t in data.tickets],
+        audit=[
+            AuditOut(
+                id=a.id,
+                action=a.action,
+                target=a.target,
+                payload=a.payload,
+                ip=a.ip,
+                web=a.session_id is not None,
+                created_at=a.created_at,
+            )
+            for a in data.audit
+        ],
+    )

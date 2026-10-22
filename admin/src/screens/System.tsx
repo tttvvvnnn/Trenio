@@ -3,6 +3,7 @@ import { post, type ActiveSession, type AuditEntry, type Insights, type Overview
 import { ago, shortDate, time } from '../format'
 import { useData } from '../useData'
 import { ErrorTile, PageTitle, Skeleton, type ScreenProps } from './common'
+import { auditText } from './labels'
 
 export default function System({ onUnauthorized }: ScreenProps) {
   const insights = useData<Insights>('/admin/insights', onUnauthorized)
@@ -134,58 +135,4 @@ function Status({ name, value, sub, ok }: { name: string; value: string; sub: st
       <span className="small muted">{sub}</span>
     </section>
   )
-}
-
-const str = (value: unknown) => (typeof value === 'string' || typeof value === 'number' ? String(value) : '')
-
-// Строка журнала простыми словами; неизвестное действие показываем как есть
-function auditText(entry: AuditEntry): string {
-  const p = entry.payload
-  const name = str(p.name)
-  switch (entry.action) {
-    case 'login.requested':
-      return 'Запрос входа, ждёт подтверждения в боте'
-    case 'login.confirmed':
-      return 'Вход подтверждён в боте'
-    case 'login.denied':
-      return 'Вход отклонён в боте'
-    case 'login.rejected':
-      return 'Попытка входа не админа'
-    case 'session.revoked':
-      return 'Вход завершён'
-    case 'trainer.disabled':
-      return `Отключён тренер ${name}`
-    case 'trainer.enabled':
-      return `Возвращён доступ тренеру ${name}`
-    case 'trainer.pro_extended':
-      return `${name}: Pro в подарок на ${str(p.days)} дн.`
-    case 'trainer.messaged':
-      return `Сообщение тренеру ${name}: «${str(p.text).slice(0, 80)}»`
-    case 'trainer.deleted':
-      return `Удалён тренер ${name}. Причина: ${str(p.reason)}`
-    case 'client.deleted':
-      return `Удалены данные клиента ${name}. Запрос: ${str(p.reason)}`
-    case 'invite.created':
-      return 'Создана ссылка-приглашение'
-    case 'promo.updated':
-      return 'Изменены настройки промо TVPN'
-    case 'plans.updated':
-      return 'Изменён тариф'
-    case 'promo_code.created':
-      return `Создан промокод ${str(p.code)}`
-    case 'promo_code.enabled':
-      return `Включён промокод ${str(p.code)}`
-    case 'promo_code.disabled':
-      return `Выключен промокод ${str(p.code)}`
-    case 'support.answered':
-      return `Ответ на обращение ${name}: «${str(p.text).slice(0, 80)}»`
-    case 'support.closed':
-      return `Закрыто обращение ${name}`
-    case 'support.reopened':
-      return `Возвращено в работу обращение ${name}`
-    case 'broadcast.sent':
-      return `Рассылка, получателей ${str(p.recipients)}: «${str(p.text).slice(0, 80)}»`
-    default:
-      return entry.target ? `${entry.action} · ${entry.target}` : entry.action
-  }
 }

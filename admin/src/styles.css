@@ -641,3 +641,49 @@ input:focus-visible {
   background: var(--overlay);
   backdrop-filter: blur(4px);
 }
+
+/* Имя ссылкой на профиль: выглядит как текст, подчёркивается при наведении */
+.person-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.person-link:hover,
+.person-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.click-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.click-row:hover {
+  background: var(--well);
+}
+
+/* Выпадающий список в шапке экрана, в одну линию с поиском */
+.select-pill {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px 0 14px;
+  border-radius: 14px;
+}
+
+.select-pill select {
+  max-width: 220px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-pill:focus-within {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}

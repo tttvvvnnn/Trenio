@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { avatarColor, initials } from '../format'
+import { trainerHref } from '../route'
 
 export type ScreenProps = { onUnauthorized: () => void }
 
@@ -44,6 +45,15 @@ export function Avatar({ id, name, url, size = 38 }: { id: number; name: string;
     <span className="avatar" aria-hidden="true" style={style}>
       {initials(name)}
     </span>
+  )
+}
+
+// Имя тренера ссылкой на его профиль
+export function TrainerLink({ id, name }: { id: number; name: string }) {
+  return (
+    <a className="person-link" href={trainerHref(id)}>
+      {name}
+    </a>
   )
 }
 

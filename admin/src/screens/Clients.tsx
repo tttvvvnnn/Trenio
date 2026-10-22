@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { post, type AdminClient, type ClientCard } from '../api'
+import { post, type AdminClient, type AdminTrainer, type ClientCard, type ClientPage, type ClientSort } from '../api'
 import { ago, errorText, plural, shortDate, time, tint } from '../format'
+import { go, href, type Route } from '../route'
 import { useData } from '../useData'
-import { Avatar, Bars, ErrorTile, Modal, PageTitle, Skeleton, type ScreenProps } from './common'
+import { Avatar, Bars, ErrorTile, Modal, PageTitle, Skeleton, TrainerLink, type ScreenProps } from './common'
 
 const COLUMNS = 'minmax(0,1.5fr) minmax(0,1fr) 90px 120px 120px'
 
@@ -28,43 +29,101 @@ function historyLabel(row: HistoryRow): { text: string; color: string } {
   return { text: 'не отмечено', color: 'var(--muted)' }
 }
 
-export default function Clients({ onUnauthorized }: ScreenProps) {
+const SORTS: { id: ClientSort; label: string }[] = [
+  { id: 'new', label: 'Новые' },
+  { id: 'seen', label: 'Заходили недавно' },
+  { id: 'attended', label: 'Больше занятий' },
+]
+
+export default function Clients({ onUnauthorized, route }: ScreenProps & { route: Route }) {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
-  const [deleted, setDeleted] = useState(false)
-  const [selected, setSelected] = useState<number | null>(null)
+  const [offset, setOffset] = useState(0)
+  // Карточка, тренер, сортировка и удалённые живут в адресе: на них можно сослаться из профиля тренера
+  const selected = route.id
+  const trainerParam = route.params.get('trainer')
+  const trainerId = trainerParam && /^\d+$/.test(trainerParam) ? Number(trainerParam) : null
+  const sort = SORTS.find((item) => item.id === route.params.get('sort'))?.id ?? 'new'
+  const deleted = route.params.get('deleted') === '1'
+  const trainers = useData<AdminTrainer[]>('/admin/trainers', onUnauthorized)
+
+  const open = (patch: { id?: number | null; trainer?: number | null; sort?: ClientSort; deleted?: boolean }) => {
+    const next = { id: selected, trainer: trainerId, sort, deleted, ...patch }
+    if (patch.trainer !== undefined || patch.sort !== undefined || patch.deleted !== undefined) setOffset(0)
+    go(
+      href('clients', next.id, {
+        trainer: next.trainer,
+        sort: next.sort === 'new' ? null : next.sort,
+        deleted: next.deleted ? 1 : null,
+      }),
+    )
+  }
 
   // Ищет сервер: ждём паузу в наборе, чтобы не слать запрос на каждую букву
   useEffect(() => {
-    const timer = window.setTimeout(() => setSearch(query.trim()), 300)
+    const timer = window.setTimeout(() => {
+      setSearch(query.trim())
+      setOffset(0)
+    }, 300)
     return () => window.clearTimeout(timer)
   }, [query])
 
   const params = new URLSearchParams()
   if (search) params.set('q', search)
   if (deleted) params.set('deleted', 'true')
+  if (trainerId) params.set('trainer_id', String(trainerId))
+  if (sort !== 'new') params.set('sort', sort)
+  if (offset) params.set('offset', String(offset))
   const suffix = params.toString()
-  const clients = useData<AdminClient[]>(`/admin/clients${suffix ? `?${suffix}` : ''}`, onUnauthorized)
+  const clients = useData<ClientPage>(`/admin/clients${suffix ? `?${suffix}` : ''}`, onUnauthorized)
+  const page = clients.data
+  const trainerName = trainers.data?.find((t) => t.id === trainerId)?.display_name
 
   return (
     <>
-      <PageTitle sub={clients.data ? `${clients.data.length}${clients.data.length === 100 ? '+' : ''} в списке` : 'загрузка'} title="Клиенты">
+      <PageTitle
+        sub={page ? `${page.total} ${plural(page.total, 'клиент', 'клиента', 'клиентов')}${trainerName ? ` у тренера ${trainerName}` : ''}` : 'загрузка'}
+        title="Клиенты"
+      >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-          <label className="glass" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 14px', borderRadius: 14, width: 320 }}>
+          <label className="glass" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 14px', borderRadius: 14, width: 280 }}>
             <span className="sr">Поиск клиента</span>
             <input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Имя, @username, Telegram ID или тренер"
+              placeholder="Имя, @username или Telegram ID"
               style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', font: 'inherit', fontSize: 14, color: 'var(--text)', outline: 'none' }}
             />
           </label>
+          <label className="glass select-pill">
+            <span className="sr">Тренер</span>
+            <select value={trainerId ?? ''} onChange={(event) => open({ trainer: event.target.value ? Number(event.target.value) : null })}>
+              <option value="">Все тренеры</option>
+              {[...(trainers.data ?? [])]
+                .sort((a, b) => a.display_name.localeCompare(b.display_name, 'ru'))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.display_name} · {t.clients}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="glass select-pill">
+            <span className="sr">Порядок</span>
+            <select value={sort} onChange={(event) => open({ sort: event.target.value as ClientSort })}>
+              {SORTS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="chips" role="group" aria-label="Какие аккаунты">
-            <button type="button" className="chip" aria-pressed={!deleted} onClick={() => setDeleted(false)}>
+            <button type="button" className="chip" aria-pressed={!deleted} onClick={() => open({ deleted: false })}>
               Действующие
             </button>
-            <button type="button" className="chip" aria-pressed={deleted} onClick={() => setDeleted(true)}>
+            <button type="button" className="chip" aria-pressed={deleted} onClick={() => open({ deleted: true })}>
               Удалённые
             </button>
           </div>
@@ -73,7 +132,7 @@ export default function Clients({ onUnauthorized }: ScreenProps) {
 
       {clients.error && <ErrorTile text={clients.error} onRetry={clients.reload} />}
       {!clients.error && !clients.data && <Skeleton span={selected ? 'span-7' : 'span-12'} />}
-      {clients.data && (
+      {page && (
         <section
           className={`glass tile ${selected ? 'span-7' : 'span-12'}`}
           aria-label="Список клиентов"
@@ -86,17 +145,17 @@ export default function Clients({ onUnauthorized }: ScreenProps) {
             <span>Последнее</span>
             <span>В приложении</span>
           </div>
-          {clients.data.length === 0 && (
+          {page.items.length === 0 && (
             <p className="muted" style={{ padding: 12 }}>
-              {search ? 'Никого не нашлось.' : deleted ? 'Удалённых аккаунтов нет.' : 'Клиентов пока нет.'}
+              {search || trainerId ? 'Никого не нашлось.' : deleted ? 'Удалённых аккаунтов нет.' : 'Клиентов пока нет.'}
             </p>
           )}
-          {clients.data.map((client) => (
+          {page.items.map((client) => (
             <button
               key={client.id}
               type="button"
               aria-pressed={selected === client.id}
-              onClick={() => setSelected(selected === client.id ? null : client.id)}
+              onClick={() => open({ id: selected === client.id ? null : client.id })}
               style={{
                 display: 'grid',
                 gridTemplateColumns: COLUMNS,
@@ -131,6 +190,26 @@ export default function Clients({ onUnauthorized }: ScreenProps) {
               <span className="small muted">{client.offline ? '—' : ago(client.last_seen_at)}</span>
             </button>
           ))}
+          {page.total > page.page_size && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 12px 0', minWidth: 620 }}>
+              <span className="small muted num">
+                {offset + 1}–{offset + page.items.length} из {page.total}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn secondary small" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - page.page_size))}>
+                  Назад
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary small"
+                  disabled={offset + page.page_size >= page.total}
+                  onClick={() => setOffset(offset + page.page_size)}
+                >
+                  Дальше
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -139,9 +218,9 @@ export default function Clients({ onUnauthorized }: ScreenProps) {
           key={selected}
           id={selected}
           onUnauthorized={onUnauthorized}
-          onClose={() => setSelected(null)}
+          onClose={() => open({ id: null })}
           onDeleted={() => {
-            setSelected(null)
+            open({ id: null })
             clients.reload()
           }}
         />
@@ -199,7 +278,9 @@ function ClientPanel({
       {links.map((link) => (
         <div key={link.trainer.id} className="well" style={{ gap: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-            <b style={{ fontWeight: 600 }}>{link.trainer.name}</b>
+            <b style={{ fontWeight: 600 }}>
+              <TrainerLink id={link.trainer.id} name={link.trainer.name} />
+            </b>
             <span className="tiny muted">клиент с {shortDate(link.since)}</span>
           </div>
           <div className="small" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
