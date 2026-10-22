@@ -3,6 +3,7 @@ import { ApiError, get, post, setCsrfToken, type Session } from './api'
 import { Mark } from './Brand'
 import Login from './Login'
 import { parseRoute, type Route } from './route'
+import ScreenBoundary from './ScreenBoundary'
 import Shell from './Shell'
 import Broadcasts from './screens/Broadcasts'
 import Clients from './screens/Clients'
@@ -73,14 +74,17 @@ export default function App() {
   const { section } = route
   return (
     <Shell section={section} name={auth.session.name} onLogout={logout}>
-      {section === 'summary' && <Summary {...props} />}
-      {section === 'trainers' && (route.id ? <TrainerProfile key={route.id} id={route.id} {...props} /> : <Trainers {...props} />)}
-      {section === 'clients' && <Clients route={route} {...props} />}
-      {section === 'money' && <Money {...props} />}
-      {section === 'plans' && <Plans {...props} />}
-      {section === 'broadcasts' && <Broadcasts {...props} />}
-      {section === 'system' && <System {...props} />}
-      {section === 'support' && <Support {...props} />}
+      {/* Новый экран — новая попытка: ошибка прошлого не переносится */}
+      <ScreenBoundary key={section === 'trainers' ? `trainers/${route.id ?? ''}` : section}>
+        {section === 'summary' && <Summary {...props} />}
+        {section === 'trainers' && (route.id ? <TrainerProfile key={route.id} id={route.id} {...props} /> : <Trainers {...props} />)}
+        {section === 'clients' && <Clients route={route} {...props} />}
+        {section === 'money' && <Money {...props} />}
+        {section === 'plans' && <Plans {...props} />}
+        {section === 'broadcasts' && <Broadcasts {...props} />}
+        {section === 'system' && <System {...props} />}
+        {section === 'support' && <Support {...props} />}
+      </ScreenBoundary>
     </Shell>
   )
 }

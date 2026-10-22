@@ -663,29 +663,58 @@ input:focus-visible {
   background: var(--well);
 }
 
-/* Выпадающий список в шапке экрана, в одну линию с поиском */
-.select-pill {
+/* Выпадающий список: кнопка как поиск рядом, меню как у действий тренера */
+.select {
+  position: relative;
+}
+
+.select-btn {
   display: flex;
   align-items: center;
+  gap: 10px;
   min-height: 44px;
-  padding: 0 10px 0 14px;
+  max-width: 240px;
+  padding: 0 14px;
   border-radius: 14px;
-}
-
-.select-pill select {
-  max-width: 220px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
+  border: 1px solid var(--edge);
   font-size: 14px;
-  outline: none;
-  cursor: pointer;
+  color: var(--text);
 }
 
-.select-pill:focus-within {
-  outline: 2px solid var(--link);
-  outline-offset: 2px;
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-menu {
+  left: 0;
+  right: auto;
+  top: calc(100% + 6px);
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 100%;
+}
+
+.select-menu button {
+  gap: 10px;
+}
+
+.select-menu button.active {
+  background: var(--well);
+}
+
+.select-menu button[aria-selected='true'] {
+  font-weight: 600;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px 0 8px;
+  text-decoration: none;
 }
 
 /* Заголовок колонки, по которому можно отсортировать */
