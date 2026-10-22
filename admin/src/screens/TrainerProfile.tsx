@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { post, type ClientPage, type TrainerProfile as Profile } from '../api'
+import { post, type ClientPage, type TrainerEventKind, type TrainerProfile as Profile } from '../api'
 import { ago, errorText, plural, rub, shortDate, tint } from '../format'
 import { clientHref, go, href } from '../route'
 import { useData } from '../useData'
@@ -13,6 +13,20 @@ const PAYMENT_STATUS: Record<Profile['payments'][number]['status'], { text: stri
   paid: { text: 'оплачено', color: 'var(--green)' },
   pending: { text: 'не оплатил', color: 'var(--amber)' },
   canceled: { text: 'отменена', color: 'var(--muted)' },
+}
+
+const EVENT_COLOR: Record<TrainerEventKind, string> = {
+  joined: 'var(--blue)',
+  onboarded: 'var(--blue)',
+  first_client: 'var(--green)',
+  first_client_booking: 'var(--green)',
+  first_package: 'var(--green)',
+  paid: 'var(--green)',
+  promo: 'var(--violet)',
+  ticket: 'var(--amber)',
+  referral: 'var(--violet)',
+  trial_ended: 'var(--red)',
+  pro_ended: 'var(--red)',
 }
 
 const fullName = (c: { first_name: string; last_name: string | null }) => [c.first_name, c.last_name].filter(Boolean).join(' ')
@@ -71,6 +85,15 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
   const t = p.trainer
   const seenDays = p.activity.filter(Boolean).length
   const pending = p.tickets.filter((ticket) => ticket.status === 'new').length
+  // Шаги тренера и действия админа одной лентой, свежие сверху
+  const history: { at: string; color: string; text: ReactNode }[] = [
+    ...p.events.map((event) => ({
+      at: event.at,
+      color: EVENT_COLOR[event.kind],
+      text: event.trainer_id ? <TrainerLink id={event.trainer_id} name={event.text} /> : event.text,
+    })),
+    ...p.audit.map((entry) => ({ at: entry.created_at, color: 'var(--muted)', text: <span className="muted">Админ: {auditText(entry)}</span> })),
+  ].sort((a, b) => b.at.localeCompare(a.at))
 
   const toggle = async () => {
     const enable = t.state === 'disabled'
@@ -336,15 +359,16 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
         })}
       </section>
 
-      <section className="glass tile span-12" aria-labelledby="tp-audit" style={{ gap: 6 }}>
-        <h2 id="tp-audit" style={{ paddingBottom: 6 }}>
-          Что админ делал с тренером
-        </h2>
-        {p.audit.length === 0 && <p className="muted" style={{ margin: 0 }}>Ничего.</p>}
-        {p.audit.map((entry) => (
-          <div key={entry.id} className="row" style={{ gridTemplateColumns: '110px minmax(0,1fr)' }}>
-            <span className="small muted num">{shortDate(entry.created_at)}</span>
-            <span className="small">{auditText(entry)}</span>
+      <section className="glass tile span-12" aria-labelledby="tp-history" style={{ gap: 6 }}>
+        <div className="tile-head" style={{ paddingBottom: 6 }}>
+          <h2 id="tp-history">История</h2>
+          <span className="small muted">шаги тренера, оплаты, обращения и действия админа</span>
+        </div>
+        {history.map((item, index) => (
+          <div key={index} className="row" style={{ gridTemplateColumns: '18px 110px minmax(0,1fr)' }}>
+            <span className="dot" aria-hidden="true" style={{ background: item.color }} />
+            <span className="small muted num">{shortDate(item.at)}</span>
+            <span className="small">{item.text}</span>
           </div>
         ))}
       </section>
