@@ -316,10 +316,15 @@ class AdminTrainerOut(BaseModel):
     journey: JourneyOut
     trial_until: datetime | None
     pro_until: datetime | None
+    # Заплатил за Pro за всё время, в рублях
+    paid_total: int
 
 
 def _trainer_out(
-    row: admin_stats.TrainerRow, first: admin_insights.Firsts, settings: Settings
+    row: admin_stats.TrainerRow,
+    first: admin_insights.Firsts,
+    paid: dict[int, int],
+    settings: Settings,
 ) -> AdminTrainerOut:
     return AdminTrainerOut(
         id=row.trainer.id,
@@ -349,6 +354,7 @@ def _trainer_out(
         ),
         trial_until=row.trainer.trial_until,
         pro_until=row.trainer.pro_until,
+        paid_total=paid.get(row.trainer.id, 0),
     )
 
 
@@ -358,7 +364,8 @@ async def get_trainers(
 ) -> list[AdminTrainerOut]:
     rows = await admin_stats.trainer_rows(session, datetime.now(UTC))
     first = await admin_insights.firsts(session)
-    return [_trainer_out(row, first, settings) for row in rows]
+    paid = await admin_trainer.paid_totals(session)
+    return [_trainer_out(row, first, paid, settings) for row in rows]
 
 
 class ActiveIn(BaseModel):
@@ -1224,6 +1231,13 @@ class TrainerPromoOut(BaseModel):
     used_at: datetime | None
 
 
+class TrainerEventOut(BaseModel):
+    at: datetime
+    kind: str
+    text: str
+    trainer_id: int | None
+
+
 class TrainerProfileOut(BaseModel):
     trainer: AdminTrainerOut
     telegram_id: int | None
@@ -1242,6 +1256,7 @@ class TrainerProfileOut(BaseModel):
     promos: list[TrainerPromoOut]
     tickets: list[TicketOut]
     audit: list[AuditOut]
+    events: list[TrainerEventOut]
 
 
 @router.get("/trainers/{trainer_id}")
@@ -1256,7 +1271,12 @@ async def get_trainer_profile(
     )
     data = await admin_trainer.profile(session, trainer, now)
     return TrainerProfileOut(
-        trainer=_trainer_out(row, await admin_insights.firsts(session), settings),
+        trainer=_trainer_out(
+            row,
+            await admin_insights.firsts(session),
+            {trainer.id: data.paid_total},
+            settings,
+        ),
         telegram_id=trainer.user.telegram_id,
         address=trainer.address,
         auto_confirm=trainer.auto_confirm,
@@ -1319,5 +1339,9 @@ async def get_trainer_profile(
                 created_at=a.created_at,
             )
             for a in data.audit
+        ],
+        events=[
+            TrainerEventOut(at=e.at, kind=e.kind, text=e.text, trainer_id=e.trainer_id)
+            for e in data.events
         ],
     )

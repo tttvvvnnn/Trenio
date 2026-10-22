@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests.test_admin import get
 from tests.test_bookings import new_client, setup_trainer
 from tests.test_packages import client_id_of
 from tests.test_schedule_api import Headers, second_trainer
@@ -151,6 +152,12 @@ async def test_profile(client: AsyncClient, session: AsyncSession) -> None:
     assert [t["text"] for t in profile["tickets"]] == ["Тёмная тема"]
     assert [a["action"] for a in profile["audit"]] == ["trainer.pro_extended"]
     assert profile["services"] == [] and profile["hours"] == []
+    # История: свежие сверху, оплата и обращение рядом с получением доступа
+    kinds = [e["kind"] for e in profile["events"]]
+    assert kinds[-1] == "joined" and {"paid", "ticket"} <= set(kinds)
+    assert profile["trainer"]["paid_total"] == 990
+    listed = {t["id"]: t["paid_total"] for t in await get(client, headers, "trainers")}
+    assert listed == {trainer_id: 0, other_id: 990}
 
     own = (await client.get(f"/api/admin/trainers/{trainer_id}", headers=headers)).json()
     assert [s["is_active"] for s in own["services"]] == [True]

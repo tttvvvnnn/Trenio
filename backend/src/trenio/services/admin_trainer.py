@@ -7,18 +7,22 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import (
     AdminAuditEntry,
+    Booking,
+    Package,
     PromoRedemption,
     ScheduleRule,
     Service,
     SubscriptionPayment,
     SupportTicket,
     Trainer,
+    TrainerClient,
     UserActivityDay,
 )
 from trenio.services.admin_clients import TrainerRef
@@ -47,6 +51,17 @@ class HoursRow:
 
 
 @dataclass(frozen=True, slots=True)
+class Event:
+    at: datetime
+    # joined, onboarded, first_client, first_client_booking, first_package, paid, promo,
+    # ticket, referral, trial_ended, pro_ended
+    kind: str
+    text: str
+    # Другой тренер, о котором событие: пришёл по ссылке этого
+    trainer_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Profile:
     activity: list[bool]
     services: list[ServiceRow]
@@ -59,6 +74,88 @@ class Profile:
     audit: Sequence[AdminAuditEntry]
     referred_by: TrainerRef | None
     referrals: list[TrainerRef]
+    # История тренера, свежие сверху. Действия админа — отдельно, в audit
+    events: list[Event]
+
+
+async def paid_totals(session: AsyncSession) -> dict[int, int]:
+    """Сколько каждый тренер заплатил за Pro за всё время, вместе с балансом."""
+    rows = await session.execute(
+        select(SubscriptionPayment.trainer_id, func.sum(SubscriptionPayment.price))
+        .where(SubscriptionPayment.status == "paid")
+        .group_by(SubscriptionPayment.trainer_id)
+    )
+    return {int(trainer_id): int(total) for trainer_id, total in rows.all()}
+
+
+TICKET_KIND = {"question": "вопрос", "problem": "проблема", "idea": "идея", "review": "отзыв"}
+PROMO_KIND = {"percent": "−{}%", "rubles": "−{} ₽", "days": "{} дн. Pro"}
+
+
+async def _first(session: AsyncSession, at: Any, *conditions: Any) -> datetime | None:
+    return await session.scalar(select(func.min(at)).where(*conditions))
+
+
+async def _events(
+    session: AsyncSession,
+    trainer: Trainer,
+    now: datetime,
+    payments: Sequence[SubscriptionPayment],
+    promos: Sequence[PromoRedemption],
+    tickets: Sequence[SupportTicket],
+    referrals: list[tuple[TrainerRef, datetime]],
+) -> list[Event]:
+    events = [Event(trainer.created_at, "joined", "Получил доступ к Trenio")]
+    if trainer.onboarded_at:
+        events.append(Event(trainer.onboarded_at, "onboarded", "Прошёл первую настройку"))
+    firsts = [
+        (
+            "first_client",
+            "Первый клиент",
+            await _first(session, TrainerClient.created_at, TrainerClient.trainer_id == trainer.id),
+        ),
+        (
+            "first_client_booking",
+            "Клиент впервые записался сам",
+            await _first(
+                session,
+                Booking.created_at,
+                Booking.trainer_id == trainer.id,
+                Booking.created_by == "client",
+            ),
+        ),
+        (
+            "first_package",
+            "Первый блок занятий",
+            await _first(session, Package.created_at, Package.trainer_id == trainer.id),
+        ),
+    ]
+    events += [Event(at, kind, text) for kind, text, at in firsts if at is not None]
+    for payment in payments:
+        if payment.status == "paid" and payment.paid_at:
+            plan = "месяц" if payment.plan == "month" else payment.plan
+            events.append(
+                Event(payment.paid_at, "paid", f"Оплатил Pro ({plan}): {payment.price} ₽")
+            )
+    for promo in promos:
+        value = PROMO_KIND.get(promo.code.kind, "{}").format(promo.code.value)
+        events.append(
+            Event(promo.created_at, "promo", f"Ввёл промокод {promo.code.code} ({value})")
+        )
+    for ticket in tickets:
+        kind = TICKET_KIND.get(ticket.kind, ticket.kind)
+        events.append(Event(ticket.created_at, "ticket", f"Написал в поддержку: {kind}"))
+    for ref, at in referrals:
+        events.append(Event(at, "referral", f"По его ссылке пришёл {ref.name}", ref.id))
+    # Конец пробного и Pro — только прошедший и не перекрытый следующим сроком
+    pro_until = trainer.pro_until
+    trial_until = trainer.trial_until
+    if trial_until and trial_until <= now and (pro_until is None or pro_until < trial_until):
+        events.append(Event(trial_until, "trial_ended", "Закончился пробный период"))
+    if pro_until and pro_until <= now:
+        events.append(Event(pro_until, "pro_ended", "Закончился Pro"))
+    events.sort(key=lambda e: e.at, reverse=True)
+    return events
 
 
 async def profile(session: AsyncSession, trainer: Trainer, now: datetime) -> Profile:
@@ -134,10 +231,10 @@ async def profile(session: AsyncSession, trainer: Trainer, now: datetime) -> Pro
         if parent is not None:
             referred_by = TrainerRef(parent.id, parent.display_name)
     referrals = [
-        TrainerRef(trainer_id, name)
-        for trainer_id, name in (
+        (TrainerRef(trainer_id, name), created_at)
+        for trainer_id, name, created_at in (
             await session.execute(
-                select(Trainer.id, Trainer.display_name)
+                select(Trainer.id, Trainer.display_name, Trainer.created_at)
                 .where(Trainer.referred_by_id == trainer.id)
                 .order_by(Trainer.created_at)
             )
@@ -153,5 +250,6 @@ async def profile(session: AsyncSession, trainer: Trainer, now: datetime) -> Pro
         tickets=tickets,
         audit=audit,
         referred_by=referred_by,
-        referrals=referrals,
+        referrals=[ref for ref, _ in referrals],
+        events=await _events(session, trainer, now, payments, promos, tickets, referrals),
     )

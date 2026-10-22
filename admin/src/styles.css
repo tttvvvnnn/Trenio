@@ -687,3 +687,22 @@ input:focus-visible {
   outline: 2px solid var(--link);
   outline-offset: 2px;
 }
+
+/* Заголовок колонки, по которому можно отсортировать */
+.sort-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+  color: inherit;
+  text-align: inherit;
+}
+
+.sort-head:hover,
+.sort-head[aria-pressed='true'] {
+  color: var(--text);
+}

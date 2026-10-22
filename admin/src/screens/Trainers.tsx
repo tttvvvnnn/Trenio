@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { post, type AdminTrainer, type Insights, type NewInvite, type OpenInvite, type Overview } from '../api'
-import { ago, shortDate, tint } from '../format'
+import { ago, rub, shortDate, tint } from '../format'
 import { go, trainerHref } from '../route'
 import { useData } from '../useData'
 import {
@@ -24,7 +24,35 @@ const FILTERS: { id: Filter; label: string; match: (t: AdminTrainer) => boolean 
   { id: 'disabled', label: 'Отключены', match: (t) => t.state === 'disabled' },
 ]
 
-const COLUMNS = 'minmax(0,1.6fr) 130px 80px minmax(0,1fr) 140px 52px'
+const COLUMNS = 'minmax(0,1.6fr) 130px 80px 100px minmax(0,1fr) 130px 52px'
+
+// state — порядок сервера: сначала работающие, потом затихшие и ненастроенные
+type Sort = 'state' | 'name' | 'clients' | 'paid' | 'seen'
+
+const SORTERS: Record<Sort, (a: AdminTrainer, b: AdminTrainer) => number> = {
+  state: () => 0,
+  name: (a, b) => a.display_name.localeCompare(b.display_name, 'ru'),
+  clients: (a, b) => b.clients - a.clients,
+  paid: (a, b) => b.paid_total - a.paid_total,
+  seen: (a, b) => (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? ''),
+}
+
+function SortHeader({ id, sort, onSort, children, right = false }: { id: Sort; sort: Sort; onSort: (sort: Sort) => void; children: string; right?: boolean }) {
+  const active = sort === id
+  return (
+    <button
+      type="button"
+      className="sort-head"
+      aria-pressed={active}
+      onClick={() => onSort(active ? 'state' : id)}
+      style={{ justifyContent: right ? 'flex-end' : 'flex-start' }}
+      title={active ? 'Вернуть обычный порядок' : 'Сортировать'}
+    >
+      {children}
+      <span aria-hidden="true">{active ? '↓' : ''}</span>
+    </button>
+  )
+}
 
 export default function Trainers({ onUnauthorized }: ScreenProps) {
   const trainers = useData<AdminTrainer[]>('/admin/trainers', onUnauthorized)
@@ -32,6 +60,7 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
   const insights = useData<Insights>('/admin/insights', onUnauthorized)
   const invites = useData<OpenInvite[]>('/admin/invites', onUnauthorized)
   const [filter, setFilter] = useState<Filter>('all')
+  const [sort, setSort] = useState<Sort>('state')
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<number | null>(null)
   const [invite, setInvite] = useState<NewInvite | null>(null)
@@ -77,6 +106,7 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
         (t.user.username ?? '').toLowerCase().includes(needle) ||
         String(t.id) === needle,
     )
+    .sort(SORTERS[sort])
   const funnel = overview.data.funnel
 
   const toggle = async (trainer: AdminTrainer) => {
@@ -165,11 +195,20 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
         style={{ padding: '12px 16px 16px', gap: 0, position: 'relative', zIndex: menu === null ? undefined : 5 }}
       >
         <div className="tiny muted" style={{ display: 'grid', gridTemplateColumns: COLUMNS, gap: 14, padding: '10px 12px' }}>
-          <span>Тренер</span>
+          <SortHeader id="name" sort={sort} onSort={setSort}>
+            Тренер
+          </SortHeader>
           <span>Состояние</span>
-          <span style={{ textAlign: 'right' }}>Клиенты</span>
+          <SortHeader id="clients" sort={sort} onSort={setSort} right>
+            Клиенты
+          </SortHeader>
+          <SortHeader id="paid" sort={sort} onSort={setSort} right>
+            Оплатил
+          </SortHeader>
           <span>Заходил за 14 дней</span>
-          <span>Последний вход</span>
+          <SortHeader id="seen" sort={sort} onSort={setSort}>
+            Последний вход
+          </SortHeader>
           <span />
         </div>
         {rows.length === 0 && <p className="muted" style={{ padding: 12 }}>Никого не нашлось.</p>}
@@ -213,6 +252,9 @@ export default function Trainers({ onUnauthorized }: ScreenProps) {
             <span className="num" style={{ textAlign: 'right', fontWeight: 500 }}>
               {trainer.clients}
               {trainer.clients_new_week > 0 && <span className="tiny" style={{ color: 'var(--green)' }}> +{trainer.clients_new_week}</span>}
+            </span>
+            <span className="num small" style={{ textAlign: 'right', color: trainer.paid_total ? undefined : 'var(--muted)' }}>
+              {trainer.paid_total ? rub(trainer.paid_total) : '—'}
             </span>
             <Bars
               values={trainer.active_days.map((day) => (day ? 1 : 0))}

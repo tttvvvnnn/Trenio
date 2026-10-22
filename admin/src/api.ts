@@ -152,6 +152,7 @@ export type AdminTrainer = {
   marks: number
   trial_until: string | null
   pro_until: string | null
+  paid_total: number
 }
 
 export type Risk = 'low' | 'medium' | 'high'
@@ -354,4 +355,20 @@ export type TrainerProfile = {
   }[]
   tickets: Ticket[]
   audit: AuditEntry[]
+  events: TrainerEvent[]
 }
+
+export type TrainerEventKind =
+  | 'joined'
+  | 'onboarded'
+  | 'first_client'
+  | 'first_client_booking'
+  | 'first_package'
+  | 'paid'
+  | 'promo'
+  | 'ticket'
+  | 'referral'
+  | 'trial_ended'
+  | 'pro_ended'
+
+export type TrainerEvent = { at: string; kind: TrainerEventKind; text: string; trainer_id: number | null }
