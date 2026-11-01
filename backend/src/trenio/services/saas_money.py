@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import Bot, SubscriptionPayment, Trainer
 from trenio.services.admin_stats import ADMIN_TIMEZONE, TrainerRow, TrainerState
+from trenio.services.billing import TOPUP
 from trenio.services.subscription import get_terms
 
 MONTH_DAYS = 30
@@ -114,13 +115,14 @@ async def summary(
     month_price = (await get_terms(session)).price_month
     paid = SubscriptionPayment.status == "paid"
 
-    # Последний оплаченный тариф тренера: из него месячная цена для MRR
+    # Последний оплаченный тариф тренера: из него месячная цена для MRR.
+    # Пополнения баланса не тариф: Pro с баланса потом придёт отдельной оплатой
     last_paid = {
         payment.trainer_id: payment
         for payment in (
             await session.scalars(
                 select(SubscriptionPayment)
-                .where(paid)
+                .where(paid, SubscriptionPayment.plan != TOPUP)
                 .order_by(SubscriptionPayment.trainer_id, SubscriptionPayment.paid_at)
             )
         ).all()
@@ -181,7 +183,8 @@ async def summary(
     converted = [t for t in ended_trial if t.id in last_paid]
     conversion = round(100 * len(converted) / len(ended_trial)) if ended_trial else None
 
-    # Сколько пришло деньгами: часть цены могла покрыть реферальный баланс
+    # Сколько пришло деньгами: часть цены могла покрыть баланс. Пополнения баланса
+    # считаем здесь, а Pro, оплаченный с него, — нет, поэтому рубль не учтётся дважды
     received = SubscriptionPayment.amount
     total = await session.scalar(select(func.coalesce(func.sum(received), 0)).where(paid))
     first_month = _shift_month(_month_start(now), -(HISTORY_MONTHS - 1))

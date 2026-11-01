@@ -396,7 +396,8 @@ class SubscriptionPayment(TimestampMixin, Base):
     )
     # Через какой бот пришла оплата: деньги общие, но в отчёте видно источник
     bot_id: Mapped[int] = _main_bot_fk()
-    # month или year, см. trenio.services.subscription.plans
+    # month или year, см. trenio.services.subscription.plans; topup — пополнение баланса
+    # (days = 0, price = amount)
     plan: Mapped[str] = mapped_column(String(16))
     days: Mapped[int] = mapped_column(Integer)
     # Цена тарифа = amount + balance_used, в рублях
@@ -464,10 +465,12 @@ class PromoRedemption(Base):
 
 
 class BalanceEntry(Base):
-    """Движение по балансу тренера: начисление за приглашённого, оплата, возврат."""
+    """Движение по балансу: начисление за приглашённого, пополнение, оплата, возврат."""
 
     __tablename__ = "balance_entries"
-    __table_args__ = (CheckConstraint("kind IN ('referral', 'payment', 'refund')", name="kind"),)
+    __table_args__ = (
+        CheckConstraint("kind IN ('referral', 'topup', 'payment', 'refund')", name="kind"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     trainer_id: Mapped[int] = mapped_column(

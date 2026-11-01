@@ -1,7 +1,9 @@
 """Оплата Pro и баланс тренера.
 
-Часть цены покрывает баланс (20% с оплат приглашённых тренеров), остальное тренер платит
-по СБП через Platega. Списанное с баланса возвращается, если оплата не прошла.
+Часть цены покрывает баланс (20% с оплат приглашённых тренеров и пополнения самого
+тренера), остальное тренер платит по СБП через Platega. Списанное с баланса возвращается,
+если оплата не прошла. Пополнение баланса — та же оплата через Platega с планом topup:
+вместо дней Pro она зачисляет рубли на баланс.
 Подтверждение приходит callback-ом от Platega или находится опросом статуса;
 в обоих случаях статус перепроверяется через API Platega и применяется один раз.
 """
@@ -24,6 +26,10 @@ logger = logging.getLogger(__name__)
 REFERRAL_PERCENT = 20
 # Меньше Platega не принимает: баланс списываем так, чтобы к оплате осталось не меньше
 MIN_PAYMENT = 50
+# Пополнение баланса: больше разом не принимаем, чтобы не ошибиться лишним нулём
+MAX_TOPUP = 10_000
+# План оплаты, которая пополняет баланс, а не продлевает Pro
+TOPUP = "topup"
 # Сколько ждём оплату по СБП, прежде чем отменить платёж и вернуть баланс
 PAYMENT_TTL = timedelta(hours=24)
 
@@ -33,6 +39,10 @@ class PaymentUnavailable(Exception):
 
 
 class UnknownPlan(ValueError):
+    pass
+
+
+class BadTopupAmount(ValueError):
     pass
 
 
@@ -128,6 +138,33 @@ async def start_payment(
     return payment
 
 
+async def start_topup(
+    session: AsyncSession, trainer: Trainer, amount: int, return_url: str
+) -> SubscriptionPayment:
+    """Пополнение баланса на сумму, которую ввёл тренер. Платится целиком по СБП."""
+    if not MIN_PAYMENT <= amount <= MAX_TOPUP:
+        raise BadTopupAmount(amount)
+    if not _payments_enabled():
+        raise PaymentUnavailable
+    payment = SubscriptionPayment(
+        trainer_id=trainer.id, plan=TOPUP, days=0, price=amount, amount=amount, balance_used=0
+    )
+    session.add(payment)
+    await session.commit()
+    try:
+        created = await platega.create_payment(
+            amount, f"trenio_{payment.id}", "Пополнение баланса Trenio", return_url
+        )
+    except platega.PlategaError:
+        logger.exception("Platega create_payment failed for top-up %s", payment.id)
+        await cancel(session, payment.id)
+        raise PaymentUnavailable from None
+    payment.transaction_id = created.transaction_id
+    payment.redirect_url = created.redirect_url
+    await session.commit()
+    return payment
+
+
 def _payments_enabled() -> bool:
     return get_settings().payments_enabled
 
@@ -142,16 +179,24 @@ async def _locked_payment(session: AsyncSession, payment_id: int) -> Subscriptio
 
 
 async def confirm(session: AsyncSession, payment_id: int, now: datetime) -> None:
-    """Оплата прошла: продлеваем Pro и начисляем пригласившему. Повторный вызов ничего не делает."""
+    """Оплата прошла: продлеваем Pro или пополняем баланс и начисляем пригласившему.
+
+    Повторный вызов ничего не делает. Пригласивший получает процент со всех денег,
+    которые пришли по СБП, в том числе с пополнений: Pro, оплаченный потом с баланса,
+    ему уже ничего не приносит.
+    """
     payment = await _locked_payment(session, payment_id)
     if payment is None or payment.status != "pending":
         await session.commit()
         return
     payment.status = "paid"
     payment.paid_at = now
-    await promo_codes.settle(session, payment, now)
     trainer = await _locked_trainer(session, payment.trainer_id)
-    subscription.extend_pro(trainer, payment.days, now)
+    if payment.plan == TOPUP:
+        _move_balance(session, trainer, payment.amount, "topup", payment)
+    else:
+        await promo_codes.settle(session, payment, now)
+        subscription.extend_pro(trainer, payment.days, now)
     await notifications.subscription_paid(session, trainer, payment, now)
     if payment.amount and trainer.referred_by_id is not None:
         inviter = await _locked_trainer(session, trainer.referred_by_id)

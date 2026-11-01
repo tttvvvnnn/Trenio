@@ -678,9 +678,12 @@ export type Subscription = {
   can_add_client: boolean
   free_client_limit: number
   plans: SubscriptionPlan[]
-  // Рубли на балансе: 20% с оплат приглашённых тренеров
+  // Рубли на балансе: 20% с оплат приглашённых тренеров и пополнения
   balance: number
   payments_enabled: boolean
+  // На сколько рублей можно пополнить баланс за раз
+  topup_min: number
+  topup_max: number
   // Скидка по промокоду: уже учтена в цене тарифов
   discount: { code: string; kind: 'percent' | 'rubles'; value: number } | null
 }
@@ -688,7 +691,8 @@ export type Subscription = {
 export type SubscriptionPayment = {
   id: number
   status: 'pending' | 'paid' | 'canceled'
-  plan: 'month' | 'year'
+  // topup — пополнение баланса
+  plan: 'month' | 'year' | 'topup'
   price: number
   amount: number
   balance_used: number
@@ -698,6 +702,11 @@ export type SubscriptionPayment = {
 
 export function startPayment(plan: 'month' | 'year'): Promise<SubscriptionPayment> {
   return send<SubscriptionPayment>('POST', '/api/trainer/subscription/pay', { plan })
+}
+
+/** Пополнение баланса по СБП; статус потом спрашиваем через fetchPayment. */
+export function startTopup(amount: number): Promise<SubscriptionPayment> {
+  return send<SubscriptionPayment>('POST', '/api/trainer/balance/topup', { amount })
 }
 
 export function fetchPayment(id: number): Promise<SubscriptionPayment> {

@@ -25,7 +25,7 @@ from trenio.db.models import (
     User,
 )
 from trenio.delivery.channel import Button, OutMessage
-from trenio.services import subscription
+from trenio.services import billing, subscription
 from trenio.services.bookings import client_can_cancel
 from trenio.services.notifications import Kind, Role, Status
 from trenio.services.packages import due, left
@@ -392,6 +392,15 @@ async def _subscription_paid(session: AsyncSession, row: Notification) -> OutMes
     if payment is None or payment.status != "paid":
         return None
     trainer = await session.get(Trainer, payment.trainer_id)
+    if trainer is not None and payment.plan == billing.TOPUP:
+        return OutMessage(
+            _lines(
+                f"✅ Баланс пополнен на {rubles(payment.amount)}",
+                f"Сейчас на балансе {rubles(trainer.balance)}. "
+                "Он спишется, когда будете оплачивать подписку",
+            ),
+            open_subscription("Открыть подписку"),
+        )
     if trainer is None or trainer.pro_until is None:
         return None
     until = trainer.pro_until.astimezone(ZoneInfo(trainer.timezone)).date()
@@ -415,9 +424,10 @@ async def _referral_bonus(session: AsyncSession, row: Notification) -> OutMessag
         return None
     payer = await session.get(Trainer, payment.trainer_id)
     name = person(payer.user) if payer is not None else "Приглашённый тренер"
+    what = "пополнил(а) баланс" if payment.plan == billing.TOPUP else "оплатил(а) Pro"
     return OutMessage(
         _lines(
-            f"💰 {name} оплатил(а) Pro, вам начислено {rubles(row.payload['bonus'])}",
+            f"💰 {name} {what}, вам начислено {rubles(row.payload['bonus'])}",
             f"Баланс: {rubles(inviter.balance)}. Он спишется, когда будете оплачивать подписку",
         ),
         open_app("Кто пришёл по ссылке", role=Role.TRAINER.value, tab="referrals"),

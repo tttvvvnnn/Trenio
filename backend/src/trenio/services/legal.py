@@ -16,7 +16,7 @@ from trenio.services import billing, subscription
 from trenio.services.privacy import DELETED_NAME
 
 # Дата редакции: меняется вместе с текстом
-UPDATED = "19 октября 2026 г."
+UPDATED = "1 ноября 2026 г."
 
 DEFAULT_SITE = "https://trenio.tvpngate.cc"
 
@@ -60,5 +60,7 @@ def text(settings: Settings, doc: Document, terms: subscription.Terms) -> str:
         trial_days=terms.trial_days,
         free_clients=terms.free_client_limit,
         price_month=terms.price_month,
+        topup_min=billing.MIN_PAYMENT,
+        topup_max=f"{billing.MAX_TOPUP:,}".replace(",", " "),
         referral_percent=billing.REFERRAL_PERCENT,
     )

@@ -6,6 +6,7 @@ import {
   fetchSubscription,
   redeemPromoCode,
   startPayment,
+  startTopup,
   type Subscription as Sub,
   type SubscriptionPayment,
   type SubscriptionPlan,
@@ -75,6 +76,15 @@ function planSubtitle(plan: SubscriptionPlan, month: SubscriptionPlan | undefine
   return parts.join(' · ')
 }
 
+function topupFooter(sub: Sub, amount: number): string {
+  const month = sub.plans.find((plan) => plan.key === 'month')
+  const after = sub.balance + (amount || 0)
+  if (!month) return `После пополнения на балансе будет ${rubles(after)}.`
+  return after >= month.price
+    ? `После пополнения на балансе будет ${rubles(after)}, хватит на Pro на месяц.`
+    : `После пополнения на балансе будет ${rubles(after)}, до месяца Pro не хватит ${rubles(month.price - after)}.`
+}
+
 type Props = {
   timezone: string
   onBack: () => void
@@ -88,11 +98,15 @@ export default function Subscription({ timezone, onBack }: Props) {
   const [payment, setPayment] = useState<SubscriptionPayment | null>(null)
   const [busy, setBusy] = useState(false)
   const [termsOpen, setTermsOpen] = useState(false)
-  const [paid, setPaid] = useState(false)
+  // Что сообщить после успешной оплаты или пополнения
+  const [paidNote, setPaidNote] = useState<string | null>(null)
   // Промокод: поле открывается по нажатию, после ввода — что он дал
   const [codeOpen, setCodeOpen] = useState(false)
   const [code, setCode] = useState('')
   const [codeNote, setCodeNote] = useState<string | null>(null)
+  // Пополнение баланса: поле с суммой открывается по нажатию
+  const [topupOpen, setTopupOpen] = useState(false)
+  const [topupAmount, setTopupAmount] = useState('')
   const refreshKey = useRefreshKey()
   const paymentId = useRef<number | null>(null)
 
@@ -129,7 +143,11 @@ export default function Subscription({ timezone, onBack }: Props) {
   function setResult(result: SubscriptionPayment) {
     if (result.status === 'paid') {
       haptic.success()
-      setPaid(true)
+      setPaidNote(
+        result.plan === 'topup'
+          ? `Готово, баланс пополнен на ${rubles(result.amount)}.`
+          : 'Готово, Pro оплачен. Спасибо, что вы с Trenio!',
+      )
     } else {
       setError('Оплата не прошла. Деньги не списаны, можно попробовать ещё раз.')
     }
@@ -148,7 +166,7 @@ export default function Subscription({ timezone, onBack }: Props) {
     haptic.tap()
     setBusy(true)
     setError(null)
-    setPaid(false)
+    setPaidNote(null)
     try {
       const created = await startPayment(plan.key)
       if (created.status === 'pending' && created.redirect_url) {
@@ -157,6 +175,41 @@ export default function Subscription({ timezone, onBack }: Props) {
       } else {
         setResult(created)
       }
+    } catch (err) {
+      haptic.error()
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function openTopup(current: Sub) {
+    // По умолчанию предлагаем ровно столько, сколько не хватает до месяца Pro
+    const price = current.plans.find((plan) => plan.key === 'month')?.price ?? 0
+    const missing = price - current.balance
+    setTopupAmount(String(Math.max(current.topup_min, missing > 0 ? missing : price)))
+    setPaidNote(null)
+    setTopupOpen(true)
+  }
+
+  async function topup(current: Sub) {
+    const amount = Number(topupAmount)
+    if (busy) return
+    if (!Number.isInteger(amount) || amount < current.topup_min || amount > current.topup_max) {
+      haptic.error()
+      setError(
+        `Пополнить можно на сумму от ${rubles(current.topup_min)} до ${rubles(current.topup_max)}.`,
+      )
+      return
+    }
+    haptic.tap()
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await startTopup(amount)
+      setTopupOpen(false)
+      setPayment(created)
+      if (created.redirect_url) openUrl(created.redirect_url)
     } catch (err) {
       haptic.error()
       setError(errorText(err))
@@ -197,12 +250,12 @@ export default function Subscription({ timezone, onBack }: Props) {
     <Screen title="Подписка" subtitle="Pro снимает ограничение на число клиентов." onBack={onBack}>
       {error && <ErrorText>{error}</ErrorText>}
       {sub === null && !error && <SkeletonList rows={2} />}
-      {paid && <p className="card-hint done">Готово, Pro оплачен. Спасибо, что вы с Trenio!</p>}
-      {!paid && hint && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
+      {paidNote && <p className="card-hint done">{paidNote}</p>}
+      {!paidNote && hint && <p className={`card-hint ${hint.tone}`}>{hint.text}</p>}
       {payment && (
         <Section
           title="Ждём оплату"
-          footer="Как только банк подтвердит перевод, Pro включится сам. Можно закрыть этот экран."
+          footer={`Как только банк подтвердит перевод, ${payment.plan === 'topup' ? 'баланс пополнится' : 'Pro включится'} сам. Можно закрыть этот экран.`}
         >
           <Row
             title="Открыть страницу оплаты"
@@ -232,6 +285,52 @@ export default function Subscription({ timezone, onBack }: Props) {
               />
             ))}
           </Section>
+          <Section
+            title="Баланс"
+            footer="Пополняется вашими переводами и на 20% с оплат тренеров, которых вы пригласили. Тратится только на подписку: при оплате Pro спишется сам."
+          >
+            <Row
+              title="На балансе"
+              value={rubles(sub.balance)}
+              icon={{ name: 'wallet', color: 'var(--c-success)' }}
+            />
+            {sub.payments_enabled && !topupOpen && !payment && (
+              <Row
+                title="Пополнить баланс"
+                icon={{ name: 'plus', color: 'var(--c-accent)' }}
+                chevron
+                onClick={() => openTopup(sub)}
+              />
+            )}
+          </Section>
+          {topupOpen && (
+            <>
+              <TextField
+                label="Сумма пополнения, ₽"
+                value={topupAmount}
+                onChange={(value) => setTopupAmount(value.replace(/\D/g, ''))}
+                inputMode="numeric"
+                maxLength={5}
+                footer={topupFooter(sub, Number(topupAmount))}
+              />
+              <Section>
+                <Row
+                  title={
+                    busy
+                      ? 'Создаём оплату…'
+                      : `Пополнить на ${rubles(Number(topupAmount) || 0)} по СБП`
+                  }
+                  icon={{ name: 'wallet', color: 'var(--c-accent)' }}
+                  onClick={() => void topup(sub)}
+                />
+                <Row
+                  title="Отмена"
+                  icon={{ name: 'x', color: 'var(--c-hint)' }}
+                  onClick={() => setTopupOpen(false)}
+                />
+              </Section>
+            </>
+          )}
           {codeNote && <p className="card-hint done">{codeNote}</p>}
           {sub.discount && !codeNote && (
             <p className="card-hint done">
@@ -266,16 +365,6 @@ export default function Subscription({ timezone, onBack }: Props) {
                   setCodeNote(null)
                   setCodeOpen(true)
                 }}
-              />
-            </Section>
-          )}
-          {sub.balance > 0 && (
-            <Section footer="Баланс пополняется на 20% с каждой оплаты тренеров, которых вы пригласили. Он тратится только на подписку.">
-              <Row
-                title="Баланс"
-                subtitle="Спишется при оплате"
-                value={rubles(sub.balance)}
-                icon={{ name: 'wallet', color: 'var(--c-success)' }}
               />
             </Section>
           )}

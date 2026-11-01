@@ -130,7 +130,7 @@ export default function Money({ onUnauthorized }: ScreenProps) {
             <span className="small muted num">{shortDate(p.paid_at)}</span>
             <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ fontWeight: 500 }}>
-                <TrainerLink id={p.trainer_id} name={p.name} /> · {p.plan === 'month' ? 'Pro, месяц' : p.plan}
+                <TrainerLink id={p.trainer_id} name={p.name} /> · {p.plan === 'month' ? 'Pro, месяц' : p.plan === 'topup' ? 'Пополнение баланса' : p.plan}
               </span>
               <span className="tiny muted">через {p.bot ? `@${p.bot}` : 'основной бот'}</span>
             </span>
