@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/tttvvvnnn/Trenio/compare/v0.15.1...v0.16.0) (2026-11-01)
+
+
+### Новое
+
+* баланс в разделе «Подписка» и пополнение баланса по СБП ([#102](https://github.com/tttvvvnnn/Trenio/issues/102)) ([b7b7b96](https://github.com/tttvvvnnn/Trenio/commit/b7b7b96382056a063d13d86f41d79cd06581f8b2))
+
 ## [0.15.1](https://github.com/tttvvvnnn/Trenio/compare/v0.15.0...v0.15.1) (2026-10-22)
 
 
