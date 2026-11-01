@@ -68,7 +68,8 @@ alembic revision --autogenerate -m "что изменилось"
 
 - Интерфейс, тексты бота, комментарии в коде и документация на русском.
 - Фирменный стиль в [docs/brand-guidelines.md](docs/brand-guidelines.md). Для UI есть
-  навыки `.claude/skills/ui-ux-pro-max` и `.claude/skills/brand`.
+  навыки `.claude/skills/ui-ux-pro-max` и `.claude/skills/brand`, а для аудита
+  «ИИ-шаблонности» интерфейса навык `.claude/skills/unslop`.
 
 ## Два бота на одной базе
 
