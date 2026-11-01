@@ -301,7 +301,7 @@ export default function TrainerProfile({ id, onUnauthorized }: { id: number } & 
             <div key={index} className="row" style={{ gridTemplateColumns: '60px minmax(0,1fr) auto auto' }}>
               <span className="small muted num">{shortDate(payment.paid_at ?? payment.created_at)}</span>
               <span className="small">
-                {payment.plan === 'month' ? 'Pro, месяц' : payment.plan === 'year' ? 'Pro, год' : payment.plan}
+                {payment.plan === 'month' ? 'Pro, месяц' : payment.plan === 'year' ? 'Pro, год' : payment.plan === 'topup' ? 'Пополнение баланса' : payment.plan}
                 {payment.balance_used > 0 && <span className="muted"> · {rub(payment.balance_used)} с баланса</span>}
               </span>
               <b className="num">{rub(payment.price)}</b>

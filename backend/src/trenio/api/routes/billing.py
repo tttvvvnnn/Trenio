@@ -20,10 +20,15 @@ class PayIn(BaseModel):
     plan: Literal["month"]
 
 
+class TopupIn(BaseModel):
+    amount: int
+
+
 class PaymentOut(BaseModel):
     id: int
     # pending, paid или canceled
     status: str
+    # month или topup (пополнение баланса)
     plan: str
     price: int
     amount: int
@@ -52,6 +57,25 @@ async def pay(body: PayIn, trainer: CurrentTrainer, session: SessionDep) -> Paym
         payment = await billing.start_payment(
             session, trainer, body.plan, return_url, datetime.now(UTC)
         )
+    except billing.PaymentUnavailable:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Оплата сейчас недоступна. Попробуйте чуть позже.",
+        ) from None
+    return PaymentOut.of(payment)
+
+
+@router.post("/trainer/balance/topup", status_code=status.HTTP_201_CREATED)
+async def topup(body: TopupIn, trainer: CurrentTrainer, session: SessionDep) -> PaymentOut:
+    """Пополнение баланса на введённую сумму по СБП. Статус — тем же запросом, что у оплаты."""
+    return_url = f"https://t.me/{await get_bot_username()}"
+    try:
+        payment = await billing.start_topup(session, trainer, body.amount, return_url)
+    except billing.BadTopupAmount:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"Пополнить можно на сумму от {billing.MIN_PAYMENT} до {billing.MAX_TOPUP} ₽.",
+        ) from None
     except billing.PaymentUnavailable:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,

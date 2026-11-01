@@ -27,6 +27,7 @@ from trenio.db.models import (
 )
 from trenio.services.admin_clients import TrainerRef
 from trenio.services.admin_stats import ADMIN_TIMEZONE
+from trenio.services.billing import TOPUP
 
 # Полоска активности в профиле, как в карточке клиента
 ACTIVITY_DAYS = 30
@@ -79,10 +80,13 @@ class Profile:
 
 
 async def paid_totals(session: AsyncSession) -> dict[int, int]:
-    """Сколько каждый тренер заплатил за Pro за всё время, вместе с балансом."""
+    """Сколько каждый тренер заплатил за Pro за всё время, вместе с балансом.
+
+    Пополнения баланса не считаем: эти деньги учтутся, когда с баланса оплатят Pro.
+    """
     rows = await session.execute(
         select(SubscriptionPayment.trainer_id, func.sum(SubscriptionPayment.price))
-        .where(SubscriptionPayment.status == "paid")
+        .where(SubscriptionPayment.status == "paid", SubscriptionPayment.plan != TOPUP)
         .group_by(SubscriptionPayment.trainer_id)
     )
     return {int(trainer_id): int(total) for trainer_id, total in rows.all()}
@@ -132,7 +136,9 @@ async def _events(
     ]
     events += [Event(at, kind, text) for kind, text, at in firsts if at is not None]
     for payment in payments:
-        if payment.status == "paid" and payment.paid_at:
+        if payment.status == "paid" and payment.paid_at and payment.plan == TOPUP:
+            events.append(Event(payment.paid_at, "paid", f"Пополнил баланс: {payment.amount} ₽"))
+        elif payment.status == "paid" and payment.paid_at:
             plan = "месяц" if payment.plan == "month" else payment.plan
             events.append(
                 Event(payment.paid_at, "paid", f"Оплатил Pro ({plan}): {payment.price} ₽")
@@ -200,7 +206,9 @@ async def profile(session: AsyncSession, trainer: Trainer, now: datetime) -> Pro
     ).all()
     paid_total = await session.scalar(
         select(func.coalesce(func.sum(SubscriptionPayment.price), 0)).where(
-            SubscriptionPayment.trainer_id == trainer.id, SubscriptionPayment.status == "paid"
+            SubscriptionPayment.trainer_id == trainer.id,
+            SubscriptionPayment.status == "paid",
+            SubscriptionPayment.plan != TOPUP,
         )
     )
     promos = (

@@ -238,3 +238,82 @@ async def test_payments_disabled(client: AsyncClient, session: AsyncSession) -> 
     headers = await auth(client)
     sub = (await client.get("/api/trainer/subscription", headers=headers)).json()
     assert sub["payments_enabled"] is False
+
+
+async def topup(client: AsyncClient, headers: Headers, amount: int) -> dict[str, object]:
+    response = await client.post(
+        "/api/trainer/balance/topup", headers=headers, json={"amount": amount}
+    )
+    assert response.status_code == 201, response.text
+    data: dict[str, object] = response.json()
+    return data
+
+
+async def test_topup_credits_balance_and_rewards_inviter(
+    client: AsyncClient, session: AsyncSession, fake: FakePlatega
+) -> None:
+    headers, anna, boris = await invited_trainer(client, session)
+    trainer = await trainer_row(session, boris.id)
+    trainer.balance = 150
+    await session.commit()
+    trial_end = trainer.trial_until
+
+    sub = (await client.get("/api/trainer/subscription", headers=headers)).json()
+    assert (sub["topup_min"], sub["topup_max"]) == (50, 10_000)
+
+    payment = await topup(client, headers, 199)
+    assert (payment["plan"], payment["status"], payment["amount"]) == ("topup", "pending", 199)
+    assert fake.created == [(199, f"trenio_{payment['id']}")]
+    # Пока Platega не подтвердила, баланс прежний
+    assert (await trainer_row(session, boris.id)).balance == 150
+
+    fake.statuses["tx-1"] = "CONFIRMED"
+    path = f"/api/trainer/subscription/payments/{payment['id']}"
+    assert (await client.get(path, headers=headers)).json()["status"] == "paid"
+    boris = await trainer_row(session, boris.id)
+    assert boris.balance == 349
+    # Пополнение не продлевает Pro
+    assert boris.pro_until is None and boris.trial_until == trial_end
+    # Пригласившему 20% с денег, пришедших по СБП
+    assert (await trainer_row(session, anna.id)).balance == 39
+
+    # Теперь Pro оплачивается целиком с баланса, и второй раз пригласивший не получает
+    paid = await pay(client, headers)
+    assert (paid["status"], paid["amount"], paid["balance_used"]) == ("paid", 0, 349)
+    assert (await trainer_row(session, boris.id)).balance == 0
+    assert (await trainer_row(session, anna.id)).balance == 39
+
+    kinds = (
+        await session.scalars(
+            select(BalanceEntry.kind)
+            .where(BalanceEntry.trainer_id == boris.id)
+            .order_by(BalanceEntry.id)
+        )
+    ).all()
+    assert kinds == ["topup", "payment"]
+
+    rows = (
+        await session.scalars(
+            select(Notification).where(
+                Notification.kind.in_(["subscription_paid", "referral_bonus"])
+            )
+        )
+    ).all()
+    texts = [m.text for row in rows if (m := await render(session, row, datetime.now(UTC)))]
+    assert any(text.startswith("✅ Баланс пополнен на 199") for text in texts)
+    assert any("Борис пополнил(а) баланс, вам начислено 39" in text for text in texts)
+
+
+async def test_topup_errors(client: AsyncClient, session: AsyncSession, fake: FakePlatega) -> None:
+    headers, _, boris = await invited_trainer(client, session)
+    for amount in (49, 10_001):
+        response = await client.post(
+            "/api/trainer/balance/topup", headers=headers, json={"amount": amount}
+        )
+        assert response.status_code == 422
+    fake.fail = True
+    response = await client.post(
+        "/api/trainer/balance/topup", headers=headers, json={"amount": 100}
+    )
+    assert response.status_code == 503
+    assert (await trainer_row(session, boris.id)).balance == 0

@@ -161,6 +161,9 @@ class SubscriptionOut(BaseModel):
     balance: int
     # Можно ли сейчас оплатить по СБП
     payments_enabled: bool
+    # На сколько рублей можно пополнить баланс за раз
+    topup_min: int
+    topup_max: int
     # Скидка по промокоду: уже учтена в цене тарифов
     discount: DiscountOut | None = None
 
@@ -186,6 +189,8 @@ async def _subscription(session: SessionDep, trainer: Trainer) -> SubscriptionOu
         plans=plans,
         balance=trainer.balance,
         payments_enabled=get_settings().payments_enabled,
+        topup_min=billing.MIN_PAYMENT,
+        topup_max=billing.MAX_TOPUP,
         discount=(
             DiscountOut(code=pending.code.code, kind=pending.code.kind, value=pending.code.value)
             if pending is not None
