@@ -46,6 +46,8 @@ export type Me = {
   client_tour_done: boolean
   // Нужно согласие с политикой обработки данных: впервые или после её изменения
   consent_required: boolean
+  // Можно стать тренером самому, кнопкой «Я тренер»
+  trainer_signup_open: boolean
 }
 
 export type TrainerProfileInput = Partial<
@@ -302,6 +304,11 @@ export function realtimeUrl(): string {
 
 export function fetchMe(): Promise<Me> {
   return request<Me>('/api/me')
+}
+
+// «Я тренер»: доступ тренера без приглашения, дальше первая настройка профиля
+export function becomeTrainer(): Promise<Trainer> {
+  return send<Trainer>('POST', '/api/me/trainer')
 }
 
 export type MyName = { first_name: string; last_name: string | null; name_custom: boolean }

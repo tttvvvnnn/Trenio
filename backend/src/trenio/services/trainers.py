@@ -1,9 +1,10 @@
-"""Доступ тренеров: приглашения от админа и от других тренеров, профиль и его настройка.
+"""Доступ тренеров: открытая регистрация, приглашения, профиль и его настройка.
 
 Доступ живёт в базе: строка в trainers с is_active=True. Админы (ADMIN_TELEGRAM_IDS)
 становятся тренерами автоматически и выдают доступ другим одноразовыми ссылками. Каждый
 тренер может пригласить коллегу своей постоянной личной ссылкой: пригласивший запоминается
-в referred_by_id.
+в referred_by_id. Пока регистрация открыта (TRAINER_SIGNUP_OPEN), любой может стать
+тренером сам: кнопкой «Я тренер» в боте или в приложении.
 """
 
 import secrets
@@ -25,6 +26,8 @@ from trenio.services import notifications, subscription
 TRAINER_INVITE_PREFIX = "tr_"
 # Личная ссылка тренера для коллег: t.me/бот?start=r_<код>
 REFERRAL_PREFIX = "r_"
+# Ссылка на самостоятельную регистрацию тренера: t.me/бот?start=trainer
+SIGNUP_PAYLOAD = "trainer"
 
 
 class InviteError(StrEnum):
@@ -39,6 +42,10 @@ class InviteRejected(Exception):
     def __init__(self, reason: InviteError) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+class SignupClosed(Exception):
+    """Самостоятельная регистрация тренеров выключена: доступ только по приглашению."""
 
 
 class InvalidTimezone(ValueError):
@@ -164,6 +171,23 @@ async def _accept_invite(session: AsyncSession, user: User, code: str) -> Traine
     trainer = await grant_trainer(session, user)
     invite.used_by_id = user.id
     invite.used_at = datetime.now(UTC)
+    await session.commit()
+    return trainer
+
+
+async def sign_up(session: AsyncSession, user: User, signup_open: bool) -> Trainer:
+    """Человек сам становится тренером, без приглашения. Уже тренер остаётся как был.
+
+    Отключённому админом тренеру регистрация доступ не возвращает, как и чужая ссылка.
+    """
+    existing = await get_trainer(session, user.id)
+    if existing is not None:
+        if not existing.is_active:
+            raise InviteRejected(InviteError.DISABLED)
+        return existing
+    if not signup_open:
+        raise SignupClosed
+    trainer = await grant_trainer(session, user)
     await session.commit()
     return trainer
 

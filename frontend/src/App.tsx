@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
 
 import AdminPanel from './admin/AdminPanel'
-import { errorText, fetchMe, loginWithTelegram, type Me, type TourRole, type Trainer } from './api'
+import {
+  becomeTrainer,
+  errorText,
+  fetchMe,
+  loginWithTelegram,
+  type Me,
+  type TourRole,
+  type Trainer,
+} from './api'
 import ClientHome from './client/ClientHome'
 import { linkRole } from './deeplink'
 import { setupTelegram } from './telegram'
 import ProfileForm from './trainer/ProfileForm'
 import TrainerHome from './trainer/TrainerHome'
 import BrandMark from './ui/BrandMark'
-import { EmptyState } from './ui/kit'
+import { EmptyState, ErrorText } from './ui/kit'
 import { ConsentGate } from './ui/Privacy'
 import Refresher, { OfflineBanner } from './ui/Refresh'
 import RolePicker, { type Mode } from './ui/RolePicker'
@@ -57,7 +65,9 @@ export default function App() {
 
   function setTrainer(trainer: Trainer) {
     setState((current) =>
-      current.kind === 'ready' ? { kind: 'ready', me: { ...current.me, trainer } } : current,
+      current.kind === 'ready'
+        ? { kind: 'ready', me: { ...current.me, trainer, is_trainer: true } }
+        : current,
     )
   }
 
@@ -141,13 +151,7 @@ function render(
         )
       }
       if (me.trainer === null) {
-        return (
-          <EmptyState
-            icon="calendar"
-            title={`Привет, ${me.first_name}!`}
-            text="Чтобы записаться, попросите у тренера ссылку-приглашение и откройте её в Telegram."
-          />
-        )
+        return <Stranger me={me} onTrainer={setTrainer} />
       }
       if (view === 'onboarding') {
         return <ProfileForm trainer={me.trainer} onboarding onSaved={setTrainer} />
@@ -164,4 +168,44 @@ function render(
       )
     }
   }
+}
+
+// Ни тренера, ни записи: тренер может подключиться сам, клиенту нужна ссылка тренера
+function Stranger({ me, onTrainer }: { me: Me; onTrainer: (trainer: Trainer) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  if (!me.trainer_signup_open) {
+    return (
+      <EmptyState
+        icon="calendar"
+        title={`Привет, ${me.first_name}!`}
+        text="Чтобы записаться, попросите у тренера ссылку-приглашение и откройте её в Telegram."
+      />
+    )
+  }
+
+  function signUp() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    becomeTrainer()
+      .then(onTrainer)
+      .catch((reason: unknown) => {
+        setError(errorText(reason))
+        setBusy(false)
+      })
+  }
+
+  return (
+    <>
+      <EmptyState
+        icon="calendar"
+        title={`Привет, ${me.first_name}!`}
+        text="Вы тренер? Нажмите «Я тренер» и настройте профиль за минуту. Хотите записаться? Попросите у тренера ссылку-приглашение и откройте её в Telegram."
+        action={{ label: busy ? 'Подключаем…' : 'Я тренер', onClick: signUp }}
+      />
+      {error && <ErrorText>{error}</ErrorText>}
+    </>
+  )
 }

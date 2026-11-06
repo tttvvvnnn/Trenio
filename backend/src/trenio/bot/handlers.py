@@ -1,8 +1,15 @@
 from datetime import UTC, datetime
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 from aiogram.types import User as TgUser
 
 from trenio.auth.telegram import TelegramUser
@@ -22,16 +29,27 @@ from trenio.services.clients import (
 from trenio.services.subscription import ClientLimitReached
 from trenio.services.trainers import (
     REFERRAL_PREFIX,
+    SIGNUP_PAYLOAD,
     TRAINER_INVITE_PREFIX,
     InviteError,
     InviteRejected,
+    SignupClosed,
     accept_invite,
     accept_referral,
     ensure_admin_is_trainer,
+    sign_up,
 )
 from trenio.services.users import upsert_telegram_user
 
 router = Router(name="start")
+
+# Кнопка «Я тренер» под приветствием: регистрация тренера без приглашения
+SIGNUP_CALLBACK = "trainer_signup"
+
+SIGNUP_CLOSED_TEXT = (
+    "Сейчас тренеры подключаются по приглашению. Попросите ссылку у коллеги, "
+    "который уже работает в Trenio, или напишите администратору."
+)
 
 INVITE_ERROR_TEXT = {
     InviteError.NOT_FOUND: "Ссылка-приглашение не найдена. Попросите новую.",
@@ -64,12 +82,15 @@ CLAIM_ERROR_TEXT = {
 }
 
 
-def webapp_keyboard(url: str) -> InlineKeyboardMarkup | None:
+def webapp_keyboard(url: str, signup: bool = False) -> InlineKeyboardMarkup | None:
+    """Кнопка Mini App, а для тех, кто ещё не тренер, и кнопка «Я тренер»."""
+    rows: list[list[InlineKeyboardButton]] = []
     # Telegram принимает кнопку Mini App только с https-адресом
-    if not url.startswith("https://"):
-        return None
-    button = InlineKeyboardButton(text="Открыть Trenio", web_app=WebAppInfo(url=url))
-    return InlineKeyboardMarkup(inline_keyboard=[[button]])
+    if url.startswith("https://"):
+        rows.append([InlineKeyboardButton(text="Открыть Trenio", web_app=WebAppInfo(url=url))])
+    if signup:
+        rows.append([InlineKeyboardButton(text="Я тренер", callback_data=SIGNUP_CALLBACK)])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 def to_telegram_user(user: TgUser) -> TelegramUser:
@@ -97,11 +118,22 @@ def claimed_text(trainer: Trainer) -> str:
 
 
 def start_text(
-    first_name: str, trainer: Trainer | None, admin: bool, has_trainers: bool = False
+    first_name: str,
+    trainer: Trainer | None,
+    admin: bool,
+    has_trainers: bool = False,
+    signup_open: bool = False,
 ) -> str:
     if trainer is None:
         if has_trainers:
             return f"Привет, {first_name}! Откройте приложение, чтобы записаться на тренировку."
+        if signup_open:
+            return (
+                f"Привет, {first_name}! Trenio ведёт расписание, клиентов и абонементы "
+                "тренера, а клиенты сами записываются на свободное время.\n\n"
+                "Вы тренер? Нажмите «Я тренер», и через минуту можно работать. "
+                "Хотите записаться? Попросите у тренера ссылку-приглашение."
+            )
         return (
             f"Привет, {first_name}! Trenio помогает записываться к тренеру. "
             "Попросите у тренера ссылку-приглашение."
@@ -169,12 +201,47 @@ async def on_start(message: Message, command: CommandObject) -> None:
                 await accept_referral(session, user, payload.removeprefix(REFERRAL_PREFIX))
             except InviteRejected as rejected:
                 await message.answer(REFERRAL_ERROR_TEXT[rejected.reason])
+        elif payload == SIGNUP_PAYLOAD:
+            try:
+                await sign_up(session, user, settings.trainer_signup_open)
+            except InviteRejected as rejected:
+                await message.answer(INVITE_ERROR_TEXT[rejected.reason])
+            except SignupClosed:
+                await message.answer(SIGNUP_CLOSED_TEXT)
         trainer = await ensure_admin_is_trainer(session, user, settings.admin_telegram_ids)
         has_trainers = bool(await list_my_trainers(session, user))
 
     admin = tg_user.id in settings.admin_telegram_ids
+    signup = trainer is None and settings.trainer_signup_open
     await message.answer(
-        start_text(tg_user.first_name, trainer, admin, has_trainers),
+        start_text(tg_user.first_name, trainer, admin, has_trainers, signup),
+        reply_markup=webapp_keyboard(settings.webapp_url, signup=signup),
+    )
+
+
+@router.callback_query(F.data == SIGNUP_CALLBACK)
+async def on_signup(query: CallbackQuery) -> None:
+    """Кнопка «Я тренер»: доступ тренера сразу, дальше настройка профиля в приложении."""
+    settings = get_settings()
+    async with get_sessionmaker()() as session:
+        user = await upsert_telegram_user(session, to_telegram_user(query.from_user))
+        try:
+            trainer = await sign_up(session, user, settings.trainer_signup_open)
+        except InviteRejected as rejected:
+            await query.answer(INVITE_ERROR_TEXT[rejected.reason], show_alert=True)
+            return
+        except SignupClosed:
+            await query.answer(SIGNUP_CLOSED_TEXT, show_alert=True)
+            return
+    await query.answer("Готово, вы тренер в Trenio")
+    message = query.message
+    if message is None or isinstance(message, InaccessibleMessage):
+        return
+    # Кнопка больше не нужна: оставляем под приветствием только вход в приложение
+    await message.edit_reply_markup(reply_markup=webapp_keyboard(settings.webapp_url))
+    admin = query.from_user.id in settings.admin_telegram_ids
+    await message.answer(
+        start_text(query.from_user.first_name, trainer, admin),
         reply_markup=webapp_keyboard(settings.webapp_url),
     )
 
