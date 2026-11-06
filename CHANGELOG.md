@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/tttvvvnnn/Trenio/compare/v0.16.0...v0.17.0) (2026-11-06)
+
+
+### Новое
+
+* открытая регистрация тренеров кнопкой «Я тренер» ([#106](https://github.com/tttvvvnnn/Trenio/issues/106)) ([2c5267c](https://github.com/tttvvvnnn/Trenio/commit/2c5267cd317a78fffabf66a674c211b44cdc0602))
+
 ## [0.16.0](https://github.com/tttvvvnnn/Trenio/compare/v0.15.1...v0.16.0) (2026-11-01)
 
 
