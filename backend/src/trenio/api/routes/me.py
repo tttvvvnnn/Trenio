@@ -10,7 +10,13 @@ from trenio.db.models import User
 from trenio.services import avatars, notifications, privacy, users
 from trenio.services.clients import list_my_trainers
 from trenio.services.notifications import Role
-from trenio.services.trainers import get_active_trainer, is_admin
+from trenio.services.trainers import (
+    InviteRejected,
+    SignupClosed,
+    get_active_trainer,
+    is_admin,
+    sign_up,
+)
 
 router = APIRouter(tags=["me"])
 
@@ -37,6 +43,8 @@ class MeOut(BaseModel):
     client_tour_done: bool
     # Нужно согласие с политикой обработки данных (впервые или после её изменения)
     consent_required: bool
+    # Можно стать тренером самому, кнопкой «Я тренер»
+    trainer_signup_open: bool
 
 
 @router.get("/me")
@@ -57,7 +65,27 @@ async def me(user: CurrentUser, session: SessionDep, settings: SettingsDep) -> M
         trainer_tour_done=user.trainer_tour_at is not None,
         client_tour_done=user.client_tour_at is not None,
         consent_required=privacy.consent_required(user),
+        trainer_signup_open=settings.trainer_signup_open,
     )
+
+
+@router.post("/me/trainer")
+async def become_trainer(
+    user: CurrentUser, session: SessionDep, settings: SettingsDep
+) -> TrainerOut:
+    """Кнопка «Я тренер»: доступ тренера без приглашения, пока регистрация открыта."""
+    try:
+        trainer = await sign_up(session, user, settings.trainer_signup_open)
+    except InviteRejected:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Доступ тренера отключён. Напишите администратору Trenio."
+        ) from None
+    except SignupClosed:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Сейчас тренеры подключаются по приглашению. Попросите ссылку у коллеги.",
+        ) from None
+    return TrainerOut.of(trainer)
 
 
 # --- Вводный тур ---
