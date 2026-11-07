@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   errorText,
   addManualSession,
   addPayment,
+  attachBookings,
   deleteManualSession,
   deletePackage,
   deletePayment,
+  fetchAttachable,
   fetchTrainerBooking,
   updateManualSession,
   updatePackage,
@@ -15,10 +17,28 @@ import {
   type PackageSession,
   type Payment,
 } from '../api'
-import { localDate, longDate, rubles, shortDate } from '../format'
+import {
+  ATTENDANCE_SHORT,
+  dateTime,
+  localDate,
+  longDate,
+  plural,
+  rubles,
+  shortDate,
+} from '../format'
 import { confirmAction, haptic } from '../telegram'
 import { withUndo } from '../undo'
-import { AddRow, Chips, ErrorText, InlineField, Row, Section } from '../ui/kit'
+import Icon from '../ui/icons'
+import {
+  AddRow,
+  Chips,
+  EmptyState,
+  ErrorText,
+  InlineField,
+  Row,
+  Section,
+  SkeletonList,
+} from '../ui/kit'
 import { MainButton } from '../ui/native'
 import PackageSummary from '../ui/PackageSummary'
 import Screen from '../ui/Screen'
@@ -35,7 +55,7 @@ type Props = {
 
 /** Блок глазами тренера: деньги, занятия и действия с ними. */
 export default function PackageDetails({ pkg, clientName, timezone, onBack, onChanged }: Props) {
-  const [form, setForm] = useState<'payment' | 'session' | PackageSession | null>(null)
+  const [form, setForm] = useState<'payment' | 'session' | 'attach' | PackageSession | null>(null)
   const [booking, setBooking] = useState<Booking | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,6 +126,11 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
         onPlanned={(planned) => void openBooking(planned.booking_id)}
         onFree={pkg.left > 0 && !closed ? () => setForm('session') : undefined}
       />
+      {pkg.left > 0 && !closed && (
+        <Section footer="Тренировки, которые прошли до покупки блока или остались разовыми.">
+          <AddRow title="Добавить прошедшие тренировки" onClick={() => setForm('attach')} />
+        </Section>
+      )}
       <Section title="Платежи" footer="Это только учёт: деньги через бот не проходят.">
         {pkg.payments.map((payment) => (
           <Row
@@ -141,6 +166,17 @@ export default function PackageDetails({ pkg, clientName, timezone, onBack, onCh
         <PaymentForm
           pkg={pkg}
           today={localDate(new Date(), timezone)}
+          onBack={() => setForm(null)}
+          onSaved={(updated) => {
+            setForm(null)
+            onChanged(updated)
+          }}
+        />
+      )}
+      {form === 'attach' && (
+        <AttachForm
+          pkg={pkg}
+          timezone={timezone}
           onBack={() => setForm(null)}
           onSaved={(updated) => {
             setForm(null)
@@ -343,6 +379,97 @@ function SessionForm({
         text={session === null ? 'Списать' : 'Сохранить'}
         onClick={submit}
         disabled={day === ''}
+        loading={saving}
+      />
+    </Screen>
+  )
+}
+
+/** Прошедшие записи клиента вне блоков: тренер выбирает, какие списать из этого блока. */
+function AttachForm({
+  pkg,
+  timezone,
+  onBack,
+  onSaved,
+}: Omit<FormProps, 'today'> & { timezone: string }) {
+  const [bookings, setBookings] = useState<Booking[] | null>(null)
+  const [picked, setPicked] = useState<number[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchAttachable(pkg.id)
+      .then(setBookings)
+      .catch((err: unknown) => {
+        setBookings([])
+        setError(errorText(err))
+      })
+  }, [pkg.id])
+
+  function toggle(id: number) {
+    haptic.select()
+    setPicked((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : current.length < pkg.left
+          ? [...current, id]
+          : current,
+    )
+  }
+
+  async function submit() {
+    if (picked.length === 0 || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await attachBookings(pkg.id, picked)
+      haptic.success()
+      onSaved(updated)
+    } catch (err) {
+      haptic.error()
+      setError(errorText(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Screen title="Прошедшие тренировки" subtitle={pkg.name} onBack={onBack}>
+      {bookings === null && <SkeletonList />}
+      {bookings !== null && bookings.length === 0 && !error && (
+        <EmptyState
+          icon="calendar"
+          title="Добавлять нечего"
+          text="Все прошедшие тренировки клиента уже в блоках или отмечены пропуском без списания."
+        />
+      )}
+      {bookings !== null && bookings.length > 0 && (
+        <Section
+          footer={`В блоке свободно ${plural(pkg.left, 'занятие', 'занятия', 'занятий')}. Неотмеченные тренировки получат отметку «прошла».`}
+        >
+          {bookings.map((item) => (
+            <Row
+              key={item.id}
+              title={dateTime(item.starts_at, timezone)}
+              subtitle={`${item.service.name} · ${
+                item.attendance ? ATTENDANCE_SHORT[item.attendance] : 'не отмечена'
+              }`}
+              onClick={() => toggle(item.id)}
+              badge={
+                picked.includes(item.id) ? <Icon name="check" className="row-check" /> : undefined
+              }
+            />
+          ))}
+        </Section>
+      )}
+      {error && <ErrorText>{error}</ErrorText>}
+      <MainButton
+        text={
+          picked.length > 0
+            ? `Списать ${plural(picked.length, 'занятие', 'занятия', 'занятий')}`
+            : 'Выберите тренировки'
+        }
+        onClick={() => void submit()}
+        disabled={picked.length === 0}
         loading={saving}
       />
     </Screen>

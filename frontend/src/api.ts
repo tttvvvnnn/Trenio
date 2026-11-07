@@ -952,6 +952,18 @@ export function deleteManualSession(packageId: number, sessionId: number): Promi
   return send<Package>('DELETE', `/api/trainer/packages/${packageId}/sessions/${sessionId}`)
 }
 
+// Прошедшие записи клиента вне блоков, которые можно отнести к блоку, свежие первыми
+export function fetchAttachable(packageId: number): Promise<Booking[]> {
+  return request<Booking[]>(`/api/trainer/packages/${packageId}/attachable`)
+}
+
+// Списать из блока прошедшие записи. Неотмеченные получат отметку «прошла»
+export function attachBookings(packageId: number, bookingIds: number[]): Promise<Package> {
+  return send<Package>('POST', `/api/trainer/packages/${packageId}/bookings`, {
+    booking_ids: bookingIds,
+  })
+}
+
 export function fetchMyPackages(): Promise<Package[]> {
   return request<Package[]>('/api/client/packages')
 }

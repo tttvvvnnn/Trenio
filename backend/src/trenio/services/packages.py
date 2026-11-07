@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trenio.db.models import (
@@ -77,6 +77,10 @@ class PackageError(StrEnum):
     # Занятие, списанное за запись, снимается отметкой в самой записи
     LINKED_TO_BOOKING = "linked_to_booking"
     BAD_DATES = "bad_dates"
+    # Запись уже списана из блока
+    ALREADY_IN_PACKAGE = "already_in_package"
+    # Запись не подходит к блоку по услуге или сроку
+    DOES_NOT_FIT = "does_not_fit"
 
 
 class PackageRejected(Exception):
@@ -305,8 +309,54 @@ async def create_package(
         valid_until=data.valid_until,
     )
     session.add(package)
+    await session.flush()
+    await _absorb_marked(session, package)
     await session.commit()
+    kick()
     return await get_package(session, trainer, package.id)
+
+
+async def _unbilled(session: AsyncSession, package: Package) -> Sequence[Booking]:
+    """Отмеченные со списанием записи клиента у тренера, которые не попали ни в один блок."""
+    stmt = (
+        select(Booking)
+        .outerjoin(PackageSession, PackageSession.booking_id == Booking.id)
+        .where(
+            Booking.trainer_id == package.trainer_id,
+            Booking.client_id == package.client_id,
+            Booking.attendance.in_(CHARGED),
+            PackageSession.id.is_(None),
+        )
+        .order_by(Booking.starts_at, Booking.id)
+    )
+    return (await session.scalars(stmt)).all()
+
+
+async def _absorb_marked(session: AsyncSession, package: Package) -> None:
+    """Новый блок забирает занятия, отмеченные раньше, чем тренер его завёл.
+
+    Типичный случай: первую тренировку отметили «прошла», и только потом продали блок
+    в тот же день. Тогда занятие уже записано разовым, и без этого шага в блок не попадёт.
+    Берём занятия с даты покупки, кроме тех, что тренер сам сделал «не из блока».
+    """
+    taken = 0
+    for booking in await _unbilled(session, package):
+        day = booking_day(booking)
+        if booking.no_package or day < package.purchased_on:
+            continue
+        if taken >= package.sessions_count:
+            break
+        if package.service_id is not None and package.service_id != booking.service_id:
+            continue
+        if package.valid_until is not None and package.valid_until < day:
+            continue
+        assert booking.attendance is not None
+        session.add(
+            PackageSession(
+                package_id=package.id, booking_id=booking.id, day=day, status=booking.attendance
+            )
+        )
+        taken += 1
 
 
 @dataclass(frozen=True)
@@ -438,6 +488,128 @@ async def delete_manual_session(
         raise PackageRejected(PackageError.LINKED_TO_BOOKING)
     await session.delete(found)
     await session.commit()
+    return await get_package(session, trainer, package_id)
+
+
+# --- Прошедшие записи в блок вручную ---
+
+# Сколько прошедших записей предлагать для привязки к блоку
+ATTACHABLE_LIMIT = 100
+
+
+def _fits(package: Package, booking: Booking) -> bool:
+    """Подходит ли запись к блоку по услуге и сроку. Дату покупки не проверяем:
+    тренер вправе отнести к блоку и занятия, которые прошли до того, как он его завёл."""
+    return (package.service_id is None or package.service_id == booking.service_id) and (
+        package.valid_until is None or package.valid_until >= booking_day(booking)
+    )
+
+
+async def list_attachable(
+    session: AsyncSession, trainer: Trainer, package_id: int, now: datetime
+) -> Sequence[Booking]:
+    """Прошедшие записи клиента, которые можно вручную отнести к блоку, свежие первыми.
+
+    Это отмеченные со списанием записи вне блоков и неотмеченные прошедшие записи.
+    """
+    package = await get_package(session, trainer, package_id)
+    stmt = (
+        select(Booking)
+        .outerjoin(PackageSession, PackageSession.booking_id == Booking.id)
+        .where(
+            Booking.trainer_id == package.trainer_id,
+            Booking.client_id == package.client_id,
+            Booking.starts_at <= now,
+            PackageSession.id.is_(None),
+            or_(
+                Booking.attendance.in_(CHARGED),
+                and_(
+                    Booking.attendance.is_(None),
+                    Booking.status.in_(ACTIVE_BOOKING_STATUSES),
+                ),
+            ),
+        )
+        .order_by(Booking.starts_at.desc(), Booking.id.desc())
+        .limit(ATTACHABLE_LIMIT)
+    )
+    found = (await session.scalars(stmt)).all()
+    return [b for b in found if _fits(package, b)]
+
+
+async def attach_bookings(
+    session: AsyncSession,
+    trainer: Trainer,
+    package_id: int,
+    booking_ids: Sequence[int],
+    now: datetime,
+) -> Package:
+    """Тренер относит прошедшие записи клиента к блоку.
+
+    Неотмеченная запись при этом получает отметку «прошла». Метка «не из блока» снимается:
+    тренер сам решил списать занятие из этого блока.
+    """
+    package = await get_package(session, trainer, package_id)
+    # Та же очередь, что у отметок: блоки клиента у тренера под блокировкой
+    await session.execute(
+        select(Package.id)
+        .where(Package.trainer_id == package.trainer_id, Package.client_id == package.client_id)
+        .order_by(Package.id)
+        .with_for_update()
+    )
+    package = (await _load_packages(session, Package.id == package_id))[0]
+    ids = list(dict.fromkeys(booking_ids))
+    try:
+        if package.closed_at is not None:
+            raise PackageRejected(PackageError.PACKAGE_CLOSED)
+        if len(ids) > left(package):
+            raise PackageRejected(PackageError.NO_SESSIONS_LEFT)
+        found = (
+            await session.scalars(
+                select(Booking).where(
+                    Booking.id.in_(ids),
+                    Booking.trainer_id == package.trainer_id,
+                    Booking.client_id == package.client_id,
+                )
+            )
+        ).all()
+        if len(found) != len(ids):
+            raise PackageRejected(PackageError.NOT_FOUND)
+        linked = await session.scalar(
+            select(PackageSession.id).where(PackageSession.booking_id.in_(ids)).limit(1)
+        )
+        if linked is not None:
+            raise PackageRejected(PackageError.ALREADY_IN_PACKAGE)
+        for booking in found:
+            if booking.starts_at > now:
+                raise PackageRejected(PackageError.NOT_STARTED)
+            if booking.attendance is None and booking.status not in ACTIVE_BOOKING_STATUSES:
+                raise PackageRejected(PackageError.WRONG_STATUS)
+            if booking.attendance is not None and booking.attendance not in CHARGED:
+                raise PackageRejected(PackageError.WRONG_STATUS)
+            if not _fits(package, booking):
+                raise PackageRejected(PackageError.DOES_NOT_FIT)
+    except PackageRejected:
+        await session.rollback()
+        raise
+    for booking in found:
+        if booking.attendance is None:
+            booking.attendance = Attendance.ATTENDED.value
+            booking.attendance_marked_at = now
+            if booking.status == BookingStatus.PENDING:
+                booking.status = BookingStatus.CONFIRMED
+        booking.no_package = False
+        session.add(
+            PackageSession(
+                package_id=package.id,
+                booking_id=booking.id,
+                day=booking_day(booking),
+                status=booking.attendance,
+            )
+        )
+    if found:
+        await notifications.package_left(session, package, left(package) - len(found), now)
+    await session.commit()
+    kick()
     return await get_package(session, trainer, package_id)
 
 

@@ -513,3 +513,101 @@ async def test_client_without_packages_is_not_flagged(
     assert card["client"]["upcoming_one_off"] == 0
     booking = card["history"][0]
     assert (booking["id"], booking["one_off"], booking["out_of_block"]) == (future, True, False)
+
+
+async def test_new_package_takes_session_marked_same_day(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Первую тренировку отметили до того, как завели блок в тот же день: она в блоке."""
+    headers, trainer_id, service_id = await setup_trainer(client)
+    client_headers = await new_client(client, session, trainer_id, 3003)
+    client_id = await client_id_of(client, client_headers)
+    earlier = await past_booking(session, trainer_id, client_id, service_id, 3)
+    today = await past_booking(session, trainer_id, client_id, service_id, 0)
+    assert (await mark(client, headers, earlier, "attended"))[0] == 200
+    code, marked = await mark(client, headers, today, "attended")
+    assert code == 200
+    assert marked["one_off"] is True
+
+    package = await sell(client, headers, client_id)
+    assert (package["used"], package["left"]) == (1, 9)
+    assert [s["booking_id"] for s in package["sessions"]] == [today]
+    history = (await client.get(f"/api/trainer/clients/{client_id}", headers=headers)).json()[
+        "history"
+    ]
+    by_id = {b["id"]: b for b in history}
+    assert by_id[today]["charge"]["package_id"] == package["id"]
+    assert by_id[today]["one_off"] is False
+    # Занятие до покупки само в блок не попадает: его тренер добавит вручную
+    assert by_id[earlier]["one_off"] is True
+
+
+async def test_attach_past_bookings(client: AsyncClient, session: AsyncSession) -> None:
+    headers, trainer_id, service_id = await setup_trainer(client)
+    other_service = await create_service(client, headers, name="Сплит", capacity=2)
+    client_headers = await new_client(client, session, trainer_id, 3003)
+    client_id = await client_id_of(client, client_headers)
+    charged = await past_booking(session, trainer_id, client_id, service_id, 10)
+    unmarked = await past_booking(session, trainer_id, client_id, service_id, 8, "pending")
+    free = await past_booking(session, trainer_id, client_id, service_id, 6)
+    await past_booking(session, trainer_id, client_id, service_id, 5, "cancelled")
+    split = await past_booking(session, trainer_id, client_id, other_service, 4)
+    assert (await mark(client, headers, charged, "attended"))[0] == 200
+    assert (await mark(client, headers, free, "missed_free"))[0] == 200
+    assert (await mark(client, headers, split, "attended"))[0] == 200
+
+    package = await sell(client, headers, client_id, service_id=service_id, sessions_count=2)
+    assert package["used"] == 0
+    url = f"/api/trainer/packages/{package['id']}"
+    response = await client.get(f"{url}/attachable", headers=headers)
+    assert response.status_code == 200, response.text
+    # Свежие первыми; пропуск без списания, отменённая и чужая услуга не предлагаются
+    assert [b["id"] for b in response.json()] == [unmarked, charged]
+
+    response = await client.post(f"{url}/bookings", headers=headers, json={"booking_ids": [split]})
+    assert response.status_code == 409
+    response = await client.post(
+        f"{url}/bookings", headers=headers, json={"booking_ids": [unmarked, charged]}
+    )
+    assert response.status_code == 200, response.text
+    attached = response.json()
+    assert (attached["used"], attached["left"]) == (2, 0)
+    assert [s["booking_id"] for s in attached["sessions"]] == [charged, unmarked]
+
+    booking = await session.get(Booking, unmarked)
+    assert booking is not None
+    await session.refresh(booking)
+    assert (booking.attendance, booking.status) == ("attended", "confirmed")
+    assert (await client.get(f"{url}/attachable", headers=headers)).json() == []
+
+    # Повторно и сверх остатка не списывается
+    response = await client.post(
+        f"{url}/bookings", headers=headers, json={"booking_ids": [charged]}
+    )
+    assert response.status_code == 409
+
+
+async def test_attach_rules(client: AsyncClient, session: AsyncSession) -> None:
+    headers, trainer_id, service_id = await setup_trainer(client)
+    client_headers = await new_client(client, session, trainer_id, 3003)
+    client_id = await client_id_of(client, client_headers)
+    other_headers = await new_client(client, session, trainer_id, 3004)
+    other_id = await client_id_of(client, other_headers)
+    first = await past_booking(session, trainer_id, client_id, service_id, 3)
+    second = await past_booking(session, trainer_id, client_id, service_id, 2)
+    stranger = await past_booking(session, trainer_id, other_id, service_id, 2)
+    package = await sell(client, headers, client_id, sessions_count=1)
+    url = f"/api/trainer/packages/{package['id']}/bookings"
+
+    # Чужой клиент
+    response = await client.post(url, headers=headers, json={"booking_ids": [stranger]})
+    assert response.status_code == 404
+    # Мест меньше, чем записей
+    response = await client.post(url, headers=headers, json={"booking_ids": [first, second]})
+    assert response.status_code == 409
+    response = await client.post(url, headers=headers, json={"booking_ids": [first]})
+    assert response.status_code == 200, response.text
+    # Чужой тренер блок не видит
+    second_headers = await second_trainer(client, session)
+    response = await client.post(url, headers=second_headers, json={"booking_ids": [second]})
+    assert response.status_code == 404

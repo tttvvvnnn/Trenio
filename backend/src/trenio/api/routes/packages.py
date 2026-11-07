@@ -31,6 +31,8 @@ _ERRORS = {
     PackageError.HAS_SESSIONS: (409, "Из блока уже списаны занятия. Его можно только закрыть."),
     PackageError.LINKED_TO_BOOKING: (409, "Это занятие снимается отметкой в самой записи."),
     PackageError.BAD_DATES: (422, "Срок действия не может закончиться раньше покупки."),
+    PackageError.ALREADY_IN_PACKAGE: (409, "Эта запись уже списана из блока."),
+    PackageError.DOES_NOT_FIT: (409, "Запись не подходит к блоку по услуге или сроку."),
 }
 
 
@@ -376,6 +378,37 @@ async def delete_manual_session(
 ) -> PackageOut:
     try:
         package = await packages.delete_manual_session(session, trainer, package_id, session_id)
+    except PackageRejected as rejected:
+        raise package_error(rejected) from None
+    return PackageOut.of(package, _today(trainer))
+
+
+@router.get("/trainer/packages/{package_id}/attachable")
+async def list_attachable(
+    package_id: int, trainer: CurrentTrainer, session: SessionDep
+) -> list[BookingOut]:
+    """Прошедшие записи клиента вне блоков, которые можно отнести к этому блоку."""
+    now = datetime.now(UTC)
+    try:
+        found = await packages.list_attachable(session, trainer, package_id, now)
+    except PackageRejected as rejected:
+        raise package_error(rejected) from None
+    return await trainer_views(session, found, now)
+
+
+class AttachIn(BaseModel):
+    booking_ids: list[int] = Field(min_length=1, max_length=200)
+
+
+@router.post("/trainer/packages/{package_id}/bookings")
+async def attach_bookings(
+    package_id: int, body: AttachIn, trainer: CurrentTrainer, session: SessionDep
+) -> PackageOut:
+    """Списать из блока прошедшие записи. Неотмеченные получают отметку «прошла»."""
+    try:
+        package = await packages.attach_bookings(
+            session, trainer, package_id, body.booking_ids, datetime.now(UTC)
+        )
     except PackageRejected as rejected:
         raise package_error(rejected) from None
     return PackageOut.of(package, _today(trainer))
