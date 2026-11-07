@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/tttvvvnnn/Trenio/compare/v0.17.0...v0.18.0) (2026-11-07)
+
+
+### Новое
+
+* ручная привязка прошедших тренировок к блоку ([#108](https://github.com/tttvvvnnn/Trenio/issues/108)) ([1668f2b](https://github.com/tttvvvnnn/Trenio/commit/1668f2bddb262781e82bf7b88a8b362317251032))
+
 ## [0.17.0](https://github.com/tttvvvnnn/Trenio/compare/v0.16.0...v0.17.0) (2026-11-06)
 
 
